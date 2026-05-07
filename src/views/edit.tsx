@@ -100,6 +100,9 @@ const LinePreview: React.FC<{
   onAgentChange: (lineId: string, agentId: string) => void;
   onBulkAgentChange: (agentId: string) => void;
   onBackgroundChange: (lineId: string, text: string) => void;
+  onGutterMouseDown: (lineNumber: number, e: React.MouseEvent) => void;
+  onGutterMouseEnter: (lineNumber: number, e: React.MouseEvent) => void;
+  didDragRef: React.MutableRefObject<boolean>;
 }> = ({
   line,
   agents,
@@ -109,6 +112,9 @@ const LinePreview: React.FC<{
   onAgentChange,
   onBulkAgentChange,
   onBackgroundChange,
+  onGutterMouseDown,
+  onGutterMouseEnter,
+  didDragRef,
 }) => {
   const [bgInput, setBgInput] = useState(line.backgroundText ?? "");
   const agentColor = getAgentColor(line.agentId);
@@ -122,15 +128,35 @@ const LinePreview: React.FC<{
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       if ((e.target as HTMLElement).closest("select, button")) return;
-      onSelect(line.lineNumber, e.altKey);
+      if (e.shiftKey) window.getSelection()?.removeAllRanges();
+      onSelect(line.lineNumber, e.shiftKey);
     },
     [line.lineNumber, onSelect],
+  );
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!e.shiftKey) return;
+    if ((e.target as HTMLElement).closest("select, button")) return;
+    e.preventDefault();
+  }, []);
+
+  const handleGutterClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (didDragRef.current) {
+        didDragRef.current = false;
+        e.stopPropagation();
+      }
+    },
+    [didDragRef],
   );
 
   if (line.isEmpty) {
     return (
       <div className="flex items-baseline gap-2 px-3 py-0.5 opacity-50">
-        <span className="w-8 font-mono text-xs text-right shrink-0 text-composer-text-muted tabular-nums">
+        <span
+          className="w-8 font-mono text-xs text-right shrink-0 text-composer-text-muted tabular-nums select-none"
+          onMouseEnter={(e) => onGutterMouseEnter(line.lineNumber, e)}
+        >
           {line.lineNumber}
         </span>
         <span className="flex-1 text-sm italic text-composer-text-muted">(empty line)</span>
@@ -143,9 +169,15 @@ const LinePreview: React.FC<{
       className={`flex items-center gap-2 px-3 py-0.5 group cursor-pointer ${
         isSelected ? "bg-composer-accent/15" : line.hasBrackets ? "bg-composer-error/5" : "hover:bg-composer-button/30"
       }`}
+      onMouseDown={handleMouseDown}
       onClick={handleClick}
     >
-      <span className="w-8 font-mono text-xs text-right shrink-0 text-composer-text-muted tabular-nums">
+      <span
+        className="w-8 font-mono text-xs text-right shrink-0 text-composer-text-muted tabular-nums select-none cursor-pointer"
+        onMouseDown={(e) => onGutterMouseDown(line.lineNumber, e)}
+        onMouseEnter={(e) => onGutterMouseEnter(line.lineNumber, e)}
+        onClick={handleGutterClick}
+      >
         {line.lineNumber}
       </span>
 
@@ -242,6 +274,8 @@ const EditPanel: React.FC = () => {
   } | null>(null);
   const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set());
   const [lastSelectedLine, setLastSelectedLine] = useState<number | null>(null);
+  const dragAnchorRef = useRef<number | null>(null);
+  const didDragRef = useRef(false);
 
   // Sync rawText when lines change externally (persistence restore, project import, etc.)
   useEffect(() => {
@@ -294,6 +328,33 @@ const EditPanel: React.FC = () => {
     },
     [lastSelectedLine],
   );
+
+  const handleGutterMouseDown = useCallback((lineNumber: number, e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    window.getSelection()?.removeAllRanges();
+    dragAnchorRef.current = lineNumber;
+    didDragRef.current = false;
+  }, []);
+
+  const handleGutterMouseEnter = useCallback((lineNumber: number, e: React.MouseEvent) => {
+    const anchor = dragAnchorRef.current;
+    if (anchor === null) return;
+    if (e.buttons === 0) {
+      dragAnchorRef.current = null;
+      didDragRef.current = false;
+      return;
+    }
+    didDragRef.current = true;
+    const start = Math.min(anchor, lineNumber);
+    const end = Math.max(anchor, lineNumber);
+    const next = new Set<number>();
+    for (let i = start; i <= end; i++) {
+      next.add(i);
+    }
+    setSelectedLines(next);
+    setLastSelectedLine(lineNumber);
+  }, []);
 
   const handleBulkAgentChange = useCallback(
     (agentId: string) => {
@@ -492,6 +553,9 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
                     onAgentChange={handleAgentChange}
                     onBulkAgentChange={handleBulkAgentChange}
                     onBackgroundChange={handleBackgroundChange}
+                    onGutterMouseDown={handleGutterMouseDown}
+                    onGutterMouseEnter={handleGutterMouseEnter}
+                    didDragRef={didDragRef}
                   />
                 ))}
               </div>
