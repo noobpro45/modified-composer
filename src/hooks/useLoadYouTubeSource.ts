@@ -6,9 +6,14 @@ import { useProjectStore } from "@/stores/project";
 
 function useLoadYouTubeSource(): (videoId: string) => void {
   return useCallback((videoId: string) => {
-    useAudioStore.getState().setYouTubeSource(videoId);
+    const audio = useAudioStore.getState();
+    const prevVideoId = audio.source?.type === "youtube" ? audio.source.videoId : null;
+    audio.setYouTubeSource(videoId);
+
     const project = useProjectStore.getState();
-    if (!project.metadata.title) project.setMetadata({ title: videoId });
+    if (!project.metadata.title || prevVideoId !== videoId) {
+      project.setMetadata({ title: videoId });
+    }
   }, []);
 }
 
