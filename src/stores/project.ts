@@ -41,6 +41,22 @@ interface LinkGroup {
   templateVersion: number;
 }
 
+interface WordTemplate {
+  text: string;
+  relativeBegin: number;
+  relativeEnd: number;
+}
+
+interface LineTemplate {
+  text: string;
+  agentId: string;
+  relativeBegin?: number;
+  relativeEnd?: number;
+  words?: WordTemplate[];
+  backgroundText?: string;
+  backgroundWords?: WordTemplate[];
+}
+
 type GranularityMode = "line" | "word";
 type EditorMode = "simple" | "advanced";
 type SimpleTab = "import" | "edit" | "sync" | "timeline" | "preview" | "export";
@@ -98,6 +114,9 @@ interface ProjectActions {
   addGroup: (group: LinkGroup) => void;
   updateGroup: (id: string, updates: Partial<LinkGroup>) => void;
   removeGroup: (id: string) => void;
+  addInstance: (groupId: string, structure: LineTemplate[], instanceStart: number) => void;
+  removeInstance: (groupId: string, instanceIdx: number) => void;
+  detachLine: (lineId: string) => void;
 }
 
 // -- Constants ----------------------------------------------------------------
@@ -452,6 +471,86 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
         ),
       }),
     ),
+
+  addInstance: (groupId, structure, instanceStart) =>
+    set((state) => {
+      const usedIndices = new Set(
+        state.lines
+          .filter((l) => l.groupId === groupId && l.instanceIdx !== undefined)
+          .map((l) => l.instanceIdx as number),
+      );
+      let instanceIdx = 0;
+      while (usedIndices.has(instanceIdx)) instanceIdx++;
+
+      const newLines: LyricLine[] = structure.map((tplLine, templateLineIdx) => ({
+        id: crypto.randomUUID(),
+        text: tplLine.text,
+        agentId: tplLine.agentId,
+        groupId,
+        instanceIdx,
+        templateLineIdx,
+        ...(tplLine.relativeBegin !== undefined ? { begin: tplLine.relativeBegin + instanceStart } : {}),
+        ...(tplLine.relativeEnd !== undefined ? { end: tplLine.relativeEnd + instanceStart } : {}),
+        ...(tplLine.words
+          ? {
+              words: tplLine.words.map((w) => ({
+                text: w.text,
+                begin: w.relativeBegin + instanceStart,
+                end: w.relativeEnd + instanceStart,
+              })),
+            }
+          : {}),
+        ...(tplLine.backgroundText !== undefined ? { backgroundText: tplLine.backgroundText } : {}),
+        ...(tplLine.backgroundWords
+          ? {
+              backgroundWords: tplLine.backgroundWords.map((w) => ({
+                text: w.text,
+                begin: w.relativeBegin + instanceStart,
+                end: w.relativeEnd + instanceStart,
+              })),
+            }
+          : {}),
+      }));
+
+      return commitHistory(state, { lines: [...state.lines, ...newLines] });
+    }),
+
+  removeInstance: (groupId, instanceIdx) =>
+    set((state) => {
+      const detachedLines = state.lines.map((line) =>
+        line.groupId === groupId && line.instanceIdx === instanceIdx
+          ? {
+              ...line,
+              groupId: undefined,
+              instanceIdx: undefined,
+              templateLineIdx: undefined,
+              detached: undefined,
+            }
+          : line,
+      );
+
+      const remainingInGroup = detachedLines.some((l) => l.groupId === groupId);
+      const nextGroups = remainingInGroup ? state.groups : state.groups.filter((g) => g.id !== groupId);
+
+      return commitHistory(state, { lines: detachedLines, groups: nextGroups });
+    }),
+
+  detachLine: (lineId) =>
+    set((state) =>
+      commitHistory(state, {
+        lines: state.lines.map((line) =>
+          line.id === lineId
+            ? {
+                ...line,
+                groupId: undefined,
+                instanceIdx: undefined,
+                templateLineIdx: undefined,
+                detached: undefined,
+              }
+            : line,
+        ),
+      }),
+    ),
 }));
 
 function commitHistory(
@@ -494,10 +593,12 @@ export type {
   AgentType,
   EditorMode,
   GranularityMode,
+  LineTemplate,
   LinkGroup,
   LyricLine,
   ProjectMetadata,
   ProjectState,
   SimpleTab,
+  WordTemplate,
   WordTiming,
 };
