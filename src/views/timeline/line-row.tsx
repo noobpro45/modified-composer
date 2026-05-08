@@ -70,6 +70,8 @@ const SyncLineButton: React.FC<{ lineId: string; wordCount: number }> = ({ lineI
 
 const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWord, onUpdateBgWord }) => {
   const color = getAgentColor(line.agentId);
+  const groups = useProjectStore((s) => s.groups);
+  const groupColor = line.groupId ? groups.find((g) => g.id === line.groupId)?.color : undefined;
   const displayText = stripSplitCharacter(line.text);
   const hasBgWords = line.backgroundWords && line.backgroundWords.length > 0;
   const hasMainWords = line.words && line.words.length > 0;
@@ -137,10 +139,28 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
         <GutterAgentPicker lineId={line.id} lineIndex={lineIndex} agentId={line.agentId} />
       </div>
 
-      <div className="flex-1 overflow-hidden border-b border-composer-border">
+      <div className="flex-1 overflow-hidden border-b border-composer-border relative">
+        {groupColor && (
+          <>
+            <div
+              aria-hidden
+              className="absolute left-0 top-0 bottom-0 w-[3px] z-[5] pointer-events-none"
+              style={{ background: groupColor }}
+            />
+            <div
+              aria-hidden
+              className="absolute inset-0 pointer-events-none z-0"
+              style={{ background: groupColor, opacity: 0.06 }}
+            />
+          </>
+        )}
         <div
           ref={setMainDropRef}
-          className={cn("transition-colors", !hasMainWords && "opacity-50", isOverMain && "bg-composer-accent/10")}
+          className={cn(
+            "transition-colors relative",
+            !hasMainWords && "opacity-50",
+            isOverMain && "bg-composer-accent/10",
+          )}
         >
           {hasMainWords ? (
             <WordTrack
