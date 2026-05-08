@@ -117,6 +117,8 @@ interface ProjectActions {
   addInstance: (groupId: string, structure: LineTemplate[], instanceStart: number) => void;
   removeInstance: (groupId: string, instanceIdx: number) => void;
   detachLine: (lineId: string) => void;
+  propagateLinkedEdit: (groupId: string, templateLineIdx: number, lineUpdates: Partial<LyricLine>) => void;
+  shiftInstance: (groupId: string, instanceIdx: number, deltaSeconds: number) => void;
 }
 
 // -- Constants ----------------------------------------------------------------
@@ -549,6 +551,42 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
               }
             : line,
         ),
+      }),
+    ),
+
+  propagateLinkedEdit: (groupId, templateLineIdx, lineUpdates) =>
+    set((state) =>
+      commitHistory(state, {
+        lines: state.lines.map((line) => {
+          if (line.groupId !== groupId) return line;
+          if (line.templateLineIdx !== templateLineIdx) return line;
+          if (line.detached) return line;
+          return { ...line, ...lineUpdates };
+        }),
+      }),
+    ),
+
+  shiftInstance: (groupId, instanceIdx, deltaSeconds) =>
+    set((state) =>
+      commitHistory(state, {
+        lines: state.lines.map((line) => {
+          if (line.groupId !== groupId || line.instanceIdx !== instanceIdx) return line;
+          return {
+            ...line,
+            begin: line.begin !== undefined ? line.begin + deltaSeconds : undefined,
+            end: line.end !== undefined ? line.end + deltaSeconds : undefined,
+            words: line.words?.map((w) => ({
+              ...w,
+              begin: w.begin + deltaSeconds,
+              end: w.end + deltaSeconds,
+            })),
+            backgroundWords: line.backgroundWords?.map((w) => ({
+              ...w,
+              begin: w.begin + deltaSeconds,
+              end: w.end + deltaSeconds,
+            })),
+          };
+        }),
       }),
     ),
 }));

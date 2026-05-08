@@ -310,3 +310,158 @@ describe("project store · instance mutators", () => {
     expect(useProjectStore.getState().lines).toHaveLength(0);
   });
 });
+
+describe("project store · propagateLinkedEdit", () => {
+  function seedTwoInstances() {
+    useProjectStore.getState().addGroup(seedGroup("g1"));
+    useProjectStore.setState({
+      lines: [
+        { id: "a0", text: "I love you", agentId: "v1", groupId: "g1", instanceIdx: 0, templateLineIdx: 0 },
+        { id: "b0", text: "yeah", agentId: "v1", groupId: "g1", instanceIdx: 0, templateLineIdx: 1 },
+        { id: "a1", text: "I love you", agentId: "v1", groupId: "g1", instanceIdx: 1, templateLineIdx: 0 },
+        { id: "b1", text: "yeah", agentId: "v1", groupId: "g1", instanceIdx: 1, templateLineIdx: 1 },
+      ],
+    });
+  }
+
+  it("applies updates to all sibling lines with the same templateLineIdx", () => {
+    seedTwoInstances();
+
+    useProjectStore.getState().propagateLinkedEdit("g1", 0, { text: "I really love you" });
+
+    const lines = useProjectStore.getState().lines;
+    expect(lines.find((l) => l.id === "a0")?.text).toBe("I really love you");
+    expect(lines.find((l) => l.id === "a1")?.text).toBe("I really love you");
+    expect(lines.find((l) => l.id === "b0")?.text).toBe("yeah");
+    expect(lines.find((l) => l.id === "b1")?.text).toBe("yeah");
+  });
+
+  it("skips detached lines", () => {
+    seedTwoInstances();
+    useProjectStore.setState((state) => ({
+      lines: state.lines.map((l) => (l.id === "a1" ? { ...l, detached: true } : l)),
+    }));
+
+    useProjectStore.getState().propagateLinkedEdit("g1", 0, { text: "I really love you" });
+
+    const lines = useProjectStore.getState().lines;
+    expect(lines.find((l) => l.id === "a0")?.text).toBe("I really love you");
+    expect(lines.find((l) => l.id === "a1")?.text).toBe("I love you");
+  });
+
+  it("does not touch lines from other groups", () => {
+    seedTwoInstances();
+    useProjectStore.setState((state) => ({
+      lines: [
+        ...state.lines,
+        { id: "x", text: "verse line", agentId: "v1", groupId: "g2", instanceIdx: 0, templateLineIdx: 0 },
+      ],
+    }));
+
+    useProjectStore.getState().propagateLinkedEdit("g1", 0, { text: "changed" });
+
+    expect(useProjectStore.getState().lines.find((l) => l.id === "x")?.text).toBe("verse line");
+  });
+});
+
+describe("project store · shiftInstance", () => {
+  it("shifts begin/end on lines and words for the target instance only", () => {
+    useProjectStore.getState().addGroup(seedGroup("g1"));
+    useProjectStore.setState({
+      lines: [
+        {
+          id: "a0",
+          text: "hi",
+          agentId: "v1",
+          groupId: "g1",
+          instanceIdx: 0,
+          templateLineIdx: 0,
+          begin: 30,
+          end: 32,
+          words: [
+            { text: "hi ", begin: 30, end: 31 },
+            { text: "there", begin: 31, end: 32 },
+          ],
+        },
+        {
+          id: "a1",
+          text: "hi",
+          agentId: "v1",
+          groupId: "g1",
+          instanceIdx: 1,
+          templateLineIdx: 0,
+          begin: 60,
+          end: 62,
+          words: [
+            { text: "hi ", begin: 60, end: 61 },
+            { text: "there", begin: 61, end: 62 },
+          ],
+        },
+      ],
+    });
+
+    useProjectStore.getState().shiftInstance("g1", 1, 5);
+
+    const lines = useProjectStore.getState().lines;
+    const i0 = lines.find((l) => l.id === "a0");
+    const i1 = lines.find((l) => l.id === "a1");
+
+    expect(i0?.begin).toBeCloseTo(30);
+    expect(i0?.end).toBeCloseTo(32);
+    expect(i0?.words?.[1].end).toBeCloseTo(32);
+
+    expect(i1?.begin).toBeCloseTo(65);
+    expect(i1?.end).toBeCloseTo(67);
+    expect(i1?.words?.[0].begin).toBeCloseTo(65);
+    expect(i1?.words?.[1].end).toBeCloseTo(67);
+  });
+
+  it("shifts background words too", () => {
+    useProjectStore.getState().addGroup(seedGroup("g1"));
+    useProjectStore.setState({
+      lines: [
+        {
+          id: "a",
+          text: "hi",
+          agentId: "v1",
+          groupId: "g1",
+          instanceIdx: 0,
+          templateLineIdx: 0,
+          backgroundText: "yeah",
+          backgroundWords: [{ text: "yeah", begin: 30, end: 31 }],
+        },
+      ],
+    });
+
+    useProjectStore.getState().shiftInstance("g1", 0, 2);
+
+    const bg = useProjectStore.getState().lines[0].backgroundWords?.[0];
+    expect(bg?.begin).toBeCloseTo(32);
+    expect(bg?.end).toBeCloseTo(33);
+  });
+
+  it("is undoable", () => {
+    useProjectStore.getState().addGroup(seedGroup("g1"));
+    useProjectStore.setState({
+      lines: [
+        {
+          id: "a",
+          text: "hi",
+          agentId: "v1",
+          groupId: "g1",
+          instanceIdx: 0,
+          templateLineIdx: 0,
+          begin: 10,
+          end: 11,
+        },
+      ],
+    });
+    useProjectStore.getState().clearHistory();
+
+    useProjectStore.getState().shiftInstance("g1", 0, 5);
+    expect(useProjectStore.getState().lines[0].begin).toBeCloseTo(15);
+
+    useProjectStore.getState().undo();
+    expect(useProjectStore.getState().lines[0].begin).toBeCloseTo(10);
+  });
+});
