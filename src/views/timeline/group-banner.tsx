@@ -101,6 +101,21 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
   const handleBadgeMouseEnter = useCallback(() => setPingingGroupId(group.id), [group.id, setPingingGroupId]);
   const handleBadgeMouseLeave = useCallback(() => setPingingGroupId(null), [setPingingGroupId]);
 
+  const toggleInstanceCollapsed = useTimelineStore((s) => s.toggleInstanceCollapsed);
+  const handleChevronPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.stopPropagation();
+    },
+    [],
+  );
+  const handleChevronClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      toggleInstanceCollapsed(`${group.id}:${instanceIdx}`);
+    },
+    [group.id, instanceIdx, toggleInstanceCollapsed],
+  );
+
   const left = Math.max(0, instanceStart * zoom - scrollLeft);
   const width = Math.max(BANNER_MIN_WIDTH, (instanceEnd - instanceStart) * zoom);
   const deltaSecondsLive = dragOffsetPx / Math.max(zoom, 1);
@@ -129,11 +144,15 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
         cursor: isDragging ? "grabbing" : "grab",
       }}
     >
-      {isCollapsed ? (
-        <IconChevronRight className="w-3 h-3 shrink-0 opacity-70" />
-      ) : (
-        <IconChevronDown className="w-3 h-3 shrink-0 opacity-70" />
-      )}
+      <button
+        type="button"
+        aria-label={isCollapsed ? "Expand instance" : "Collapse instance"}
+        onClick={handleChevronClick}
+        onPointerDown={handleChevronPointerDown}
+        className="shrink-0 cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
+      >
+        {isCollapsed ? <IconChevronRight className="w-3 h-3" /> : <IconChevronDown className="w-3 h-3" />}
+      </button>
       <span
         className="w-2 h-2 rounded-full shrink-0"
         style={{ background: group.color }}
