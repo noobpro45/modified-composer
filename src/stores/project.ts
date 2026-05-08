@@ -28,6 +28,17 @@ interface LyricLine {
   words?: WordTiming[];
   backgroundText?: string;
   backgroundWords?: WordTiming[];
+  groupId?: string;
+  instanceIdx?: number;
+  templateLineIdx?: number;
+  detached?: boolean;
+}
+
+interface LinkGroup {
+  id: string;
+  label: string;
+  color: string;
+  templateVersion: number;
 }
 
 type GranularityMode = "line" | "word";
@@ -51,6 +62,7 @@ interface ProjectState {
   metadata: ProjectMetadata;
   agents: Agent[];
   lines: LyricLine[];
+  groups: LinkGroup[];
   granularity: GranularityMode;
   editorMode: EditorMode;
   activeTab: SimpleTab;
@@ -126,6 +138,7 @@ function createInitialState(): ProjectState {
     },
     agents: DEFAULT_AGENTS,
     lines: [],
+    groups: [],
     granularity: useSettingsStore.getState().defaultGranularity,
     editorMode: "simple",
     activeTab: "import",
@@ -429,6 +442,7 @@ export type {
   AgentType,
   EditorMode,
   GranularityMode,
+  LinkGroup,
   LyricLine,
   ProjectMetadata,
   ProjectState,
