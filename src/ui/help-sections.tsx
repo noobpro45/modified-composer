@@ -386,7 +386,9 @@ const TimelineSection: React.FC = () => (
         <li>Right-click a word: Edit text, Split syllables, Merge (if multiple selected), Delete.</li>
         <li>Right-click empty track space: Add word here.</li>
         <li>Right-click the gutter: Add line above/below, Assign agent, Delete line.</li>
-        <li>Right-click a group banner: Add instance, Shift to playhead, Rename, Recolor, Detach instance, Delete group.</li>
+        <li>
+          Right-click a group banner: Add instance, Shift to playhead, Rename, Recolor, Detach instance, Delete group.
+        </li>
       </ul>
     </div>
 

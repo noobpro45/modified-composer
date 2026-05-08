@@ -401,11 +401,7 @@ function useTimelineKeyboard(
             break;
           }
           const projectState = useProjectStore.getState();
-          const result = createGroupFromSelection(
-            projectState.lines,
-            selectedLineIds,
-            projectState.groups,
-          );
+          const result = createGroupFromSelection(projectState.lines, selectedLineIds, projectState.groups);
           if (!result) {
             toast.error("Selection must be contiguous and not part of an existing group");
             break;
@@ -434,7 +430,7 @@ function useTimelineKeyboard(
           }
           const [groupKey] = groupKeys;
           const [groupId, instanceIdxStr] = groupKey.split(":");
-          const sourceInstanceIdx = parseInt(instanceIdxStr, 10);
+          const sourceInstanceIdx = Number.parseInt(instanceIdxStr, 10);
 
           const audioEl = useAudioStore.getState().audioElement;
           const playheadTime = audioEl?.currentTime ?? useAudioStore.getState().currentTime;

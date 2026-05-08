@@ -10,10 +10,7 @@ interface CreateGroupResult {
 
 // -- Selection helpers --------------------------------------------------------
 
-function uniqueLineIdsInOrder(
-  lines: LyricLine[],
-  selectedLineIds: ReadonlySet<string>,
-): string[] {
+function uniqueLineIdsInOrder(lines: LyricLine[], selectedLineIds: ReadonlySet<string>): string[] {
   const out: string[] = [];
   for (const line of lines) {
     if (selectedLineIds.has(line.id)) out.push(line.id);
@@ -34,10 +31,7 @@ function lineIdsAreContiguous(lines: LyricLine[], selectedLineIds: ReadonlySet<s
   return true;
 }
 
-function selectionTouchesAnyGroup(
-  lines: LyricLine[],
-  selectedLineIds: ReadonlySet<string>,
-): boolean {
+function selectionTouchesAnyGroup(lines: LyricLine[], selectedLineIds: ReadonlySet<string>): boolean {
   for (const line of lines) {
     if (selectedLineIds.has(line.id) && line.groupId !== undefined) return true;
   }
@@ -80,7 +74,11 @@ function createGroupFromSelection(
 
 // -- Duplicate as linked -------------------------------------------------------
 
-function instanceLineRange(lines: LyricLine[], groupId: string, instanceIdx: number): { startTime: number; endTime: number } {
+function instanceLineRange(
+  lines: LyricLine[],
+  groupId: string,
+  instanceIdx: number,
+): { startTime: number; endTime: number } {
   let startTime = Number.POSITIVE_INFINITY;
   let endTime = Number.NEGATIVE_INFINITY;
   for (const line of lines) {

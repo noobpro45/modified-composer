@@ -470,8 +470,7 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
 
   setGroups: (groups) => set({ groups, isDirty: true }),
 
-  addGroup: (group) =>
-    set((state) => commitHistory(state, { groups: [...state.groups, group] })),
+  addGroup: (group) => set((state) => commitHistory(state, { groups: [...state.groups, group] })),
 
   updateGroup: (id, updates) =>
     set((state) =>
@@ -623,10 +622,7 @@ function extractLinkedFields(updates: Partial<LyricLine>): Partial<LyricLine> {
   return linked;
 }
 
-function commitHistory(
-  state: ProjectState,
-  changes: { lines?: LyricLine[]; groups?: LinkGroup[] },
-) {
+function commitHistory(state: ProjectState, changes: { lines?: LyricLine[]; groups?: LinkGroup[] }) {
   const nextLines = changes.lines ?? state.lines;
   const nextGroups = changes.groups ?? state.groups;
 

@@ -40,9 +40,7 @@ describe("ttml export · groups registry", () => {
   });
 
   it("escapes label and color values", () => {
-    const groups: LinkGroup[] = [
-      { id: "g1", label: "Pre & Post", color: "#aaaaaa", templateVersion: 1 },
-    ];
+    const groups: LinkGroup[] = [{ id: "g1", label: "Pre & Post", color: "#aaaaaa", templateVersion: 1 }];
     const ttml = generateTTML({ metadata: baseMetadata, agents: baseAgents, lines: [], groups, granularity: "word" });
 
     expect(ttml).toContain('label="Pre &amp; Post"');
@@ -68,7 +66,10 @@ describe("ttml export · groups registry", () => {
 describe("ttml export · per-line group attrs", () => {
   const groups: LinkGroup[] = [{ id: "g1", label: "Chorus", color: "#f472b6", templateVersion: 1 }];
 
-  function syncedLine(id: string, extras: Partial<{ groupId: string; instanceIdx: number; templateLineIdx: number; detached: boolean }>) {
+  function syncedLine(
+    id: string,
+    extras: Partial<{ groupId: string; instanceIdx: number; templateLineIdx: number; detached: boolean }>,
+  ) {
     return {
       id,
       text: "hello",
@@ -239,4 +240,3 @@ describe("ttml import · per-line group attrs", () => {
     expect(result.groups).toBeUndefined();
   });
 });
-

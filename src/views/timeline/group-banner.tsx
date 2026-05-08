@@ -103,12 +103,9 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
 
   const toggleInstanceCollapsed = useTimelineStore((s) => s.toggleInstanceCollapsed);
   const setContextMenu = useTimelineStore((s) => s.setContextMenu);
-  const handleChevronPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      e.stopPropagation();
-    },
-    [],
-  );
+  const handleChevronPointerDown = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+  }, []);
   const handleChevronClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -168,11 +165,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
       >
         {isCollapsed ? <IconChevronRight className="w-3 h-3" /> : <IconChevronDown className="w-3 h-3" />}
       </button>
-      <span
-        className="w-2 h-2 rounded-full shrink-0"
-        style={{ background: group.color }}
-        aria-hidden
-      />
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: group.color }} aria-hidden />
       <span className="font-semibold whitespace-nowrap">{group.label}</span>
       <span
         className="flex items-center gap-1 text-composer-text-muted tabular-nums whitespace-nowrap ml-auto"
@@ -182,7 +175,10 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
         <IconLink className="w-2.5 h-2.5" />
         {instanceIdx + 1} of {totalInstances}
         {isDragging && (
-          <span className="ml-1 text-composer-text">{deltaSecondsLive >= 0 ? "+" : ""}{deltaSecondsLive.toFixed(1)}s</span>
+          <span className="ml-1 text-composer-text">
+            {deltaSecondsLive >= 0 ? "+" : ""}
+            {deltaSecondsLive.toFixed(1)}s
+          </span>
         )}
       </span>
       {isCollapsed && (

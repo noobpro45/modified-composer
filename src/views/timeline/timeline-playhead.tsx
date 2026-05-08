@@ -118,8 +118,8 @@ const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({ containerHeight, sc
         const startStr = banner.dataset.instanceStart;
         const endStr = banner.dataset.instanceEnd;
         if (!startStr || !endStr) continue;
-        const startNum = parseFloat(startStr);
-        const endNum = parseFloat(endStr);
+        const startNum = Number.parseFloat(startStr);
+        const endNum = Number.parseFloat(endStr);
         const span = endNum - startNum;
         if (!Number.isFinite(span) || span <= 0) {
           banner.style.setProperty("--progress-fill", "0%");

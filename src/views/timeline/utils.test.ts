@@ -317,15 +317,7 @@ describe("getEffectiveRows", () => {
     ];
 
     const rows = getEffectiveRows(lines);
-    expect(rows.map((r) => r.kind)).toEqual([
-      "group-header",
-      "line",
-      "line",
-      "line",
-      "group-header",
-      "line",
-      "line",
-    ]);
+    expect(rows.map((r) => r.kind)).toEqual(["group-header", "line", "line", "line", "group-header", "line", "line"]);
 
     const h0 = rows[0] as GroupHeaderRow;
     expect(h0.groupId).toBe("g1");

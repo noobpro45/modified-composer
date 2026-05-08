@@ -520,51 +520,48 @@ const TimelineContextMenu: React.FC = () => {
           </>
         )}
 
-        {target.kind === "group-banner" && (
-          <>
-            {renamingGroupId === target.groupId ? (
-              <input
-                autoFocus
-                type="text"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleRenameCommit();
-                  if (e.key === "Escape") {
-                    setRenamingGroupId(null);
-                    setRenameValue("");
-                  }
-                  e.stopPropagation();
-                }}
-                onBlur={handleRenameCommit}
-                className="w-full px-2 py-1 text-sm rounded border bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent"
-              />
-            ) : (
-              <>
-                <MenuItem label="Add instance at playhead" onClick={handleAddInstanceAtPlayhead} />
-                <MenuItem label="Shift instance to playhead" onClick={handleShiftToPlayhead} />
-                <MenuDivider />
-                <MenuItem label="Rename" onClick={handleRenameStart} />
-                <p className="px-3 pt-1.5 pb-1 text-xs text-composer-text-muted">Recolor</p>
-                <div className="px-2 pb-1 grid grid-cols-5 gap-1">
-                  {GROUP_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      aria-label={`Color ${c}`}
-                      onClick={() => handleRecolorGroup(c)}
-                      className="w-6 h-6 rounded-md cursor-pointer border border-white/10 hover:scale-110 transition-transform"
-                      style={{ backgroundColor: c }}
-                    />
-                  ))}
-                </div>
-                <MenuDivider />
-                <MenuItem label="Detach instance" onClick={handleDetachInstance} />
-                <MenuItem label="Delete group" onClick={handleDeleteGroup} danger />
-              </>
-            )}
-          </>
-        )}
+        {target.kind === "group-banner" &&
+          (renamingGroupId === target.groupId ? (
+            <input
+              ref={(el) => el?.focus()}
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRenameCommit();
+                if (e.key === "Escape") {
+                  setRenamingGroupId(null);
+                  setRenameValue("");
+                }
+                e.stopPropagation();
+              }}
+              onBlur={handleRenameCommit}
+              className="w-full px-2 py-1 text-sm rounded border bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent"
+            />
+          ) : (
+            <>
+              <MenuItem label="Add instance at playhead" onClick={handleAddInstanceAtPlayhead} />
+              <MenuItem label="Shift instance to playhead" onClick={handleShiftToPlayhead} />
+              <MenuDivider />
+              <MenuItem label="Rename" onClick={handleRenameStart} />
+              <p className="px-3 pt-1.5 pb-1 text-xs text-composer-text-muted">Recolor</p>
+              <div className="px-2 pb-1 grid grid-cols-5 gap-1">
+                {GROUP_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={`Color ${c}`}
+                    onClick={() => handleRecolorGroup(c)}
+                    className="w-6 h-6 rounded-md cursor-pointer border border-white/10 hover:scale-110 transition-transform"
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+              <MenuDivider />
+              <MenuItem label="Detach instance" onClick={handleDetachInstance} />
+              <MenuItem label="Delete group" onClick={handleDeleteGroup} danger />
+            </>
+          ))}
       </div>
     </FloatingPortal>
   );

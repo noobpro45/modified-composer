@@ -397,14 +397,15 @@ const SyncPanel: React.FC = () => {
                       .map((l) => l.instanceIdx),
                   ).size
                 : 0;
-              const linkInfo = linkedGroup && line.instanceIdx !== undefined
-                ? {
-                    color: linkedGroup.color,
-                    label: linkedGroup.label,
-                    instanceIdx: line.instanceIdx,
-                    totalInstances,
-                  }
-                : undefined;
+              const linkInfo =
+                linkedGroup && line.instanceIdx !== undefined
+                  ? {
+                      color: linkedGroup.color,
+                      label: linkedGroup.label,
+                      instanceIdx: line.instanceIdx,
+                      totalInstances,
+                    }
+                  : undefined;
               return (
                 <ScrollableLine
                   key={line.id}

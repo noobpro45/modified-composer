@@ -48,15 +48,11 @@ describe("project store · history captures groups", () => {
     const initialGroups = [seedGroup("g1")];
     useProjectStore.setState({ groups: initialGroups, lines: [] });
 
-    useProjectStore
-      .getState()
-      .setLinesWithHistory([{ id: "l1", text: "test", agentId: "v1", groupId: "g1" }]);
+    useProjectStore.getState().setLinesWithHistory([{ id: "l1", text: "test", agentId: "v1", groupId: "g1" }]);
 
     useProjectStore.setState({ groups: [] });
 
-    useProjectStore
-      .getState()
-      .setLinesWithHistory([{ id: "l2", text: "test2", agentId: "v1" }]);
+    useProjectStore.getState().setLinesWithHistory([{ id: "l2", text: "test2", agentId: "v1" }]);
 
     useProjectStore.getState().undo();
 
@@ -259,9 +255,7 @@ describe("project store · instance mutators", () => {
   it("removeInstance dissolves the group when removing the last instance", () => {
     useProjectStore.getState().addGroup(seedGroup("g1"));
     useProjectStore.setState({
-      lines: [
-        { id: "a", text: "a", agentId: "v1", groupId: "g1", instanceIdx: 0, templateLineIdx: 0 },
-      ],
+      lines: [{ id: "a", text: "a", agentId: "v1", groupId: "g1", instanceIdx: 0, templateLineIdx: 0 }],
     });
 
     useProjectStore.getState().removeInstance("g1", 0);

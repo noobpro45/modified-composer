@@ -415,7 +415,7 @@ function parseTtml(content: string): ParseResult {
     const label = el.getAttribute("label") ?? "Group";
     const color = el.getAttribute("color") ?? "#9ca3af";
     const versionStr = el.getAttribute("templateVersion");
-    const templateVersion = versionStr ? parseInt(versionStr, 10) || 1 : 1;
+    const templateVersion = versionStr ? Number.parseInt(versionStr, 10) || 1 : 1;
     groups.push({ id, label, color, templateVersion });
   }
 
@@ -428,8 +428,7 @@ function parseTtml(content: string): ParseResult {
     const agentId = p.getAttribute("ttm:agent")?.replace("#", "") ?? "v1";
 
     // Extract composer: group attrs (try plain attribute first, then namespaced lookup)
-    const rawGroupId =
-      p.getAttribute("composer:groupId") ?? p.getAttributeNS(COMPOSER_NS, "groupId") ?? null;
+    const rawGroupId = p.getAttribute("composer:groupId") ?? p.getAttributeNS(COMPOSER_NS, "groupId") ?? null;
     const knownGroupId = rawGroupId && seenGroupIds.has(rawGroupId) ? rawGroupId : null;
     if (rawGroupId && !knownGroupId) {
       console.warn(`[Composer] TTML <p> references unknown groupId="${rawGroupId}"; treating line as standalone.`);
@@ -438,14 +437,13 @@ function parseTtml(content: string): ParseResult {
       p.getAttribute("composer:instanceIdx") ?? p.getAttributeNS(COMPOSER_NS, "instanceIdx") ?? null;
     const templateLineIdxStr =
       p.getAttribute("composer:templateLineIdx") ?? p.getAttributeNS(COMPOSER_NS, "templateLineIdx") ?? null;
-    const detachedStr =
-      p.getAttribute("composer:detached") ?? p.getAttributeNS(COMPOSER_NS, "detached") ?? null;
+    const detachedStr = p.getAttribute("composer:detached") ?? p.getAttributeNS(COMPOSER_NS, "detached") ?? null;
 
     const groupFields = knownGroupId
       ? {
           groupId: knownGroupId,
-          instanceIdx: instanceIdxStr ? parseInt(instanceIdxStr, 10) || 0 : 0,
-          templateLineIdx: templateLineIdxStr ? parseInt(templateLineIdxStr, 10) || 0 : 0,
+          instanceIdx: instanceIdxStr ? Number.parseInt(instanceIdxStr, 10) || 0 : 0,
+          templateLineIdx: templateLineIdxStr ? Number.parseInt(templateLineIdxStr, 10) || 0 : 0,
           ...(detachedStr === "true" ? { detached: true } : {}),
         }
       : {};

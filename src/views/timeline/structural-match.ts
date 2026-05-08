@@ -2,10 +2,7 @@ import type { LyricLine } from "@/stores/project";
 
 // -- Helpers -------------------------------------------------------------------
 
-function wordTextsEqual(
-  a: { text: string }[] | undefined,
-  b: { text: string }[] | undefined,
-): boolean {
+function wordTextsEqual(a: { text: string }[] | undefined, b: { text: string }[] | undefined): boolean {
   const aLen = a?.length ?? 0;
   const bLen = b?.length ?? 0;
   if (aLen !== bLen) return false;

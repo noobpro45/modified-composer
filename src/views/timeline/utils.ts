@@ -146,9 +146,7 @@ function getEffectiveRows(lines: LyricLine[]): EffectiveRow[] {
   for (let i = 0; i < effective.length; i++) {
     const line = effective[i];
     const key =
-      line.groupId !== undefined && line.instanceIdx !== undefined
-        ? `${line.groupId}:${line.instanceIdx}`
-        : null;
+      line.groupId !== undefined && line.instanceIdx !== undefined ? `${line.groupId}:${line.instanceIdx}` : null;
     if (key !== currentKey) {
       flushBuffer(i);
       bufferStart = i;
@@ -167,11 +165,7 @@ interface WordSelectionRef {
   type: "word" | "bg";
 }
 
-function getWordsInInstance(
-  lines: LyricLine[],
-  groupId: string,
-  instanceIdx: number,
-): WordSelectionRef[] {
+function getWordsInInstance(lines: LyricLine[], groupId: string, instanceIdx: number): WordSelectionRef[] {
   const out: WordSelectionRef[] = [];
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     const line = lines[lineIndex];

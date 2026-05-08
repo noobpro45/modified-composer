@@ -3,11 +3,7 @@
  */
 import type { LyricLine } from "@/stores/project";
 import { describe, expect, it } from "vitest";
-import {
-  findMatchingTemplate,
-  linesStructurallyEqual,
-  structurallyEqualLineSequences,
-} from "./structural-match";
+import { findMatchingTemplate, linesStructurallyEqual, structurallyEqualLineSequences } from "./structural-match";
 
 const baseLine: LyricLine = { id: "x", text: "I love you", agentId: "v1" };
 
@@ -15,12 +11,18 @@ describe("linesStructurallyEqual", () => {
   it("equal when text/agentId/words/bg match", () => {
     const a: LyricLine = {
       ...baseLine,
-      words: [{ text: "I ", begin: 0, end: 1 }, { text: "love", begin: 1, end: 2 }],
+      words: [
+        { text: "I ", begin: 0, end: 1 },
+        { text: "love", begin: 1, end: 2 },
+      ],
     };
     const b: LyricLine = {
       ...baseLine,
       id: "y",
-      words: [{ text: "I ", begin: 30, end: 31 }, { text: "love", begin: 31, end: 32 }],
+      words: [
+        { text: "I ", begin: 30, end: 31 },
+        { text: "love", begin: 31, end: 32 },
+      ],
     };
     expect(linesStructurallyEqual(a, b)).toBe(true);
   });
@@ -36,7 +38,10 @@ describe("linesStructurallyEqual", () => {
   it("unequal when word count differs", () => {
     const a: LyricLine = {
       ...baseLine,
-      words: [{ text: "I ", begin: 0, end: 1 }, { text: "love", begin: 1, end: 2 }],
+      words: [
+        { text: "I ", begin: 0, end: 1 },
+        { text: "love", begin: 1, end: 2 },
+      ],
     };
     const b: LyricLine = {
       ...baseLine,
