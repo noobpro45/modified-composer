@@ -29,7 +29,7 @@ Composer turns plain lyrics into precisely timed TTML files. You import audio, p
 
 Four-step workflow:
 
-1. **Import** your audio (MP3, WAV, M4A, OGG, FLAC)
+1. **Import** your audio (MP3, WAV, M4A, OGG, FLAC) or paste a YouTube URL
 2. **Edit** your lyrics, assign agents (singers), add background vocals
 3. **Sync** by tapping along with the music, or drag word blocks on the Timeline
 4. **Export** as TTML, or save a project file to continue later
@@ -37,6 +37,7 @@ Four-step workflow:
 ## Features
 
 - **Tap-to-sync** - Press Space in time with the music to stamp each word
+- **YouTube import** - Paste a video URL to pull the audio straight in, no manual download needed
 - **Timeline editor** - DAW-style view with draggable word blocks on a waveform
 - **Multiple agents** - Assign lines to different singers with distinct colors
 - **Background vocals** - Separate track for backing vocals with `x-bg` TTML role
