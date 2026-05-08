@@ -112,6 +112,24 @@ const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({ containerHeight, sc
         playheadRef.current.style.height = `${container.scrollHeight}px`;
       }
 
+      // Update progress fill on collapsed banner DOM nodes
+      const banners = document.querySelectorAll<HTMLElement>("[data-banner-progress]");
+      for (const banner of banners) {
+        const startStr = banner.dataset.instanceStart;
+        const endStr = banner.dataset.instanceEnd;
+        if (!startStr || !endStr) continue;
+        const startNum = parseFloat(startStr);
+        const endNum = parseFloat(endStr);
+        const span = endNum - startNum;
+        if (!Number.isFinite(span) || span <= 0) {
+          banner.style.setProperty("--progress-fill", "0%");
+          continue;
+        }
+        const ratio = (currentTime - startNum) / span;
+        const clamped = Math.max(0, Math.min(1, ratio));
+        banner.style.setProperty("--progress-fill", `${(clamped * 100).toFixed(2)}%`);
+      }
+
       rafRef.current = requestAnimationFrame(update);
     };
 
