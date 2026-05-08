@@ -52,8 +52,9 @@ const GettingStartedSection: React.FC = () => (
       <div>
         <h4 className={HEADING}>1. Import your audio</h4>
         <p className={PROSE}>
-          Drop an audio file (MP3, WAV, M4A, OGG, FLAC) into the Import tab. You can also drop it directly onto
-          Timeline. The waveform appears once the file loads.
+          Drop an audio file (MP3, WAV, M4A, OGG, FLAC) into the Import tab, or paste a YouTube URL to pull the audio
+          from a video. Local files can also be dropped straight onto the Timeline. The waveform appears once the audio
+          loads.
         </p>
       </div>
       <div>
@@ -125,6 +126,23 @@ const ImportSection: React.FC = () => (
     </div>
 
     <div>
+      <h4 className={HEADING}>YouTube URLs</h4>
+      <p className={PROSE}>
+        Paste any YouTube link (full URL, share link, or just the video ID) into the Import tab. Composer downloads the
+        audio once and keeps it in memory, so seeking and waveform rendering stay instant after that.
+      </p>
+      <ul className={`${PROSE} list-disc pl-4 mt-1.5 space-y-1`}>
+        <li>The video title fills in as your project title.</li>
+        <li>To swap videos, paste a new URL into the same input on the Import tab.</li>
+        <li>If a download fails, check that the URL is right and that the video is public.</li>
+        <li>
+          A small number of videos won't download due to geo-restrictions or rights blocks. In that case, grab the audio
+          some other way and drop the file into the Import tab.
+        </li>
+      </ul>
+    </div>
+
+    <div>
       <h4 className={HEADING}>Lyrics files</h4>
       <p className={PROSE}>
         Supported formats: .txt (plain text), .lrc (line-level timing), .srt (subtitles), .ttml (full timing + agents).
@@ -180,8 +198,9 @@ const EditSection: React.FC = () => {
       <div>
         <h4 className={HEADING}>Selecting multiple lines</h4>
         <p className={PROSE}>
-          Click a line to select it. Alt + Click to select a range. Selected lines can be deleted or have agents
-          reassigned in bulk.
+          Click a line to select it. Shift + Click another line to select the whole range between them. You can also
+          click and drag on the line numbers in the gutter to select a range that way. Selected lines can be deleted or
+          have agents reassigned in bulk.
         </p>
       </div>
     </div>
@@ -335,6 +354,10 @@ const TimelineSection: React.FC = () => (
         </li>
         <li>
           Use <strong>[</strong> and <strong>]</strong> to snap a word's start or end to the current playhead position.
+        </li>
+        <li>
+          With one or more words selected, press <strong>←</strong> / <strong>→</strong> to nudge them as a group. Each
+          word keeps its duration, and the nudge stops at the neighboring word so nothing overlaps.
         </li>
       </ul>
     </div>

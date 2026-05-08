@@ -135,7 +135,8 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
     title: "Edit Mode",
     shortcuts: [
       { keys: ["Click"], description: "Select / deselect line" },
-      { keys: ["Alt", "Click"], description: "Select range of lines" },
+      { keys: ["Shift", "Click"], description: "Select range of lines" },
+      { keys: ["Drag"], description: "Drag on line numbers to select a range" },
     ],
   },
 ];

@@ -47,8 +47,9 @@ function createTourSteps(): DriveStep[] {
     {
       element: () => document.querySelector('[data-tour="import-dropzone"]') as Element,
       popover: {
-        title: "Drop your audio file",
-        description: "Drag an audio file onto this area, or click to browse. Supports MP3, WAV, M4A, OGG, and FLAC.",
+        title: "Bring in your audio",
+        description:
+          "Drop an audio file (MP3, WAV, M4A, OGG, FLAC) onto this area, or paste a YouTube URL below to pull the audio straight from a video.",
         side: "bottom",
         align: "center",
       },
@@ -59,7 +60,7 @@ function createTourSteps(): DriveStep[] {
       element: () => document.querySelector('[data-tour="import-dropzone"]') as Element,
       popover: {
         title: "Import your audio",
-        description: "Drop an audio file to continue.",
+        description: "Drop an audio file or paste a YouTube URL to continue.",
         showButtons: [],
       },
       onHighlightStarted: () => switchTab("import"),
@@ -112,7 +113,8 @@ function createTourSteps(): DriveStep[] {
       element: () => document.querySelector('[data-tour="timeline-panel"]') as Element,
       popover: {
         title: "Fine-tune on the timeline",
-        description: "Drag words to adjust timing. Use Cmd/Ctrl + scroll to zoom. Press F to toggle playhead follow.",
+        description:
+          "Drag words to adjust timing, or select a word and use the arrow keys to nudge it. Cmd/Ctrl + scroll to zoom, F to toggle playhead follow.",
         side: "top",
         align: "center",
       },
