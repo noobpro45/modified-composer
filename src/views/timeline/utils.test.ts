@@ -1,8 +1,17 @@
 /**
  * @vitest-environment node
  */
+import type { LyricLine } from "@/stores/project";
 import { describe, expect, it } from "vitest";
-import { distributeLinesTiming, distributeWordsInLine, formatTime, getLineTiming } from "./utils";
+import {
+  distributeLinesTiming,
+  distributeWordsInLine,
+  formatTime,
+  getEffectiveRows,
+  getLineTiming,
+  type GroupHeaderRow,
+  instanceTimingBounds,
+} from "./utils";
 
 // -- distributeWordsInLine -----------------------------------------------------
 
@@ -287,5 +296,85 @@ describe("formatTime", () => {
 
   it("rounds centiseconds down", () => {
     expect(formatTime(1.999)).toBe("0:01.99");
+  });
+});
+
+// -- getEffectiveRows ---------------------------------------------------------
+
+describe("getEffectiveRows", () => {
+  function l(id: string, extras: Partial<LyricLine> = {}): LyricLine {
+    return { id, text: "x", agentId: "v1", ...extras };
+  }
+
+  it("interleaves a header before each instance run", () => {
+    const lines: LyricLine[] = [
+      l("a", { groupId: "g1", instanceIdx: 0, templateLineIdx: 0, words: [{ text: "I", begin: 0, end: 1 }] }),
+      l("b", { groupId: "g1", instanceIdx: 0, templateLineIdx: 1, words: [{ text: "you", begin: 1, end: 2 }] }),
+      l("c"),
+      l("d", { groupId: "g1", instanceIdx: 1, templateLineIdx: 0, words: [{ text: "I", begin: 30, end: 31 }] }),
+      l("e", { groupId: "g1", instanceIdx: 1, templateLineIdx: 1, words: [{ text: "you", begin: 31, end: 32 }] }),
+    ];
+
+    const rows = getEffectiveRows(lines);
+    expect(rows.map((r) => r.kind)).toEqual([
+      "group-header",
+      "line",
+      "line",
+      "line",
+      "group-header",
+      "line",
+      "line",
+    ]);
+
+    const h0 = rows[0] as GroupHeaderRow;
+    expect(h0.groupId).toBe("g1");
+    expect(h0.instanceIdx).toBe(0);
+    expect(h0.lineCount).toBe(2);
+    expect(h0.instanceStart).toBe(0);
+    expect(h0.instanceEnd).toBe(2);
+
+    const h1 = rows[4] as GroupHeaderRow;
+    expect(h1.instanceIdx).toBe(1);
+    expect(h1.instanceStart).toBe(30);
+    expect(h1.instanceEnd).toBe(32);
+  });
+
+  it("returns standalone-only rows for projects with no groups", () => {
+    const lines: LyricLine[] = [l("a"), l("b"), l("c")];
+    const rows = getEffectiveRows(lines);
+    expect(rows.every((r) => r.kind === "line")).toBe(true);
+    expect(rows).toHaveLength(3);
+  });
+
+  it("preserves lineIndex pointers into the original lines array", () => {
+    const lines: LyricLine[] = [
+      l("a"),
+      l("b", { groupId: "g1", instanceIdx: 0, templateLineIdx: 0 }),
+      l("c", { groupId: "g1", instanceIdx: 0, templateLineIdx: 1 }),
+      l("d"),
+    ];
+    const rows = getEffectiveRows(lines);
+    const lineRows = rows.filter((r) => r.kind === "line");
+    expect(lineRows.map((r) => (r.kind === "line" ? r.lineIndex : -1))).toEqual([0, 1, 2, 3]);
+  });
+});
+
+describe("instanceTimingBounds", () => {
+  it("uses min/max across word and bg word timings", () => {
+    const lines: LyricLine[] = [
+      {
+        id: "a",
+        text: "x",
+        agentId: "v1",
+        words: [
+          { text: "hello ", begin: 5, end: 6 },
+          { text: "world", begin: 6, end: 7 },
+        ],
+        backgroundWords: [{ text: "yeah", begin: 4, end: 4.5 }],
+      },
+    ];
+    const bounds = instanceTimingBounds(lines);
+    expect(bounds.start).toBe(4);
+    expect(bounds.end).toBe(7);
   });
 });
