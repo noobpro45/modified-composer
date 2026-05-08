@@ -8,6 +8,7 @@ import { GuideCard } from "@/tour/guide-card";
 import { useTour } from "@/tour/use-tour";
 import "@/tour/tour-theme.css";
 import { AppHeader } from "@/ui/app-header";
+import { ConfirmModalHost } from "@/ui/confirm-modal";
 import { HelpModal } from "@/ui/help-modal";
 import { SettingsModal } from "@/ui/settings-modal";
 import { TabBar } from "@/ui/tab-bar";
@@ -112,6 +113,7 @@ const App: React.FC = () => {
   return (
     <>
       <AppContent />
+      <ConfirmModalHost />
       <Toaster
         theme="dark"
         position="bottom-center"

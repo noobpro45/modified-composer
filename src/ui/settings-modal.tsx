@@ -1,12 +1,15 @@
 import { useAudioStore } from "@/stores/audio";
+import { useConfirm } from "@/stores/confirm-store";
 import { DEFAULTS, useSettingsStore } from "@/stores/settings";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import type { SettingsState } from "@/stores/settings";
 import { Button } from "@/ui/button";
 import { Modal } from "@/ui/modal";
 import { cn } from "@/utils/cn";
+import { ConfirmationsSettingsSection } from "@/ui/confirmations-settings-section";
 import { ShortcutsSettingsSection } from "@/ui/shortcuts-settings-section";
 import {
+  IconAlertTriangle,
   IconClock,
   IconKeyboard,
   IconPlayerPlay,
@@ -39,6 +42,7 @@ const SECTIONS: SectionDef[] = [
   { id: "timeline", label: "Timeline", icon: IconLayoutRows },
   { id: "sync", label: "Sync & Timing", icon: IconClock },
   { id: "shortcuts", label: "Shortcuts", icon: IconKeyboard },
+  { id: "confirmations", label: "Confirmations", icon: IconAlertTriangle },
   { id: "storage", label: "Save & Storage", icon: IconDeviceFloppy },
   { id: "general", label: "General", icon: IconSettings },
 ];
@@ -444,6 +448,18 @@ const GeneralSection: React.FC<{
   onClose: () => void;
 }> = ({ onResetTour, onClose }) => {
   const resetToDefaults = useSettingsStore((s) => s.resetToDefaults);
+  const confirm = useConfirm();
+
+  const handleResetSettings = async () => {
+    const ok = await confirm({
+      title: "Reset all settings?",
+      description: "Restore every setting to its default value. Your project data is not affected.",
+      confirmLabel: "Reset",
+      variant: "destructive",
+      settingsKey: "confirmResetSettings",
+    });
+    if (ok) resetToDefaults();
+  };
 
   return (
     <div className="divide-y divide-composer-border">
@@ -482,7 +498,7 @@ const GeneralSection: React.FC<{
           <span className="text-sm font-medium text-composer-text">Reset to defaults</span>
           <span className="text-xs text-composer-text-muted">Restore all settings to their original values.</span>
         </div>
-        <Button size="sm" variant="secondary" hasIcon onClick={resetToDefaults}>
+        <Button size="sm" variant="secondary" hasIcon onClick={handleResetSettings}>
           <IconRefresh size={14} />
           Reset all
         </Button>
@@ -498,6 +514,7 @@ const SECTION_CONTENT: Record<string, React.FC<{ onResetTour: () => void; onClos
   timeline: TimelineSection,
   sync: SyncSection,
   shortcuts: ShortcutsSettingsSection,
+  confirmations: ConfirmationsSettingsSection,
   storage: StorageSection,
   general: GeneralSection,
 };

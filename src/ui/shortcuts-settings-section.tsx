@@ -1,3 +1,4 @@
+import { useConfirm } from "@/stores/confirm-store";
 import { useShortcutBindingsStore } from "@/stores/shortcut-bindings";
 import { type ShortcutScope, getShortcutsByScope } from "@/stores/shortcut-registry";
 import { Button } from "@/ui/button";
@@ -18,6 +19,18 @@ const ShortcutsSettingsSection: React.FC = () => {
   const resetAllBindings = useShortcutBindingsStore((s) => s.resetAllBindings);
   const overrides = useShortcutBindingsStore((s) => s.overrides);
   const hasOverrides = Object.keys(overrides).length > 0;
+  const confirm = useConfirm();
+
+  const handleResetShortcuts = async () => {
+    const ok = await confirm({
+      title: "Reset all shortcuts?",
+      description: "Clear every custom keyboard binding and restore the defaults.",
+      confirmLabel: "Reset",
+      variant: "destructive",
+      settingsKey: "confirmResetShortcuts",
+    });
+    if (ok) resetAllBindings();
+  };
 
   return (
     <div className="space-y-6 py-4">
@@ -40,7 +53,7 @@ const ShortcutsSettingsSection: React.FC = () => {
           <span className="text-sm font-medium text-composer-text">Reset all shortcuts</span>
           <span className="text-xs text-composer-text-muted">Restore all keyboard shortcuts to their defaults.</span>
         </div>
-        <Button size="sm" variant="secondary" hasIcon onClick={resetAllBindings} disabled={!hasOverrides}>
+        <Button size="sm" variant="secondary" hasIcon onClick={handleResetShortcuts} disabled={!hasOverrides}>
           <IconRefresh size={14} />
           Reset all
         </Button>

@@ -1,3 +1,4 @@
+import { useConfirm } from "@/stores/confirm-store";
 import { getAgentColor, useProjectStore } from "@/stores/project";
 import type { LyricLine } from "@/stores/project";
 import { Button } from "@/ui/button";
@@ -265,6 +266,7 @@ const EditPanel: React.FC = () => {
   const setMetadata = useProjectStore((s) => s.setMetadata);
   const updateLine = useProjectStore((s) => s.updateLine);
   const addAgent = useProjectStore((s) => s.addAgent);
+  const confirm = useConfirm();
 
   const [rawText, setRawText] = useState(() => (lines.length > 0 ? lines.map((l) => l.text).join("\n") : ""));
   const linesSetByUs = useRef<LyricLine[] | null>(null);
@@ -388,6 +390,18 @@ const EditPanel: React.FC = () => {
       const result = parseLyricsFile(file.name, content);
 
       if (result.lines.length > 0) {
+        const existingLineCount = useProjectStore.getState().lines.length;
+        if (existingLineCount > 0) {
+          const ok = await confirm({
+            title: "Replace existing lyrics?",
+            description: `This will replace your ${existingLineCount} existing line${existingLineCount === 1 ? "" : "s"}. This cannot be undone.`,
+            confirmLabel: "Replace",
+            variant: "destructive",
+            settingsKey: "confirmReplaceLyrics",
+          });
+          if (!ok) return;
+        }
+
         linesSetByUs.current = result.lines;
         setLines(result.lines);
         setRawText(result.lines.map((l) => l.text).join("\n"));
@@ -408,7 +422,7 @@ const EditPanel: React.FC = () => {
         setImportResult({ result, filename: file.name });
       }
     },
-    [setLines, setMetadata, agents, addAgent],
+    [setLines, setMetadata, agents, addAgent, confirm],
   );
 
   const handleFileInputChange = useCallback(

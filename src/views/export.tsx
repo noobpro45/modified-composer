@@ -1,5 +1,6 @@
 import { exportProjectToFile, importProjectFromFile, clearCurrentProject, cancelPendingSave } from "@/lib/persistence";
 import { useAudioStore } from "@/stores/audio";
+import { useConfirm } from "@/stores/confirm-store";
 import { useProjectStore } from "@/stores/project";
 import { Button } from "@/ui/button";
 import { EmptyState } from "@/ui/empty-state";
@@ -32,6 +33,7 @@ const ExportPanel: React.FC = () => {
   const addAgent = useProjectStore((s) => s.addAgent);
   const reset = useProjectStore((s) => s.reset);
   const markClean = useProjectStore((s) => s.markClean);
+  const confirm = useConfirm();
 
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -113,6 +115,21 @@ const ExportPanel: React.FC = () => {
       const file = e.target.files?.[0];
       if (!file) return;
 
+      const existingLineCount = useProjectStore.getState().lines.length;
+      if (existingLineCount > 0) {
+        const ok = await confirm({
+          title: "Replace current project?",
+          description: `Loading this project file will replace your ${existingLineCount} existing line${existingLineCount === 1 ? "" : "s"} and metadata. This cannot be undone.`,
+          confirmLabel: "Replace",
+          variant: "destructive",
+          settingsKey: "confirmReplaceLyrics",
+        });
+        if (!ok) {
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          return;
+        }
+      }
+
       const project = await importProjectFromFile(file);
       setMetadata(project.metadata);
       setLines(project.lines);
@@ -128,15 +145,22 @@ const ExportPanel: React.FC = () => {
         fileInputRef.current.value = "";
       }
     },
-    [agents, setMetadata, setLines, setGranularity, addAgent, markClean],
+    [agents, setMetadata, setLines, setGranularity, addAgent, markClean, confirm],
   );
 
   const handleClearProject = useCallback(async () => {
-    if (!confirm("This will clear all project data. Are you sure?")) return;
+    const ok = await confirm({
+      title: "Clear all project data?",
+      description: "Remove every line, all metadata, and the audio file from this project. This cannot be undone.",
+      confirmLabel: "Clear",
+      variant: "destructive",
+      settingsKey: "confirmClearProject",
+    });
+    if (!ok) return;
     cancelPendingSave();
     reset();
     await clearCurrentProject();
-  }, [reset]);
+  }, [reset, confirm]);
 
   const importAction = (
     <>

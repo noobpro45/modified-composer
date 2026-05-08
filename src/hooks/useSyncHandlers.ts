@@ -1,4 +1,5 @@
 import { useAudioStore } from "@/stores/audio";
+import { useConfirm } from "@/stores/confirm-store";
 import { useProjectStore } from "@/stores/project";
 import type { LyricLine, WordTiming } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
@@ -43,6 +44,7 @@ function useSyncHandlers({
   const seekTo = useAudioStore((s) => s.seekTo);
   const updateLine = useProjectStore((s) => s.updateLine);
   const updateLineWithHistory = useProjectStore((s) => s.updateLineWithHistory);
+  const confirm = useConfirm();
 
   const { lineIndex, wordIndex } = syncState.position;
   const currentLine = lines[lineIndex];
@@ -300,7 +302,23 @@ function useSyncHandlers({
 
   const handleTap = granularity === "word" ? handleTapWord : handleTapLine;
 
-  const handleReset = useCallback(() => {
+  const handleReset = useCallback(async () => {
+    const hasAnyTiming = lines.some(
+      (line) =>
+        line.words?.length || line.begin !== undefined || line.end !== undefined || line.backgroundWords?.length,
+    );
+    if (hasAnyTiming) {
+      const ok = await confirm({
+        title: "Reset all sync timing?",
+        description: "Clear every word and line timing in this project.",
+        confirmLabel: "Reset",
+        variant: "destructive",
+        settingsKey: "confirmSyncReset",
+        recoverable: true,
+      });
+      if (!ok) return;
+    }
+
     const updates = lines.map((line) => ({
       id: line.id,
       updates: {
@@ -312,7 +330,7 @@ function useSyncHandlers({
     }));
     useProjectStore.getState().updateLinesWithHistory(updates);
     setSyncState({ position: { lineIndex: 0, wordIndex: 0 }, isActive: false });
-  }, [lines, setSyncState]);
+  }, [lines, setSyncState, confirm]);
 
   const handleStartSync = useCallback(() => {
     setSyncState({ position: { lineIndex: 0, wordIndex: 0 }, isActive: true });

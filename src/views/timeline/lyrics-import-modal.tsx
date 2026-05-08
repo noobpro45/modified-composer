@@ -1,4 +1,5 @@
 import { useAudioStore } from "@/stores/audio";
+import { useConfirm } from "@/stores/confirm-store";
 import { useProjectStore } from "@/stores/project";
 import { Button } from "@/ui/button";
 import { Modal } from "@/ui/modal";
@@ -30,9 +31,24 @@ const LyricsImportModal: React.FC<LyricsImportModalProps> = ({ isOpen, onClose }
   const addAgent = useProjectStore((s) => s.addAgent);
   const agents = useProjectStore((s) => s.agents);
   const duration = useAudioStore((s) => s.duration);
+  const confirm = useConfirm();
 
-  const handleConfirm = useCallback(() => {
+  const confirmReplaceIfNeeded = useCallback(async () => {
+    const existingLineCount = useProjectStore.getState().lines.length;
+    if (existingLineCount === 0) return true;
+    return confirm({
+      title: "Replace existing lyrics?",
+      description: `This will replace your ${existingLineCount} existing line${existingLineCount === 1 ? "" : "s"}. This cannot be undone.`,
+      confirmLabel: "Replace",
+      variant: "destructive",
+      settingsKey: "confirmReplaceLyrics",
+    });
+  }, [confirm]);
+
+  const handleConfirm = useCallback(async () => {
     if (!text.trim()) return;
+    if (!(await confirmReplaceIfNeeded())) return;
+
     const defaultAgentId = agents[0]?.id ?? "v1";
     let lyricLines = textToLyricLines(text, defaultAgentId);
 
@@ -43,7 +59,7 @@ const LyricsImportModal: React.FC<LyricsImportModalProps> = ({ isOpen, onClose }
     setLines(lyricLines);
     setText("");
     onClose();
-  }, [text, agents, duration, setLines, onClose]);
+  }, [text, agents, duration, setLines, onClose, confirmReplaceIfNeeded]);
 
   const handleFileImport = useCallback(
     async (file: File) => {
@@ -51,6 +67,8 @@ const LyricsImportModal: React.FC<LyricsImportModalProps> = ({ isOpen, onClose }
       const result = parseLyricsFile(file.name, content);
 
       if (result.lines.length > 0) {
+        if (!(await confirmReplaceIfNeeded())) return;
+
         let importedLines = result.lines;
 
         if (result.agents?.length) {
@@ -74,7 +92,7 @@ const LyricsImportModal: React.FC<LyricsImportModalProps> = ({ isOpen, onClose }
         onClose();
       }
     },
-    [agents, duration, setLines, setMetadata, addAgent, onClose],
+    [agents, duration, setLines, setMetadata, addAgent, onClose, confirmReplaceIfNeeded],
   );
 
   const handleFileInputChange = useCallback(
