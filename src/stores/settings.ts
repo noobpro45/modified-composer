@@ -30,6 +30,7 @@ interface SettingsState {
   confirmClearProject: boolean;
   confirmResetSettings: boolean;
   confirmResetShortcuts: boolean;
+  confirmGroupDissolution: boolean;
 }
 
 interface SettingsActions {
@@ -65,6 +66,7 @@ const DEFAULTS: SettingsState = {
   confirmClearProject: true,
   confirmResetSettings: true,
   confirmResetShortcuts: true,
+  confirmGroupDissolution: true,
 };
 
 // -- Store --------------------------------------------------------------------
@@ -84,6 +86,7 @@ const useSettingsStore = create<SettingsState & SettingsActions>()(
           confirmClearProject: state.confirmClearProject,
           confirmResetSettings: state.confirmResetSettings,
           confirmResetShortcuts: state.confirmResetShortcuts,
+          confirmGroupDissolution: state.confirmGroupDissolution,
         })),
     }),
     { name: "composer-settings" },

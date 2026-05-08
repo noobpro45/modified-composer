@@ -102,6 +102,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
   const handleBadgeMouseLeave = useCallback(() => setPingingGroupId(null), [setPingingGroupId]);
 
   const toggleInstanceCollapsed = useTimelineStore((s) => s.toggleInstanceCollapsed);
+  const setContextMenu = useTimelineStore((s) => s.setContextMenu);
   const handleChevronPointerDown = useCallback(
     (e: React.PointerEvent) => {
       e.stopPropagation();
@@ -114,6 +115,19 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
       toggleInstanceCollapsed(`${group.id}:${instanceIdx}`);
     },
     [group.id, instanceIdx, toggleInstanceCollapsed],
+  );
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        target: { kind: "group-banner", groupId: group.id, instanceIdx },
+      });
+    },
+    [group.id, instanceIdx, setContextMenu],
   );
 
   const left = Math.max(0, instanceStart * zoom - scrollLeft);
@@ -133,6 +147,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
         "border text-[10px] font-medium text-composer-text z-[45]",
       )}
       onPointerDown={handlePointerDown}
+      onContextMenu={handleContextMenu}
       style={{
         left,
         width,

@@ -1,17 +1,21 @@
 import { useAudioStore } from "@/stores/audio";
+import { useConfirm } from "@/stores/confirm-store";
 import { getAgentColor, useProjectStore } from "@/stores/project";
 import type { LyricLine, WordTiming } from "@/stores/project";
 import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
 import { useSettingsStore } from "@/stores/settings";
 import { formatKey } from "@/ui/help-modal";
+import { GROUP_COLORS } from "@/utils/group-colors";
 import { isMac } from "@/utils/platform";
 import { convertLineToWord } from "@/utils/sync-helpers";
 import { findInsertionSlot, normalizeTrailingSpaces } from "@/utils/word-spaces";
+import { instanceToTemplate } from "@/views/timeline/group-ops";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { getEffectiveLines, isLineSynced } from "@/views/timeline/utils";
 import { IconCommand } from "@tabler/icons-react";
 import { FloatingPortal } from "@floating-ui/react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 function MenuItem({
   label,
@@ -58,11 +62,16 @@ const TimelineContextMenu: React.FC = () => {
 
   const rawLines = useProjectStore((s) => s.lines);
   const agents = useProjectStore((s) => s.agents);
+  const groups = useProjectStore((s) => s.groups);
   const updateLineWithHistory = useProjectStore((s) => s.updateLineWithHistory);
   const setLinesWithHistory = useProjectStore((s) => s.setLinesWithHistory);
   const duration = useAudioStore((s) => s.duration);
+  const confirm = useConfirm();
 
   const lines = useMemo(() => getEffectiveLines(rawLines), [rawLines]);
+
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -316,6 +325,104 @@ const TimelineContextMenu: React.FC = () => {
     return { count: lineSyncedIds.length };
   }, [contextMenu, selectedWords, rawLines]);
 
+  const handleDetachInstance = useCallback(() => {
+    if (!contextMenu || contextMenu.target.kind !== "group-banner") return;
+    const { groupId, instanceIdx } = contextMenu.target;
+    useProjectStore.getState().removeInstance(groupId, instanceIdx);
+    toast.success("Instance detached. Cmd+Z to undo.");
+    clearContextMenu();
+  }, [contextMenu, clearContextMenu]);
+
+  const handleAddInstanceAtPlayhead = useCallback(() => {
+    if (!contextMenu || contextMenu.target.kind !== "group-banner") return;
+    const { groupId, instanceIdx } = contextMenu.target;
+    const audioEl = useAudioStore.getState().audioElement;
+    const playheadTime = audioEl?.currentTime ?? useAudioStore.getState().currentTime;
+    const template = instanceToTemplate(useProjectStore.getState().lines, groupId, instanceIdx);
+    if (template.length === 0) {
+      toast.error("Could not derive instance template");
+      return;
+    }
+    useProjectStore.getState().addInstance(groupId, template, playheadTime);
+    toast.success("Linked instance added at playhead");
+    clearContextMenu();
+  }, [contextMenu, clearContextMenu]);
+
+  const handleShiftToPlayhead = useCallback(() => {
+    if (!contextMenu || contextMenu.target.kind !== "group-banner") return;
+    const { groupId, instanceIdx } = contextMenu.target;
+    const audioEl = useAudioStore.getState().audioElement;
+    const playheadTime = audioEl?.currentTime ?? useAudioStore.getState().currentTime;
+    const projectLines = useProjectStore.getState().lines;
+    let earliest = Number.POSITIVE_INFINITY;
+    for (const line of projectLines) {
+      if (line.groupId !== groupId || line.instanceIdx !== instanceIdx) continue;
+      if (line.words?.length) {
+        for (const w of line.words) if (w.begin < earliest) earliest = w.begin;
+      }
+      if (line.begin !== undefined && line.begin < earliest) earliest = line.begin;
+    }
+    if (!Number.isFinite(earliest)) return;
+    const delta = playheadTime - earliest;
+    useProjectStore.getState().shiftInstance(groupId, instanceIdx, delta);
+    clearContextMenu();
+  }, [contextMenu, clearContextMenu]);
+
+  const handleDeleteGroup = useCallback(async () => {
+    if (!contextMenu || contextMenu.target.kind !== "group-banner") return;
+    const { groupId } = contextMenu.target;
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) return;
+    const projectLines = useProjectStore.getState().lines;
+    const instanceCount = new Set(
+      projectLines
+        .filter((l) => l.groupId === groupId && l.instanceIdx !== undefined)
+        .map((l) => l.instanceIdx as number),
+    ).size;
+
+    clearContextMenu();
+    const ok = await confirm({
+      title: `Delete the "${group.label}" group?`,
+      description: `All ${instanceCount} instance${instanceCount === 1 ? "" : "s"} will become standalone lines. They keep their text and timing, but stop updating together.`,
+      confirmLabel: "Delete group",
+      variant: "destructive",
+      settingsKey: "confirmGroupDissolution",
+      recoverable: true,
+    });
+    if (!ok) return;
+    useProjectStore.getState().removeGroup(groupId);
+    toast.success("Group deleted");
+  }, [contextMenu, groups, confirm, clearContextMenu]);
+
+  const handleRenameStart = useCallback(() => {
+    if (!contextMenu || contextMenu.target.kind !== "group-banner") return;
+    const { groupId } = contextMenu.target;
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) return;
+    setRenamingGroupId(groupId);
+    setRenameValue(group.label);
+  }, [contextMenu, groups]);
+
+  const handleRenameCommit = useCallback(() => {
+    if (!renamingGroupId) return;
+    const trimmed = renameValue.trim();
+    if (trimmed.length > 0) {
+      useProjectStore.getState().updateGroup(renamingGroupId, { label: trimmed });
+    }
+    setRenamingGroupId(null);
+    setRenameValue("");
+    clearContextMenu();
+  }, [renamingGroupId, renameValue, clearContextMenu]);
+
+  const handleRecolorGroup = useCallback(
+    (color: string) => {
+      if (!contextMenu || contextMenu.target.kind !== "group-banner") return;
+      useProjectStore.getState().updateGroup(contextMenu.target.groupId, { color });
+      clearContextMenu();
+    },
+    [contextMenu, clearContextMenu],
+  );
+
   if (!contextMenu) return null;
 
   const { x, y, target } = contextMenu;
@@ -389,6 +496,52 @@ const TimelineContextMenu: React.FC = () => {
               </>
             )}
             <MenuItem label="Delete line" onClick={handleDeleteLine} danger />
+          </>
+        )}
+
+        {target.kind === "group-banner" && (
+          <>
+            {renamingGroupId === target.groupId ? (
+              <input
+                autoFocus
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleRenameCommit();
+                  if (e.key === "Escape") {
+                    setRenamingGroupId(null);
+                    setRenameValue("");
+                  }
+                  e.stopPropagation();
+                }}
+                onBlur={handleRenameCommit}
+                className="w-full px-2 py-1 text-sm rounded border bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent"
+              />
+            ) : (
+              <>
+                <MenuItem label="Add instance at playhead" onClick={handleAddInstanceAtPlayhead} />
+                <MenuItem label="Shift instance to playhead" onClick={handleShiftToPlayhead} />
+                <MenuDivider />
+                <MenuItem label="Rename" onClick={handleRenameStart} />
+                <p className="px-3 pt-1.5 pb-1 text-xs text-composer-text-muted">Recolor</p>
+                <div className="px-2 pb-1 grid grid-cols-5 gap-1">
+                  {GROUP_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      aria-label={`Color ${c}`}
+                      onClick={() => handleRecolorGroup(c)}
+                      className="w-6 h-6 rounded-md cursor-pointer border border-white/10 hover:scale-110 transition-transform"
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+                <MenuDivider />
+                <MenuItem label="Detach instance" onClick={handleDetachInstance} />
+                <MenuItem label="Delete group" onClick={handleDeleteGroup} danger />
+              </>
+            )}
           </>
         )}
       </div>
