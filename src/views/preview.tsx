@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 const PreviewPanel: React.FC = () => {
   const lines = useProjectStore((s) => s.lines);
   const agents = useProjectStore((s) => s.agents);
+  const groups = useProjectStore((s) => s.groups);
   const metadata = useProjectStore((s) => s.metadata);
   const granularity = useProjectStore((s) => s.granularity);
   const duration = useAudioStore((s) => s.duration);
@@ -28,8 +29,8 @@ const PreviewPanel: React.FC = () => {
 
   const ttmlString = useMemo(() => {
     if (!hasSyncedContent) return null;
-    return generateTTML({ metadata, agents, lines, granularity, duration });
-  }, [metadata, agents, lines, granularity, duration, hasSyncedContent]);
+    return generateTTML({ metadata, agents, lines, groups, granularity, duration });
+  }, [metadata, agents, lines, groups, granularity, duration, hasSyncedContent]);
 
   useEffect(() => {
     if (!ttmlString) {
