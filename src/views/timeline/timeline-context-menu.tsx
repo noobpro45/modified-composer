@@ -9,7 +9,7 @@ import { GROUP_COLORS } from "@/utils/group-colors";
 import { isMac } from "@/utils/platform";
 import { convertLineToWord } from "@/utils/sync-helpers";
 import { findInsertionSlot, normalizeTrailingSpaces } from "@/utils/word-spaces";
-import { instanceToTemplate } from "@/views/timeline/group-ops";
+import { createGroupFromSelection, instanceToTemplate } from "@/views/timeline/group-ops";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { getEffectiveLines, isLineSynced } from "@/views/timeline/utils";
 import { IconCommand } from "@tabler/icons-react";
@@ -204,6 +204,28 @@ const TimelineContextMenu: React.FC = () => {
     toast.success("Line detached. Cmd+Z to undo.");
     clearContextMenu();
   }, [gutterLineGroupInfo, clearContextMenu]);
+
+  const groupableSelection = useMemo(() => {
+    if (!contextMenu || contextMenu.target.kind !== "gutter") return null;
+    const selectedWords = useTimelineStore.getState().selectedWords;
+    const selectedLineIds = new Set<string>(selectedWords.map((w) => w.lineId));
+    if (!selectedLineIds.has(contextMenu.target.lineId)) {
+      selectedLineIds.add(contextMenu.target.lineId);
+    }
+    if (selectedLineIds.size < 1) return null;
+    const result = createGroupFromSelection(rawLines, selectedLineIds, useProjectStore.getState().groups);
+    if (!result) return null;
+    return { selectedLineIds, count: selectedLineIds.size, result };
+  }, [contextMenu, rawLines]);
+
+  const handleCreateGroupFromSelection = useCallback(() => {
+    if (!groupableSelection) return;
+    const projectState = useProjectStore.getState();
+    projectState.setLinesWithHistory(groupableSelection.result.updatedLines);
+    projectState.addGroup(groupableSelection.result.group);
+    toast.success(`Grouped ${groupableSelection.count} line${groupableSelection.count === 1 ? "" : "s"}`);
+    clearContextMenu();
+  }, [groupableSelection, clearContextMenu]);
 
   const handleAssignAgent = useCallback(
     (agentId: string) => {
@@ -481,6 +503,20 @@ const TimelineContextMenu: React.FC = () => {
           <>
             <MenuItem label="Add line above" shortcut={["Shift", "N"]} onClick={() => handleAddLine("above")} />
             <MenuItem label="Add line below" shortcut={["N"]} onClick={() => handleAddLine("below")} />
+            {groupableSelection && (
+              <>
+                <MenuDivider />
+                <MenuItem
+                  label={
+                    groupableSelection.count > 1
+                      ? `Group ${groupableSelection.count} selected lines`
+                      : "Group this line"
+                  }
+                  shortcut={getEffectiveKeysArray("timeline.createGroup")}
+                  onClick={handleCreateGroupFromSelection}
+                />
+              </>
+            )}
             <MenuDivider />
             {agents.length > 1 && (
               <>

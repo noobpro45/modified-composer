@@ -27,7 +27,6 @@ const GroupHeaderRowComponent: React.FC<GroupHeaderRowProps> = ({
   instanceEnd,
 }) => {
   const zoom = useTimelineStore((s) => s.zoom);
-  const scrollLeft = useTimelineStore((s) => s.scrollLeft);
   const collapsedInstances = useTimelineStore((s) => s.collapsedInstances);
   const isCollapsed = collapsedInstances[`${group.id}:${instanceIdx}`] ?? false;
 
@@ -38,9 +37,16 @@ const GroupHeaderRowComponent: React.FC<GroupHeaderRowProps> = ({
       data-group-header={`${group.id}:${instanceIdx}`}
     >
       <div
-        className="shrink-0 bg-composer-bg w-12 sticky left-0 z-[60] border-r border-composer-border"
-        style={{ borderRightColor: group.color }}
-      />
+        className="shrink-0 w-12 sticky left-0 z-[60] flex items-center justify-center px-1 select-none overflow-hidden border-r border-composer-border"
+        style={{
+          background: `color-mix(in srgb, ${group.color} 60%, transparent)`,
+        }}
+        title={`${group.label} · ${instanceIdx + 1} of ${totalInstances}`}
+      >
+        <span className="text-[10px] font-semibold text-composer-text truncate w-full text-center leading-none">
+          {group.label}
+        </span>
+      </div>
       <div className="flex-1 overflow-hidden border-b border-composer-border relative">
         <GroupBanner
           group={group}
@@ -50,7 +56,6 @@ const GroupHeaderRowComponent: React.FC<GroupHeaderRowProps> = ({
           instanceEnd={instanceEnd}
           isCollapsed={isCollapsed}
           zoom={zoom}
-          scrollLeft={scrollLeft}
         />
       </div>
     </div>

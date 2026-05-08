@@ -3,7 +3,7 @@ import { groupPingVariants } from "@/utils/animationVariants";
 import { cn } from "@/utils/cn";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { getWordsInInstance } from "@/views/timeline/utils";
-import { IconChevronDown, IconChevronRight, IconLink } from "@tabler/icons-react";
+import { IconChevronDown, IconLink } from "@tabler/icons-react";
 import { motion } from "motion/react";
 import { memo, useCallback, useRef, useState } from "react";
 
@@ -17,7 +17,6 @@ interface GroupBannerProps {
   instanceEnd: number;
   isCollapsed: boolean;
   zoom: number;
-  scrollLeft: number;
 }
 
 // -- Constants -----------------------------------------------------------------
@@ -36,7 +35,6 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
   instanceEnd,
   isCollapsed,
   zoom,
-  scrollLeft,
 }) => {
   const pingingGroupId = useTimelineStore((s) => s.pingingGroupId);
   const isPinging = pingingGroupId === group.id;
@@ -127,7 +125,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
     [group.id, instanceIdx, setContextMenu],
   );
 
-  const left = Math.max(0, instanceStart * zoom - scrollLeft);
+  const left = instanceStart * zoom;
   const width = Math.max(BANNER_MIN_WIDTH, (instanceEnd - instanceStart) * zoom);
   const deltaSecondsLive = dragOffsetPx / Math.max(zoom, 1);
 
@@ -140,7 +138,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
       variants={groupPingVariants}
       animate={isPinging ? "ping" : "idle"}
       className={cn(
-        "absolute flex items-center gap-2 rounded-[9px] cursor-grab select-none px-2.5",
+        "absolute flex items-center gap-2 rounded-md cursor-grab select-none pl-1.5 pr-2.5",
         "border text-[10px] font-medium text-composer-text z-[45]",
       )}
       onPointerDown={handlePointerDown}
@@ -161,11 +159,12 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
         aria-label={isCollapsed ? "Expand instance" : "Collapse instance"}
         onClick={handleChevronClick}
         onPointerDown={handleChevronPointerDown}
-        className="shrink-0 cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
+        className="shrink-0 cursor-pointer opacity-70 hover:opacity-100 transition-opacity p-0.5"
       >
-        {isCollapsed ? <IconChevronRight className="w-3 h-3" /> : <IconChevronDown className="w-3 h-3" />}
+        <IconChevronDown
+          className={cn("w-3 h-3 transition-transform duration-200 ease-out", isCollapsed && "-rotate-90")}
+        />
       </button>
-      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: group.color }} aria-hidden />
       <span className="font-semibold whitespace-nowrap">{group.label}</span>
       <span
         className="flex items-center gap-1 text-composer-text-muted tabular-nums whitespace-nowrap ml-auto"
@@ -184,7 +183,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
       {isCollapsed && (
         <span
           aria-hidden
-          className="absolute inset-0 rounded-[9px] pointer-events-none overflow-hidden"
+          className="absolute inset-0 rounded-md pointer-events-none overflow-hidden"
           style={{
             background: `linear-gradient(to right, color-mix(in srgb, ${group.color} 35%, transparent) var(--progress-fill, 0%), transparent var(--progress-fill, 0%))`,
           }}
