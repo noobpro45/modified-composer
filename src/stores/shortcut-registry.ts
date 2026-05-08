@@ -177,6 +177,18 @@ const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     description: "Import lyrics",
     defaultBinding: { key: "v", mod: true, shift: true },
   },
+  {
+    id: "timeline.createGroup",
+    scope: "timeline",
+    description: "Group selected lines",
+    defaultBinding: { key: "g", mod: true },
+  },
+  {
+    id: "timeline.duplicateAsLinked",
+    scope: "timeline",
+    description: "Duplicate as linked instance",
+    defaultBinding: { key: "d", mod: true },
+  },
 ];
 
 // -- Helpers ------------------------------------------------------------------
