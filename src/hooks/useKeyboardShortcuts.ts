@@ -1,3 +1,4 @@
+import { isAnyModalOpen } from "@/stores/modal-stack";
 import { isMac } from "@/utils/platform";
 import { useCallback, useEffect } from "react";
 
@@ -48,6 +49,7 @@ function useKeyboardShortcuts(shortcuts: Shortcut[], options: ShortcutOptions = 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (!enabled) return;
+      if (isAnyModalOpen()) return;
 
       const target = event.target as HTMLElement;
       const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;

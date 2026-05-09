@@ -1,5 +1,6 @@
 import { useAudioStore } from "@/stores/audio";
 import { useConfirmStore } from "@/stores/confirm-store";
+import { isAnyModalOpen } from "@/stores/modal-stack";
 import { type LyricLine, useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { showGroupActionToast } from "@/utils/group-toast";
@@ -162,6 +163,7 @@ function useTimelineKeyboard(
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (useProjectStore.getState().activeTab !== "timeline") return;
+      if (isAnyModalOpen()) return;
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 

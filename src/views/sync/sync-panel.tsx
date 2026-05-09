@@ -1,5 +1,6 @@
 import { useSyncHandlers } from "@/hooks/useSyncHandlers";
 import { useAudioStore } from "@/stores/audio";
+import { isAnyModalOpen } from "@/stores/modal-stack";
 import { useProjectStore } from "@/stores/project";
 import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
 import { Button } from "@/ui/button";
@@ -212,6 +213,7 @@ const SyncPanel: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (activeTab !== "sync") return;
+      if (isAnyModalOpen()) return;
 
       if (e.code === "KeyZ" && (e.metaKey || e.ctrlKey) && !e.repeat) {
         e.preventDefault();
@@ -266,6 +268,7 @@ const SyncPanel: React.FC = () => {
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (activeTab !== "sync" || !isHolding) return;
+      if (isAnyModalOpen()) return;
 
       if (e.code === heldKeyCodeRef.current) {
         e.preventDefault();

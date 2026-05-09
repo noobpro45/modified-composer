@@ -1,5 +1,6 @@
 import { useAudioStore } from "@/stores/audio";
 import { useConfirm } from "@/stores/confirm-store";
+import { useModalStackStore } from "@/stores/modal-stack";
 import { type LyricLine, useProjectStore } from "@/stores/project";
 import { cn } from "@/utils/cn";
 import { fillEmptyLinesWithInstance } from "@/views/timeline/fill-empty-lines-with-instance";
@@ -209,8 +210,9 @@ const PastePreview: React.FC<PastePreviewProps> = ({ clipboard, scrollContainerR
     [clipboard, scrollContainerRef, confirm],
   );
 
+  const modalCount = useModalStackStore((s) => s.count);
   const container = scrollContainerRef.current;
-  if (!container || !mousePos) return null;
+  if (!container || !mousePos || modalCount > 0) return null;
 
   const { zoom, rowHeights, defaultRowHeight, collapsedInstances } = useTimelineStore.getState();
   const lines = useProjectStore.getState().lines;
