@@ -3,10 +3,11 @@ import { type LyricLine, useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { convertLineToWord } from "@/utils/sync-helpers";
 import { findMatchingShortcut } from "@/utils/shortcut-matcher";
+import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
 import { createGroupFromSelection, fillSelectionGaps, instanceToTemplate } from "@/views/timeline/group-ops";
 import { GUTTER_WIDTH, type WordSelection, useTimelineStore } from "@/views/timeline/timeline-store";
 import { useTimelineClipboard } from "@/views/timeline/use-timeline-clipboard";
-import { findWordAtTime, getLineTiming, isLineSynced } from "@/views/timeline/utils";
+import { computeRowLayout, findWordAtTime, getLineTiming, isLineSynced } from "@/views/timeline/utils";
 import { type RefObject, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 
@@ -49,24 +50,26 @@ function useTimelineKeyboard(
       const scrollContainer = scrollContainerRef.current;
 
       if (fromPlayhead && scrollContainer) {
-        let rowTop = WAVEFORM_HEIGHT;
-        for (let i = 0; i < targetWord.lineIndex; i++) {
-          const l = lines[i];
-          const mainHeight = rowHeights[l.id] ?? defaultRowHeight;
-          const hasBg = l.backgroundWords && l.backgroundWords.length > 0;
-          rowTop += mainHeight + (hasBg ? mainHeight : BG_DROP_ZONE_HEIGHT) + 1;
-        }
-        const mainHeight = rowHeights[line.id] ?? defaultRowHeight;
-        const hasBg = line.backgroundWords && line.backgroundWords.length > 0;
-        const rowHeight = mainHeight + (hasBg ? mainHeight : BG_DROP_ZONE_HEIGHT) + 1;
+        const collapsedInstances = useTimelineStore.getState().collapsedInstances;
+        const layout = computeRowLayout({
+          lines,
+          rowHeights,
+          defaultRowHeight,
+          collapsedInstances,
+          waveformHeight: WAVEFORM_HEIGHT,
+          bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
+          groupHeaderHeight: GROUP_HEADER_HEIGHT,
+        });
+        const pos = layout.lineTops.get(line.id);
+        if (pos) {
+          const visibleTop = scrollContainer.scrollTop;
+          const visibleBottom = visibleTop + scrollContainer.clientHeight;
+          const rowBottom = pos.top + pos.height;
+          const isRowVisible = pos.top >= visibleTop && rowBottom <= visibleBottom;
 
-        const visibleTop = scrollContainer.scrollTop;
-        const visibleBottom = visibleTop + scrollContainer.clientHeight;
-        const rowBottom = rowTop + rowHeight;
-        const isRowVisible = rowTop >= visibleTop && rowBottom <= visibleBottom;
-
-        if (!isRowVisible) {
-          scrollContainer.scrollTo({ top: rowTop - WAVEFORM_HEIGHT, behavior: "instant" });
+          if (!isRowVisible) {
+            scrollContainer.scrollTo({ top: pos.top - WAVEFORM_HEIGHT, behavior: "instant" });
+          }
         }
 
         const wordLeft = word.begin * zoom;
@@ -259,25 +262,35 @@ function useTimelineKeyboard(
           }
 
           if (activeLineIndex >= 0) {
-            let rowTop = WAVEFORM_HEIGHT;
-            for (let i = 0; i < activeLineIndex; i++) {
-              const l = lines[i];
-              const mainHeight = rowHeights[l.id] ?? defaultRowHeight;
-              const hasBg = l.backgroundWords && l.backgroundWords.length > 0;
-              rowTop += mainHeight + (hasBg ? mainHeight : BG_DROP_ZONE_HEIGHT) + 1;
-            }
             const line = lines[activeLineIndex];
-            const mainHeight = rowHeights[line.id] ?? defaultRowHeight;
-            const hasBg = line.backgroundWords && line.backgroundWords.length > 0;
-            const rowHeight = mainHeight + (hasBg ? mainHeight : BG_DROP_ZONE_HEIGHT) + 1;
+            const collapsedInstances = useTimelineStore.getState().collapsedInstances;
+            const layout = computeRowLayout({
+              lines,
+              rowHeights,
+              defaultRowHeight,
+              collapsedInstances,
+              waveformHeight: WAVEFORM_HEIGHT,
+              bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
+              groupHeaderHeight: GROUP_HEADER_HEIGHT,
+            });
+            const instanceKey =
+              line.groupId !== undefined && line.instanceIdx !== undefined
+                ? `${line.groupId}:${line.instanceIdx}`
+                : null;
+            const pos =
+              instanceKey && collapsedInstances[instanceKey]
+                ? layout.headerTops.get(instanceKey)
+                : layout.lineTops.get(line.id);
 
-            const viewportHeight = scrollContainer.clientHeight;
-            const rowCenter = rowTop + rowHeight / 2;
-            const targetTop = Math.max(
-              0,
-              Math.min(scrollContainer.scrollHeight - viewportHeight, rowCenter - viewportHeight / 2),
-            );
-            scrollContainer.scrollTo({ top: targetTop, behavior: "instant" });
+            if (pos) {
+              const viewportHeight = scrollContainer.clientHeight;
+              const rowCenter = pos.top + pos.height / 2;
+              const targetTop = Math.max(
+                0,
+                Math.min(scrollContainer.scrollHeight - viewportHeight, rowCenter - viewportHeight / 2),
+              );
+              scrollContainer.scrollTo({ top: targetTop, behavior: "instant" });
+            }
           }
           break;
         }

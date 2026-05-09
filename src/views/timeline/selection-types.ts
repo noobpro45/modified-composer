@@ -10,6 +10,10 @@ interface ClipboardEntry {
 
 interface ClipboardData {
   entries: ClipboardEntry[];
+  sourceInstance?: {
+    groupId: string;
+    instanceIdx: number;
+  };
 }
 
 type PasteMode = { status: "idle" } | { status: "preview"; clipboard: ClipboardData };

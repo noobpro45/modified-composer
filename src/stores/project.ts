@@ -115,7 +115,7 @@ interface ProjectActions {
   addGroup: (group: LinkGroup) => void;
   updateGroup: (id: string, updates: Partial<LinkGroup>) => void;
   removeGroup: (id: string) => void;
-  addInstance: (groupId: string, structure: LineTemplate[], instanceStart: number) => void;
+  addInstance: (groupId: string, structure: LineTemplate[], instanceStart: number, insertAtIndex?: number) => void;
   removeInstance: (groupId: string, instanceIdx: number) => void;
   detachLine: (lineId: string) => void;
   propagateLinkedEdit: (groupId: string, templateLineIdx: number, lineUpdates: Partial<LyricLine>) => void;
@@ -497,7 +497,7 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
       }),
     ),
 
-  addInstance: (groupId, structure, instanceStart) =>
+  addInstance: (groupId, structure, instanceStart, insertAtIndex) =>
     set((state) => {
       const usedIndices = new Set(
         state.lines
@@ -537,7 +537,12 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
           : {}),
       }));
 
-      return commitHistory(state, { lines: [...state.lines, ...newLines] });
+      const insertedLines =
+        insertAtIndex === undefined || insertAtIndex >= state.lines.length || insertAtIndex < 0
+          ? [...state.lines, ...newLines]
+          : [...state.lines.slice(0, insertAtIndex), ...newLines, ...state.lines.slice(insertAtIndex)];
+
+      return commitHistory(state, { lines: insertedLines });
     }),
 
   removeInstance: (groupId, instanceIdx) =>

@@ -1,6 +1,7 @@
 import { type LyricLine, useProjectStore } from "@/stores/project";
-import type { ClipboardEntry } from "@/views/timeline/selection-types";
+import type { ClipboardData, ClipboardEntry } from "@/views/timeline/selection-types";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
+import { getWordsInInstance } from "@/views/timeline/utils";
 import { useCallback } from "react";
 import { toast } from "sonner";
 
@@ -28,10 +29,20 @@ function useTimelineClipboard(lines: LyricLine[]) {
       });
     }
 
-    if (entries.length > 0) {
-      useTimelineStore.getState().setClipboard({ entries });
-      toast(`Copied ${entries.length} word${entries.length > 1 ? "s" : ""}`);
-    }
+    if (entries.length === 0) return;
+
+    entries.sort((a, b) => a.lineOffset - b.lineOffset || a.word.begin - b.word.begin);
+
+    const clipboard: ClipboardData = { entries };
+    const sourceInstance = detectFullInstance(lines, selectedWords);
+    if (sourceInstance) clipboard.sourceInstance = sourceInstance;
+
+    useTimelineStore.getState().setClipboard(clipboard);
+    toast(
+      sourceInstance
+        ? `Copied linked instance (${entries.length} word${entries.length > 1 ? "s" : ""})`
+        : `Copied ${entries.length} word${entries.length > 1 ? "s" : ""}`,
+    );
   }, [lines]);
 
   const handleDelete = useCallback(() => {
@@ -95,6 +106,32 @@ function useTimelineClipboard(lines: LyricLine[]) {
   }, []);
 
   return { handleCopy, handleDelete, handleCut, handlePaste };
+}
+
+// -- Helpers ------------------------------------------------------------------
+
+function detectFullInstance(
+  lines: LyricLine[],
+  selectedWords: ReadonlyArray<{ lineId: string; wordIndex: number; type: "word" | "bg" }>,
+): { groupId: string; instanceIdx: number } | undefined {
+  const firstLine = lines.find((l) => l.id === selectedWords[0].lineId);
+  if (!firstLine?.groupId || firstLine.instanceIdx === undefined) return undefined;
+  const { groupId, instanceIdx } = firstLine;
+
+  for (const sel of selectedWords) {
+    const line = lines.find((l) => l.id === sel.lineId);
+    if (!line || line.groupId !== groupId || line.instanceIdx !== instanceIdx) return undefined;
+  }
+
+  const expected = getWordsInInstance(lines, groupId, instanceIdx);
+  if (expected.length !== selectedWords.length) return undefined;
+
+  const selectedKeys = new Set(selectedWords.map((s) => `${s.lineId}:${s.type}:${s.wordIndex}`));
+  for (const ref of expected) {
+    if (!selectedKeys.has(`${ref.lineId}:${ref.type}:${ref.wordIndex}`)) return undefined;
+  }
+
+  return { groupId, instanceIdx };
 }
 
 // -- Exports ------------------------------------------------------------------

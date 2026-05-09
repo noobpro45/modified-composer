@@ -1,9 +1,13 @@
 import { useAudioStore } from "@/stores/audio";
 import { type LyricLine, useProjectStore } from "@/stores/project";
 import { cn } from "@/utils/cn";
+import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
+import { instanceToTemplate } from "@/views/timeline/group-ops";
 import type { ClipboardData } from "@/views/timeline/selection-types";
 import { GUTTER_WIDTH, useTimelineStore } from "@/views/timeline/timeline-store";
+import { computeRowLayout, type RowLayout } from "@/views/timeline/utils";
 import { type RefObject, useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 // -- Types ---------------------------------------------------------------------
 
@@ -26,7 +30,10 @@ interface GhostWord {
 // -- Constants -----------------------------------------------------------------
 
 const WAVEFORM_HEIGHT = 80;
+const WAVEFORM_BORDER = 1;
+const ROWS_START_Y = WAVEFORM_HEIGHT + WAVEFORM_BORDER;
 const BG_DROP_ZONE_HEIGHT = 24;
+const BG_BORDER = 1;
 
 // -- Component -----------------------------------------------------------------
 
@@ -49,15 +56,41 @@ const PastePreview: React.FC<PastePreviewProps> = ({ clipboard, scrollContainerR
       const container = scrollContainerRef.current;
       if (!container) return;
 
-      const { zoom, rowHeights, defaultRowHeight } = useTimelineStore.getState();
+      const { zoom, rowHeights, defaultRowHeight, collapsedInstances } = useTimelineStore.getState();
       const lines = useProjectStore.getState().lines;
       const duration = useAudioStore.getState().duration;
+      const layout = computeRowLayout({
+        lines,
+        rowHeights,
+        defaultRowHeight,
+        collapsedInstances,
+        waveformHeight: ROWS_START_Y,
+        bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
+        groupHeaderHeight: GROUP_HEADER_HEIGHT,
+      });
 
       const containerRect = container.getBoundingClientRect();
       const cursorTime = (e.clientX - containerRect.left - GUTTER_WIDTH + container.scrollLeft) / zoom;
 
       const cursorY = e.clientY - containerRect.top + container.scrollTop;
-      const targetLineIndex = getLineIndexAtY(cursorY, lines, rowHeights, defaultRowHeight);
+      const hoveredLineIndex = getLineIndexAtY(cursorY, lines, layout);
+
+      if (clipboard.sourceInstance) {
+        const { groupId, instanceIdx } = clipboard.sourceInstance;
+        const template = instanceToTemplate(lines, groupId, instanceIdx);
+        if (template.length === 0) {
+          toast.error("Could not derive instance template");
+          return;
+        }
+        const insertAt = hoveredLineIndex >= 0 ? hoveredLineIndex : undefined;
+        useProjectStore.getState().addInstance(groupId, template, Math.max(0, cursorTime), insertAt);
+        useTimelineStore.getState().setPasteMode({ status: "idle" });
+        useTimelineStore.getState().clearSelection();
+        toast.success("Linked instance added");
+        return;
+      }
+
+      const targetLineIndex = hoveredLineIndex;
       if (targetLineIndex < 0) return;
 
       const firstEntry = clipboard.entries[0];
@@ -117,32 +150,35 @@ const PastePreview: React.FC<PastePreviewProps> = ({ clipboard, scrollContainerR
   const container = scrollContainerRef.current;
   if (!container || !mousePos) return null;
 
-  const { zoom, rowHeights, defaultRowHeight } = useTimelineStore.getState();
+  const { zoom, rowHeights, defaultRowHeight, collapsedInstances } = useTimelineStore.getState();
   const lines = useProjectStore.getState().lines;
   const duration = useAudioStore.getState().duration;
+  const layout = computeRowLayout({
+    lines,
+    rowHeights,
+    defaultRowHeight,
+    collapsedInstances,
+    waveformHeight: ROWS_START_Y,
+    bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
+    groupHeaderHeight: GROUP_HEADER_HEIGHT,
+  });
 
   const containerRect = container.getBoundingClientRect();
   const cursorTime = (mousePos.clientX - containerRect.left - GUTTER_WIDTH + container.scrollLeft) / zoom;
   const cursorY = mousePos.clientY - containerRect.top + container.scrollTop;
-  const targetLineIndex = getLineIndexAtY(cursorY, lines, rowHeights, defaultRowHeight);
+  const isInstancePaste = !!clipboard.sourceInstance;
+  const hoveredLineIndex = getLineIndexAtY(cursorY, lines, layout);
+  const targetLineIndex =
+    hoveredLineIndex >= 0 ? hoveredLineIndex : isInstancePaste ? Math.max(0, lines.length - 1) : -1;
 
   if (targetLineIndex < 0) return null;
 
   const firstEntry = clipboard.entries[0];
   const timeDelta = cursorTime - firstEntry.word.begin;
 
-  const hasOverlap = checkOverlaps(clipboard, targetLineIndex, timeDelta, lines, duration);
+  const hasOverlap = isInstancePaste ? false : checkOverlaps(clipboard, targetLineIndex, timeDelta, lines, duration);
 
-  const ghosts = computeGhosts(
-    clipboard,
-    targetLineIndex,
-    timeDelta,
-    lines,
-    zoom,
-    duration,
-    rowHeights,
-    defaultRowHeight,
-  );
+  const ghosts = computeGhosts(clipboard, targetLineIndex, timeDelta, lines, zoom, duration, layout, defaultRowHeight);
 
   const scrollLeft = container.scrollLeft;
   const scrollTop = container.scrollTop;
@@ -178,22 +214,11 @@ const PastePreview: React.FC<PastePreviewProps> = ({ clipboard, scrollContainerR
 
 // -- Helpers -------------------------------------------------------------------
 
-function getLineIndexAtY(
-  y: number,
-  lines: LyricLine[],
-  rowHeights: Record<string, number>,
-  defaultRowHeight: number,
-): number {
-  let rowTop = WAVEFORM_HEIGHT;
+function getLineIndexAtY(y: number, lines: LyricLine[], layout: RowLayout): number {
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const mainHeight = rowHeights[line.id] ?? defaultRowHeight;
-    const hasBg = line.backgroundWords && line.backgroundWords.length > 0;
-    const bgHeight = hasBg ? mainHeight : BG_DROP_ZONE_HEIGHT;
-    const totalHeight = mainHeight + bgHeight + 1;
-
-    if (y >= rowTop && y < rowTop + totalHeight) return i;
-    rowTop += totalHeight;
+    const pos = layout.lineTops.get(lines[i].id);
+    if (!pos) continue;
+    if (y >= pos.top && y < pos.top + pos.height) return i;
   }
   return -1;
 }
@@ -231,28 +256,21 @@ function computeGhosts(
   lines: LyricLine[],
   zoom: number,
   duration: number,
-  rowHeights: Record<string, number>,
+  layout: RowLayout,
   defaultRowHeight: number,
 ): GhostWord[] {
   const ghosts: GhostWord[] = [];
 
-  const rowTops: number[] = [];
-  const rowMainHeights: number[] = [];
-  const rowBgHeights: number[] = [];
-  let top = WAVEFORM_HEIGHT;
-  for (const line of lines) {
-    rowTops.push(top);
-    const mainHeight = rowHeights[line.id] ?? defaultRowHeight;
-    rowMainHeights.push(mainHeight);
-    const hasBg = line.backgroundWords && line.backgroundWords.length > 0;
-    const bgHeight = hasBg ? mainHeight : BG_DROP_ZONE_HEIGHT;
-    rowBgHeights.push(bgHeight);
-    top += mainHeight + bgHeight + 1;
-  }
+  let layoutEnd = 0;
+  for (const pos of layout.lineTops.values()) layoutEnd = Math.max(layoutEnd, pos.top + pos.height);
+  for (const pos of layout.headerTops.values()) layoutEnd = Math.max(layoutEnd, pos.top + pos.height);
 
   for (const entry of clipboard.entries) {
     const lineIdx = targetLineIndex + entry.lineOffset;
-    const outOfBounds = lineIdx < 0 || lineIdx >= lines.length;
+    const inRange = lineIdx >= 0 && lineIdx < lines.length;
+    const targetLine = inRange ? lines[lineIdx] : null;
+    const targetPos = targetLine ? layout.lineTops.get(targetLine.id) : null;
+    const outOfBounds = !targetLine || !targetPos;
     const isBg = entry.trackType === "bg";
 
     const newBegin = Math.max(0, entry.word.begin + timeDelta);
@@ -262,9 +280,8 @@ function computeGhosts(
     const width = Math.max((newEnd - newBegin) * zoom, 4);
 
     let overlaps = outOfBounds;
-    if (!outOfBounds) {
-      const line = lines[lineIdx];
-      const wordsArray = isBg ? line.backgroundWords : line.words;
+    if (targetLine && !outOfBounds) {
+      const wordsArray = isBg ? targetLine.backgroundWords : targetLine.words;
       if (wordsArray) {
         for (const existing of wordsArray) {
           if (newBegin < existing.end && newEnd > existing.begin) {
@@ -278,15 +295,20 @@ function computeGhosts(
     let trackTop: number;
     let trackHeight: number;
 
-    if (outOfBounds) {
-      trackTop = top;
+    if (!targetPos || !targetLine) {
+      trackTop = layoutEnd;
       trackHeight = defaultRowHeight;
-    } else if (isBg) {
-      trackTop = rowTops[lineIdx] + rowMainHeights[lineIdx];
-      trackHeight = rowBgHeights[lineIdx];
     } else {
-      trackTop = rowTops[lineIdx];
-      trackHeight = rowMainHeights[lineIdx];
+      const hasBg = !!(targetLine.backgroundWords && targetLine.backgroundWords.length > 0);
+      const bgHeight = hasBg ? (targetPos.height - 1) / 2 : BG_DROP_ZONE_HEIGHT;
+      const mainHeight = targetPos.height - 1 - bgHeight;
+      if (isBg) {
+        trackTop = targetPos.top + mainHeight + BG_BORDER;
+        trackHeight = bgHeight;
+      } else {
+        trackTop = targetPos.top;
+        trackHeight = mainHeight;
+      }
     }
 
     ghosts.push({
