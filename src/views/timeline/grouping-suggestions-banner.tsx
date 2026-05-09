@@ -12,29 +12,31 @@ const MODAL_LINE_LIMIT = 6;
 
 const GroupingSuggestionsBanner: React.FC = () => {
   const lines = useProjectStore((s) => s.lines);
+  const dismissed = useProjectStore((s) => s.dismissedSuggestions);
   const groupRepeatingSections = useProjectStore((s) => s.groupRepeatingSections);
-  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
+  const dismissSuggestion = useProjectStore((s) => s.dismissSuggestion);
   const [modalOpen, setModalOpen] = useState(false);
 
   const suggestions = useMemo(() => findRepeatingStandaloneSections(lines), [lines]);
-  const visible = useMemo(
-    () => suggestions.filter((s) => !dismissedKeys.has(suggestionKey(s))),
-    [suggestions, dismissedKeys],
-  );
+  const visible = useMemo(() => {
+    const dismissedSet = new Set(dismissed);
+    return suggestions.filter((s) => !dismissedSet.has(s.fingerprint));
+  }, [suggestions, dismissed]);
 
   if (visible.length === 0) return null;
 
-  const dismissOne = (s: RepeatingSection) => setDismissedKeys((prev) => new Set(prev).add(suggestionKey(s)));
+  const dismissOne = (s: RepeatingSection) => dismissSuggestion(s.fingerprint);
 
-  const dismissAll = () =>
-    setDismissedKeys((prev) => {
-      const next = new Set(prev);
-      for (const s of visible) next.add(suggestionKey(s));
-      return next;
-    });
+  const dismissAll = () => {
+    for (const s of visible) dismissSuggestion(s.fingerprint);
+  };
 
   const acceptOne = (s: RepeatingSection) => {
     groupRepeatingSections(s.starts, s.length);
+  };
+
+  const acceptAll = () => {
+    for (const s of visible) groupRepeatingSections(s.starts, s.length);
   };
 
   return (
@@ -91,6 +93,7 @@ const GroupingSuggestionsBanner: React.FC = () => {
         suggestions={visible}
         onAccept={acceptOne}
         onDismiss={dismissOne}
+        onAcceptAll={acceptAll}
       />
     </>
   );
@@ -102,17 +105,32 @@ interface SuggestionsModalProps {
   suggestions: RepeatingSection[];
   onAccept: (s: RepeatingSection) => void;
   onDismiss: (s: RepeatingSection) => void;
+  onAcceptAll: () => void;
 }
 
-const SuggestionsModal: React.FC<SuggestionsModalProps> = ({ isOpen, onClose, suggestions, onAccept, onDismiss }) => {
+const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
+  isOpen,
+  onClose,
+  suggestions,
+  onAccept,
+  onDismiss,
+  onAcceptAll,
+}) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Grouping suggestions" className="max-w-xl" bodyClassName="p-0">
-      <div className="px-5 py-3 border-b border-composer-border flex items-center gap-2 text-sm text-composer-text-muted">
-        <IconBulb className="w-4 h-4 text-composer-accent" />
-        <span>
-          {suggestions.length} repeating section{suggestions.length === 1 ? "" : "s"} detected. Group them to keep edits
-          in sync.
-        </span>
+      <div className="px-5 py-3 border-b border-composer-border flex items-center justify-between gap-3 text-sm">
+        <div className="flex items-center gap-2 text-composer-text-muted min-w-0">
+          <IconBulb className="w-4 h-4 text-composer-accent shrink-0" />
+          <span className="truncate">
+            {suggestions.length} repeating section{suggestions.length === 1 ? "" : "s"} detected
+          </span>
+        </div>
+        {suggestions.length > 1 && (
+          <Button size="sm" variant="primary" hasIcon onClick={onAcceptAll}>
+            <IconLink className="w-3.5 h-3.5" />
+            Group all
+          </Button>
+        )}
       </div>
       <Scroll className="max-h-[60vh]">
         <ul className="divide-y divide-composer-border">

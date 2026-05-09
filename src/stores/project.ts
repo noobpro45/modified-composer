@@ -87,6 +87,7 @@ interface ProjectState {
   isDirty: boolean;
   history: HistoryEntry[];
   historyIndex: number;
+  dismissedSuggestions: string[];
 }
 
 interface ProjectActions {
@@ -124,6 +125,9 @@ interface ProjectActions {
   detachLine: (lineId: string) => void;
   propagateLinkedEdit: (groupId: string, templateLineIdx: number, lineUpdates: Partial<LyricLine>) => void;
   shiftInstance: (groupId: string, instanceIdx: number, deltaSeconds: number) => void;
+  dismissSuggestion: (fingerprint: string) => void;
+  setDismissedSuggestions: (fingerprints: string[]) => void;
+  clearDismissedSuggestions: () => void;
 }
 
 // -- Constants ----------------------------------------------------------------
@@ -175,6 +179,7 @@ function createInitialState(): ProjectState {
     isDirty: false,
     history: [],
     historyIndex: -1,
+    dismissedSuggestions: [],
   };
 }
 
@@ -677,6 +682,16 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
         }),
       }),
     ),
+
+  dismissSuggestion: (fingerprint) =>
+    set((state) => {
+      if (state.dismissedSuggestions.includes(fingerprint)) return state;
+      return { dismissedSuggestions: [...state.dismissedSuggestions, fingerprint], isDirty: true };
+    }),
+
+  setDismissedSuggestions: (fingerprints) => set({ dismissedSuggestions: fingerprints }),
+
+  clearDismissedSuggestions: () => set({ dismissedSuggestions: [], isDirty: true }),
 }));
 
 function extractLinkedFields(updates: Partial<LyricLine>): Partial<LyricLine> {

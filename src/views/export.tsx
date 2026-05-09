@@ -109,7 +109,8 @@ const ExportPanel: React.FC = () => {
   const handleExportProject = useCallback(() => {
     const audioSource = useAudioStore.getState().source;
     const audioFileName = audioSource?.type === "file" ? audioSource.file.name : undefined;
-    exportProjectToFile(metadata, agents, lines, groups, granularity, audioFileName);
+    const dismissed = useProjectStore.getState().dismissedSuggestions;
+    exportProjectToFile(metadata, agents, lines, groups, granularity, dismissed, audioFileName);
   }, [metadata, agents, lines, groups, granularity]);
 
   const handleImportProject = useCallback(
@@ -136,6 +137,7 @@ const ExportPanel: React.FC = () => {
       setMetadata(project.metadata);
       setLines(project.lines);
       useProjectStore.getState().setGroups(project.groups ?? []);
+      useProjectStore.getState().setDismissedSuggestions(project.dismissedSuggestions ?? []);
       setGranularity(project.granularity);
       setAgents(project.agents);
       markClean();

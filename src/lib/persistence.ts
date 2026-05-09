@@ -15,6 +15,7 @@ interface SavedProject {
   granularity: GranularityMode;
   audioFileName?: string;
   audioSource?: SavedAudioSource;
+  dismissedSuggestions?: string[];
 }
 
 // -- Constants ----------------------------------------------------------------
@@ -94,7 +95,8 @@ async function saveCurrentProject(
   lines: LyricLine[],
   groups: LinkGroup[],
   granularity: GranularityMode,
-  audioSource?: SavedAudioSource,
+  audioSource: SavedAudioSource | undefined,
+  dismissedSuggestions: string[],
 ): Promise<void> {
   const audioFileName = audioSource?.kind === "file" ? audioSource.name : undefined;
   const project: SavedProject = {
@@ -107,6 +109,7 @@ async function saveCurrentProject(
     granularity,
     audioFileName,
     audioSource,
+    dismissedSuggestions,
   };
   await setInStore(CURRENT_PROJECT_KEY, project);
 }
@@ -153,6 +156,7 @@ function exportProjectToFile(
   lines: LyricLine[],
   groups: LinkGroup[],
   granularity: GranularityMode,
+  dismissedSuggestions: string[],
   audioFileName?: string,
 ): void {
   const project: SavedProject = {
@@ -164,6 +168,7 @@ function exportProjectToFile(
     groups,
     granularity,
     audioFileName,
+    dismissedSuggestions,
   };
 
   const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
@@ -191,8 +196,9 @@ async function importProjectFromFile(file: File): Promise<SavedProject> {
 // -- Debounced Auto-save ------------------------------------------------------
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
-let pendingSaveArgs: [ProjectMetadata, Agent[], LyricLine[], LinkGroup[], GranularityMode, SavedAudioSource?] | null =
-  null;
+let pendingSaveArgs:
+  | [ProjectMetadata, Agent[], LyricLine[], LinkGroup[], GranularityMode, SavedAudioSource | undefined, string[]]
+  | null = null;
 
 function debouncedSave(
   metadata: ProjectMetadata,
@@ -200,9 +206,10 @@ function debouncedSave(
   lines: LyricLine[],
   groups: LinkGroup[],
   granularity: GranularityMode,
-  audioSource?: SavedAudioSource,
+  audioSource: SavedAudioSource | undefined,
+  dismissedSuggestions: string[],
 ): void {
-  pendingSaveArgs = [metadata, agents, lines, groups, granularity, audioSource];
+  pendingSaveArgs = [metadata, agents, lines, groups, granularity, audioSource, dismissedSuggestions];
   if (saveTimeout) {
     clearTimeout(saveTimeout);
   }

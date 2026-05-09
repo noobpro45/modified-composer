@@ -29,6 +29,32 @@ describe("findRepeatingStandaloneSections", () => {
     expect(result[0].starts).toEqual([1, 4]);
     expect(result[0].length).toBe(2);
     expect(result[0].previewLines).toEqual(["chorus a", "chorus b"]);
+    expect(result[0].fingerprint).toBeTruthy();
+  });
+
+  it("fingerprint is stable when surrounding lines change but block content doesn't", () => {
+    const baseChorus = [line("1", "chorus a"), line("2", "chorus b")];
+    const a = [line("v1", "verse"), ...baseChorus, line("v2", "verse 2"), line("3", "chorus a"), line("4", "chorus b")];
+    const b = [
+      line("intro1", "intro 1"),
+      line("intro2", "intro 2"),
+      line("intro3", "intro 3"),
+      ...baseChorus,
+      line("v1", "verse"),
+      line("3", "chorus a"),
+      line("4", "chorus b"),
+    ];
+    const fpA = findRepeatingStandaloneSections(a)[0].fingerprint;
+    const fpB = findRepeatingStandaloneSections(b)[0].fingerprint;
+    expect(fpA).toBe(fpB);
+  });
+
+  it("fingerprint changes when block text changes", () => {
+    const a = [line("1", "chorus a"), line("2", "chorus b"), line("3", "chorus a"), line("4", "chorus b")];
+    const b = [line("1", "different"), line("2", "chorus b"), line("3", "different"), line("4", "chorus b")];
+    const fpA = findRepeatingStandaloneSections(a)[0].fingerprint;
+    const fpB = findRepeatingStandaloneSections(b)[0].fingerprint;
+    expect(fpA).not.toBe(fpB);
   });
 
   it("detects 4 contiguous chorus runs of length 4", () => {

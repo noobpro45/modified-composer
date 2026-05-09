@@ -6,6 +6,7 @@ interface RepeatingSection {
   length: number;
   preview: string;
   previewLines: string[];
+  fingerprint: string;
 }
 
 function findRepeatingStandaloneSections(lines: LyricLine[]): RepeatingSection[] {
@@ -46,6 +47,7 @@ function findRepeatingStandaloneSections(lines: LyricLine[]): RepeatingSection[]
           length: k,
           preview: lines[i].text,
           previewLines: lines.slice(i, i + k).map((l) => l.text),
+          fingerprint: fingerprintBlock(lines, i, k),
         });
         i = i + k - 1;
         break;
@@ -54,6 +56,19 @@ function findRepeatingStandaloneSections(lines: LyricLine[]): RepeatingSection[]
   }
 
   return results;
+}
+
+function fingerprintBlock(lines: LyricLine[], start: number, length: number): string {
+  const FS = "";
+  const RS = "";
+  const parts: string[] = [];
+  for (let p = start; p < start + length; p++) {
+    const l = lines[p];
+    const wordsKey = (l.words ?? []).map((w) => w.text).join(FS);
+    const bgKey = (l.backgroundWords ?? []).map((w) => w.text).join(FS);
+    parts.push([l.text, l.agentId, l.backgroundText ?? "", wordsKey, bgKey].join(RS));
+  }
+  return parts.join("\n");
 }
 
 function isStandaloneBlock(lines: LyricLine[], start: number, length: number, claimed: Set<number>): boolean {
