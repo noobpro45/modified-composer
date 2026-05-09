@@ -1,4 +1,5 @@
 import { type LyricLine, useProjectStore } from "@/stores/project";
+import { applyWordDeletion } from "@/views/timeline/apply-word-deletion";
 import { buildCandidateLines } from "@/views/timeline/build-candidate-lines";
 import type { ClipboardData, ClipboardEntry } from "@/views/timeline/selection-types";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
@@ -55,45 +56,13 @@ function useTimelineClipboard(lines: LyricLine[]) {
     const { selectedWords } = useTimelineStore.getState();
     if (selectedWords.length === 0) return;
 
-    const grouped = new Map<string, { wordIndices: number[]; bgIndices: number[] }>();
-    for (const sel of selectedWords) {
-      let entry = grouped.get(sel.lineId);
-      if (!entry) {
-        entry = { wordIndices: [], bgIndices: [] };
-        grouped.set(sel.lineId, entry);
-      }
-      if (sel.type === "word") {
-        entry.wordIndices.push(sel.wordIndex);
-      } else {
-        entry.bgIndices.push(sel.wordIndex);
-      }
-    }
+    const rawLines = useProjectStore.getState().lines;
+    const newLines = applyWordDeletion(rawLines, selectedWords);
+    if (newLines === rawLines) return;
 
-    const updates: Array<{ id: string; updates: Partial<LyricLine> }> = [];
-    for (const [lineId, { wordIndices, bgIndices }] of grouped) {
-      const line = lines.find((l) => l.id === lineId);
-      if (!line) continue;
-
-      const lineUpdates: Partial<LyricLine> = {};
-      if (wordIndices.length > 0 && line.words) {
-        const wordSet = new Set(wordIndices);
-        lineUpdates.words = line.words.filter((_, i) => !wordSet.has(i));
-      }
-      if (bgIndices.length > 0 && line.backgroundWords) {
-        const bgSet = new Set(bgIndices);
-        const remaining = line.backgroundWords.filter((_, i) => !bgSet.has(i));
-        lineUpdates.backgroundWords = remaining.length > 0 ? remaining : undefined;
-        lineUpdates.backgroundText = remaining.length > 0 ? remaining.map((w) => w.text).join("") : undefined;
-      }
-
-      updates.push({ id: lineId, updates: lineUpdates });
-    }
-
-    if (updates.length > 0) {
-      useProjectStore.getState().updateLinesWithHistory(updates);
-      useTimelineStore.getState().clearSelection();
-    }
-  }, [lines]);
+    useProjectStore.getState().setLinesWithHistory(newLines);
+    useTimelineStore.getState().clearSelection();
+  }, []);
 
   const handleCut = useCallback(() => {
     handleCopy();
