@@ -48,6 +48,7 @@ interface TimelineState {
   collapsedInstances: Record<string, boolean>;
   pingingGroupId: string | null;
   renamingGroupId: string | null;
+  renamingInstanceIdx: number | null;
   draggedGroupShift: { groupId: string; instanceIdx: number; offsetPx: number } | null;
 }
 
@@ -75,7 +76,7 @@ interface TimelineActions {
   setInstanceCollapsed: (key: string, isCollapsed: boolean) => void;
   toggleInstanceCollapsed: (key: string) => void;
   setPingingGroupId: (groupId: string | null) => void;
-  setRenamingGroupId: (groupId: string | null) => void;
+  setRenamingGroupId: (groupId: string | null, instanceIdx?: number | null) => void;
   setDraggedGroupShift: (shift: { groupId: string; instanceIdx: number; offsetPx: number } | null) => void;
 }
 
@@ -112,6 +113,7 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     collapsedInstances: {},
     pingingGroupId: null,
     renamingGroupId: null,
+    renamingInstanceIdx: null,
     draggedGroupShift: null,
 
     setZoom: (zoom) => set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
@@ -159,7 +161,8 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     toggleInstanceCollapsed: (key) =>
       set((s) => ({ collapsedInstances: { ...s.collapsedInstances, [key]: !s.collapsedInstances[key] } })),
     setPingingGroupId: (pingingGroupId) => set({ pingingGroupId }),
-    setRenamingGroupId: (renamingGroupId) => set({ renamingGroupId }),
+    setRenamingGroupId: (renamingGroupId, renamingInstanceIdx = null) =>
+      set({ renamingGroupId, renamingInstanceIdx: renamingGroupId === null ? null : renamingInstanceIdx }),
     setDraggedGroupShift: (draggedGroupShift) => set({ draggedGroupShift }),
   };
 });

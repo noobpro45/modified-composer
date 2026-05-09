@@ -30,8 +30,11 @@ const GroupHeaderRowComponent: React.FC<GroupHeaderRowProps> = ({
   const collapsedInstances = useTimelineStore((s) => s.collapsedInstances);
   const setContextMenu = useTimelineStore((s) => s.setContextMenu);
   const clearContextMenu = useTimelineStore((s) => s.clearContextMenu);
+  const renamingGroupId = useTimelineStore((s) => s.renamingGroupId);
+  const renamingInstanceIdx = useTimelineStore((s) => s.renamingInstanceIdx);
+  const setRenamingGroupId = useTimelineStore((s) => s.setRenamingGroupId);
   const isCollapsed = collapsedInstances[`${group.id}:${instanceIdx}`] ?? false;
-  const [renaming, setRenaming] = useState(false);
+  const renaming = renamingGroupId === group.id && renamingInstanceIdx === instanceIdx;
   const [renameValue, setRenameValue] = useState(group.label);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -61,9 +64,9 @@ const GroupHeaderRowComponent: React.FC<GroupHeaderRowProps> = ({
       e.preventDefault();
       e.stopPropagation();
       clearContextMenu();
-      setRenaming(true);
+      setRenamingGroupId(group.id, instanceIdx);
     },
-    [clearContextMenu],
+    [clearContextMenu, group.id, instanceIdx, setRenamingGroupId],
   );
 
   const commitRename = useCallback(() => {
@@ -71,13 +74,13 @@ const GroupHeaderRowComponent: React.FC<GroupHeaderRowProps> = ({
     if (trimmed.length > 0 && trimmed !== group.label) {
       useProjectStore.getState().updateGroup(group.id, { label: trimmed });
     }
-    setRenaming(false);
-  }, [renameValue, group.id, group.label]);
+    setRenamingGroupId(null);
+  }, [renameValue, group.id, group.label, setRenamingGroupId]);
 
   const cancelRename = useCallback(() => {
-    setRenaming(false);
+    setRenamingGroupId(null);
     setRenameValue(group.label);
-  }, [group.label]);
+  }, [group.label, setRenamingGroupId]);
 
   return (
     <div

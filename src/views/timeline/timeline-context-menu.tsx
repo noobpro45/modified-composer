@@ -16,7 +16,7 @@ import { type WordSelection, useTimelineStore } from "@/views/timeline/timeline-
 import { getEffectiveLines, isLineSynced } from "@/views/timeline/utils";
 import { IconCommand } from "@tabler/icons-react";
 import { FloatingPortal } from "@floating-ui/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 
 function MenuItem({
@@ -72,15 +72,7 @@ const TimelineContextMenu: React.FC = () => {
 
   const lines = useMemo(() => getEffectiveLines(rawLines), [rawLines]);
 
-  const renamingGroupId = useTimelineStore((s) => s.renamingGroupId);
   const setRenamingGroupId = useTimelineStore((s) => s.setRenamingGroupId);
-  const [renameValue, setRenameValue] = useState("");
-
-  useEffect(() => {
-    if (!renamingGroupId) return;
-    const g = groups.find((gr) => gr.id === renamingGroupId);
-    if (g) setRenameValue(g.label);
-  }, [renamingGroupId, groups]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -516,23 +508,10 @@ const TimelineContextMenu: React.FC = () => {
 
   const handleRenameStart = useCallback(() => {
     if (!contextMenu || contextMenu.target.kind !== "group-banner") return;
-    const { groupId } = contextMenu.target;
-    const group = groups.find((g) => g.id === groupId);
-    if (!group) return;
-    setRenamingGroupId(groupId);
-    setRenameValue(group.label);
-  }, [contextMenu, groups, setRenamingGroupId]);
-
-  const handleRenameCommit = useCallback(() => {
-    if (!renamingGroupId) return;
-    const trimmed = renameValue.trim();
-    if (trimmed.length > 0) {
-      useProjectStore.getState().updateGroup(renamingGroupId, { label: trimmed });
-    }
-    setRenamingGroupId(null);
-    setRenameValue("");
+    const { groupId, instanceIdx } = contextMenu.target;
+    setRenamingGroupId(groupId, instanceIdx);
     clearContextMenu();
-  }, [renamingGroupId, renameValue, clearContextMenu, setRenamingGroupId]);
+  }, [contextMenu, clearContextMenu, setRenamingGroupId]);
 
   const handleRecolorGroup = useCallback(
     (color: string) => {
@@ -669,96 +648,78 @@ const TimelineContextMenu: React.FC = () => {
           </>
         )}
 
-        {target.kind === "group-banner" &&
-          (renamingGroupId === target.groupId ? (
-            <input
-              ref={(el) => el?.focus()}
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleRenameCommit();
-                if (e.key === "Escape") {
-                  setRenamingGroupId(null);
-                  setRenameValue("");
-                }
-                e.stopPropagation();
-              }}
-              onBlur={handleRenameCommit}
-              className="w-full px-2 py-1 text-sm rounded border bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent"
+        {target.kind === "group-banner" && (
+          <>
+            <MenuItem
+              label={
+                useTimelineStore.getState().collapsedInstances[`${target.groupId}:${target.instanceIdx}`]
+                  ? "Expand instance"
+                  : "Collapse instance"
+              }
+              shortcut={getEffectiveKeysArray("timeline.toggleCollapseInstance")}
+              onClick={handleToggleCollapse}
             />
-          ) : (
-            <>
-              <MenuItem
-                label={
-                  useTimelineStore.getState().collapsedInstances[`${target.groupId}:${target.instanceIdx}`]
-                    ? "Expand instance"
-                    : "Collapse instance"
-                }
-                shortcut={getEffectiveKeysArray("timeline.toggleCollapseInstance")}
-                onClick={handleToggleCollapse}
-              />
-              <MenuItem
-                label={target.source === "gutter" ? "Jump to group" : "Jump to start"}
-                shortcut={getEffectiveKeysArray("timeline.jumpToInstanceStart")}
-                onClick={handleJumpToGroupFromBanner}
-              />
-              <MenuItem
-                label="Ping siblings"
-                shortcut={getEffectiveKeysArray("timeline.pingSiblings")}
-                onClick={handlePingSiblings}
-              />
-              <MenuDivider />
-              <MenuItem
-                label="Add instance at playhead"
-                shortcut={getEffectiveKeysArray("timeline.duplicateAsLinked")}
-                onClick={handleAddInstanceAtPlayhead}
-              />
-              <MenuItem
-                label="Shift instance to playhead"
-                shortcut={getEffectiveKeysArray("timeline.shiftInstanceToPlayhead")}
-                onClick={handleShiftToPlayhead}
-              />
-              <MenuItem
-                label="Jump to previous instance"
-                shortcut={getEffectiveKeysArray("timeline.jumpPrevInstance")}
-                onClick={handleJumpPrevInstance}
-              />
-              <MenuItem
-                label="Jump to next instance"
-                shortcut={getEffectiveKeysArray("timeline.jumpNextInstance")}
-                onClick={handleJumpNextInstance}
-              />
-              <MenuDivider />
-              <MenuItem label="Rename" shortcut={["Double Click"]} onClick={handleRenameStart} />
-              <MenuDivider />
-              <p className="px-3 pt-1.5 pb-1 text-xs text-composer-text-muted">Recolor</p>
-              <div className="px-3 pb-1.5 grid grid-cols-5 gap-1.5">
-                {GROUP_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    aria-label={`Color ${c}`}
-                    onClick={() => handleRecolorGroup(c)}
-                    className="w-6 h-6 rounded-md cursor-pointer border border-white/10 hover:ring-2 hover:ring-white/40 transition-[box-shadow]"
-                    style={{ backgroundColor: c }}
-                  />
-                ))}
-              </div>
-              <MenuDivider />
-              <MenuItem
-                label="Detach instance"
-                shortcut={getEffectiveKeysArray("timeline.detachInstance")}
-                onClick={handleDetachInstance}
-              />
-              <MenuItem
-                label="Delete group"
-                shortcut={getEffectiveKeysArray("timeline.deleteGroup")}
-                onClick={handleDeleteGroup}
-                danger
-              />
-            </>
-          ))}
+            <MenuItem
+              label={target.source === "gutter" ? "Jump to group" : "Jump to start"}
+              shortcut={getEffectiveKeysArray("timeline.jumpToInstanceStart")}
+              onClick={handleJumpToGroupFromBanner}
+            />
+            <MenuItem
+              label="Ping siblings"
+              shortcut={getEffectiveKeysArray("timeline.pingSiblings")}
+              onClick={handlePingSiblings}
+            />
+            <MenuDivider />
+            <MenuItem
+              label="Add instance at playhead"
+              shortcut={getEffectiveKeysArray("timeline.duplicateAsLinked")}
+              onClick={handleAddInstanceAtPlayhead}
+            />
+            <MenuItem
+              label="Shift instance to playhead"
+              shortcut={getEffectiveKeysArray("timeline.shiftInstanceToPlayhead")}
+              onClick={handleShiftToPlayhead}
+            />
+            <MenuItem
+              label="Jump to previous instance"
+              shortcut={getEffectiveKeysArray("timeline.jumpPrevInstance")}
+              onClick={handleJumpPrevInstance}
+            />
+            <MenuItem
+              label="Jump to next instance"
+              shortcut={getEffectiveKeysArray("timeline.jumpNextInstance")}
+              onClick={handleJumpNextInstance}
+            />
+            <MenuDivider />
+            <MenuItem label="Rename" shortcut={["Double Click"]} onClick={handleRenameStart} />
+            <MenuDivider />
+            <p className="px-3 pt-1.5 pb-1 text-xs text-composer-text-muted">Recolor</p>
+            <div className="px-3 pb-1.5 grid grid-cols-5 gap-1.5">
+              {GROUP_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={`Color ${c}`}
+                  onClick={() => handleRecolorGroup(c)}
+                  className="w-6 h-6 rounded-md cursor-pointer border border-white/10 hover:ring-2 hover:ring-white/40 transition-[box-shadow]"
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+            <MenuDivider />
+            <MenuItem
+              label="Detach instance"
+              shortcut={getEffectiveKeysArray("timeline.detachInstance")}
+              onClick={handleDetachInstance}
+            />
+            <MenuItem
+              label="Delete group"
+              shortcut={getEffectiveKeysArray("timeline.deleteGroup")}
+              onClick={handleDeleteGroup}
+              danger
+            />
+          </>
+        )}
       </div>
     </FloatingPortal>
   );
