@@ -109,7 +109,7 @@ const PastePreview: React.FC<PastePreviewProps> = ({ clipboard, scrollContainerR
         const ok = await confirm({
           title: `Insert ${template.length} new row${template.length === 1 ? "" : "s"} here?`,
           description: `There ${template.length === 1 ? "isn't an empty row" : `aren't ${template.length} empty rows`} at this position. Inserting will shift every row below down by ${template.length}.`,
-          confirmLabel: `Insert and paste`,
+          confirmLabel: "Insert and paste",
           cancelLabel: "Cancel",
           variant: "destructive",
         });
