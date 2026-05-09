@@ -5,6 +5,7 @@ interface RepeatingSection {
   starts: number[];
   length: number;
   preview: string;
+  previewLines: string[];
 }
 
 function findRepeatingStandaloneSections(lines: LyricLine[]): RepeatingSection[] {
@@ -44,6 +45,7 @@ function findRepeatingStandaloneSections(lines: LyricLine[]): RepeatingSection[]
           starts,
           length: k,
           preview: lines[i].text,
+          previewLines: lines.slice(i, i + k).map((l) => l.text),
         });
         i = i + k - 1;
         break;

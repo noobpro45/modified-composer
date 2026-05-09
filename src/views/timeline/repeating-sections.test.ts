@@ -28,6 +28,7 @@ describe("findRepeatingStandaloneSections", () => {
     expect(result).toHaveLength(1);
     expect(result[0].starts).toEqual([1, 4]);
     expect(result[0].length).toBe(2);
+    expect(result[0].previewLines).toEqual(["chorus a", "chorus b"]);
   });
 
   it("detects 4 contiguous chorus runs of length 4", () => {
