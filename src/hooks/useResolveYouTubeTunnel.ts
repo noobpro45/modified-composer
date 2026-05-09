@@ -30,7 +30,7 @@ function useResolveYouTubeTunnel(): void {
   ensureRef.current = ensureAuth;
 
   useEffect(() => {
-    const handleSourceChange = async (videoId: string) => {
+    const handleSourceChange = async (videoId: string, previousSource: AudioSource) => {
       const existing = inFlight.get(videoId);
       if (existing) return;
 
@@ -81,7 +81,7 @@ function useResolveYouTubeTunnel(): void {
         toast.error(message);
         const current = useAudioStore.getState().source;
         if (current?.type === "youtube" && current.videoId === videoId) {
-          useAudioStore.getState().setSource(null);
+          useAudioStore.getState().setSource(previousSource);
         }
       } finally {
         if (inFlight.get(videoId) === controller) inFlight.delete(videoId);
@@ -91,7 +91,7 @@ function useResolveYouTubeTunnel(): void {
 
     const initial = useAudioStore.getState().source;
     if (initial?.type === "youtube" && !initial.file) {
-      handleSourceChange(initial.videoId);
+      handleSourceChange(initial.videoId, null);
     }
 
     const unsubscribe = useAudioStore.subscribe((state, prev) => {
@@ -107,7 +107,7 @@ function useResolveYouTubeTunnel(): void {
 
       if (state.source?.type !== "youtube") return;
       if (state.source.file) return;
-      handleSourceChange(state.source.videoId);
+      handleSourceChange(state.source.videoId, prev.source);
     });
 
     return () => {
