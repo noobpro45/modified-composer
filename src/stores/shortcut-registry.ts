@@ -243,6 +243,18 @@ const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     description: "Jump to start of current instance",
     defaultBinding: { key: "j", shift: true },
   },
+  {
+    id: "timeline.nudgeLeft",
+    scope: "timeline",
+    description: "Nudge selected words left",
+    defaultBinding: { key: "ArrowLeft" },
+  },
+  {
+    id: "timeline.nudgeRight",
+    scope: "timeline",
+    description: "Nudge selected words right",
+    defaultBinding: { key: "ArrowRight" },
+  },
 ];
 
 // -- Helpers ------------------------------------------------------------------

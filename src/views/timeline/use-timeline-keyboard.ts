@@ -16,6 +16,7 @@ import {
   getLineTiming,
   getWordsInInstance,
   isLineSynced,
+  nudgeSelectedWords,
 } from "@/views/timeline/utils";
 import { type RefObject, useCallback, useEffect } from "react";
 import { toast } from "sonner";
@@ -646,6 +647,22 @@ function useTimelineKeyboard(
               useTimelineStore.getState().setPingingGroupId(null);
             }
           }, 700);
+          break;
+        }
+        case "timeline.nudgeLeft":
+        case "timeline.nudgeRight": {
+          const { selectedWords: nudgeSel } = useTimelineStore.getState();
+          if (nudgeSel.length === 0) break;
+          e.preventDefault();
+          const nudgeAmount = useSettingsStore.getState().nudgeAmount;
+          const requestedDelta = matched === "timeline.nudgeLeft" ? -nudgeAmount : nudgeAmount;
+          const result = nudgeSelectedWords(lines, nudgeSel, requestedDelta, duration);
+          if (result.appliedDelta === 0) break;
+          if (result.updates.length === 1) {
+            useProjectStore.getState().updateLineWithHistory(result.updates[0].id, result.updates[0].updates);
+          } else {
+            useProjectStore.getState().updateLinesWithHistory(result.updates);
+          }
           break;
         }
         case "timeline.jumpToInstanceStart": {

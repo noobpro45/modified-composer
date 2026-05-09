@@ -8,6 +8,7 @@ import {
   distributeWordsInLine,
   formatTime,
   getEffectiveRows,
+  nudgeSelectedWords,
   getLineTiming,
   type GroupHeaderRow,
   getWordsInInstance,
@@ -418,5 +419,200 @@ describe("getWordsInInstance", () => {
 
   it("returns empty for unmatched groupId or instanceIdx", () => {
     expect(getWordsInInstance([], "g1", 0)).toEqual([]);
+  });
+});
+
+// -- nudgeSelectedWords --------------------------------------------------------
+
+function makeLine(id: string, words: { text: string; begin: number; end: number }[]): LyricLine {
+  return { id, text: words.map((w) => w.text).join(""), agentId: "v1", words };
+}
+
+describe("nudgeSelectedWords", () => {
+  it("shifts a single word right preserving duration", () => {
+    const lines = [
+      makeLine("L", [
+        { text: "a ", begin: 0, end: 1 },
+        { text: "b ", begin: 1, end: 2 },
+        { text: "c", begin: 5, end: 6 },
+      ]),
+    ];
+    const result = nudgeSelectedWords(lines, [{ lineId: "L", type: "word", wordIndex: 1 }], 0.05, 10);
+    expect(result.appliedDelta).toBeCloseTo(0.05);
+    expect(result.updates).toHaveLength(1);
+    const updatedWords = result.updates[0].updates.words!;
+    expect(updatedWords[1].begin).toBeCloseTo(1.05);
+    expect(updatedWords[1].end).toBeCloseTo(2.05);
+    expect(updatedWords[0]).toEqual(lines[0].words![0]);
+    expect(updatedWords[2]).toEqual(lines[0].words![2]);
+  });
+
+  it("shifts a single word left preserving duration", () => {
+    const lines = [
+      makeLine("L", [
+        { text: "a ", begin: 0, end: 1 },
+        { text: "b", begin: 3, end: 4 },
+      ]),
+    ];
+    const result = nudgeSelectedWords(lines, [{ lineId: "L", type: "word", wordIndex: 1 }], -0.05, 10);
+    expect(result.appliedDelta).toBeCloseTo(-0.05);
+    expect(result.updates[0].updates.words![1].begin).toBeCloseTo(2.95);
+    expect(result.updates[0].updates.words![1].end).toBeCloseTo(3.95);
+  });
+
+  it("clamps to neighbor end when partial room left", () => {
+    const lines = [
+      makeLine("L", [
+        { text: "a ", begin: 0, end: 1 },
+        { text: "b", begin: 1.02, end: 2 },
+      ]),
+    ];
+    const result = nudgeSelectedWords(lines, [{ lineId: "L", type: "word", wordIndex: 1 }], -0.05, 10);
+    expect(result.appliedDelta).toBeCloseTo(-0.02);
+    expect(result.updates[0].updates.words![1].begin).toBeCloseTo(1);
+    expect(result.updates[0].updates.words![1].end).toBeCloseTo(1.98);
+  });
+
+  it("is a no-op when already touching previous word", () => {
+    const lines = [
+      makeLine("L", [
+        { text: "a ", begin: 0, end: 1 },
+        { text: "b", begin: 1, end: 2 },
+      ]),
+    ];
+    const result = nudgeSelectedWords(lines, [{ lineId: "L", type: "word", wordIndex: 1 }], -0.05, 10);
+    expect(result.appliedDelta).toBe(0);
+    expect(result.updates).toEqual([]);
+  });
+
+  it("is a no-op when already touching next word", () => {
+    const lines = [
+      makeLine("L", [
+        { text: "a ", begin: 0, end: 1 },
+        { text: "b", begin: 1, end: 2 },
+      ]),
+    ];
+    const result = nudgeSelectedWords(lines, [{ lineId: "L", type: "word", wordIndex: 0 }], 0.05, 10);
+    expect(result.appliedDelta).toBe(0);
+    expect(result.updates).toEqual([]);
+  });
+
+  it("clamps to 0 for the first word", () => {
+    const lines = [makeLine("L", [{ text: "a", begin: 0.02, end: 1 }])];
+    const result = nudgeSelectedWords(lines, [{ lineId: "L", type: "word", wordIndex: 0 }], -0.05, 10);
+    expect(result.appliedDelta).toBeCloseTo(-0.02);
+    expect(result.updates[0].updates.words![0].begin).toBeCloseTo(0);
+    expect(result.updates[0].updates.words![0].end).toBeCloseTo(0.98);
+  });
+
+  it("clamps to duration for the last word", () => {
+    const lines = [makeLine("L", [{ text: "a", begin: 8, end: 9.98 }])];
+    const result = nudgeSelectedWords(lines, [{ lineId: "L", type: "word", wordIndex: 0 }], 0.05, 10);
+    expect(result.appliedDelta).toBeCloseTo(0.02);
+    expect(result.updates[0].updates.words![0].end).toBeCloseTo(10);
+  });
+
+  it("shifts consecutive selected words as a block", () => {
+    const lines = [
+      makeLine("L", [
+        { text: "a ", begin: 0, end: 1 },
+        { text: "b ", begin: 1, end: 2 },
+        { text: "c ", begin: 2, end: 3 },
+        { text: "d", begin: 5, end: 6 },
+      ]),
+    ];
+    const result = nudgeSelectedWords(
+      lines,
+      [
+        { lineId: "L", type: "word", wordIndex: 1 },
+        { lineId: "L", type: "word", wordIndex: 2 },
+      ],
+      0.05,
+      10,
+    );
+    expect(result.appliedDelta).toBeCloseTo(0.05);
+    const updated = result.updates[0].updates.words!;
+    expect(updated[0]).toEqual(lines[0].words![0]);
+    expect(updated[1].begin).toBeCloseTo(1.05);
+    expect(updated[1].end).toBeCloseTo(2.05);
+    expect(updated[2].begin).toBeCloseTo(2.05);
+    expect(updated[2].end).toBeCloseTo(3.05);
+    expect(updated[3]).toEqual(lines[0].words![3]);
+  });
+
+  it("clamps a block to the most-restrictive non-selected neighbor", () => {
+    const lines = [
+      makeLine("L", [
+        { text: "a ", begin: 0, end: 1 },
+        { text: "b ", begin: 1, end: 2 },
+        { text: "c ", begin: 2, end: 3 },
+        { text: "d", begin: 3.02, end: 4 },
+      ]),
+    ];
+    const result = nudgeSelectedWords(
+      lines,
+      [
+        { lineId: "L", type: "word", wordIndex: 1 },
+        { lineId: "L", type: "word", wordIndex: 2 },
+      ],
+      0.05,
+      10,
+    );
+    expect(result.appliedDelta).toBeCloseTo(0.02);
+    const updated = result.updates[0].updates.words!;
+    expect(updated[2].end).toBeCloseTo(3.02);
+  });
+
+  it("nudges background words via backgroundWords", () => {
+    const lines: LyricLine[] = [
+      {
+        id: "L",
+        text: "a",
+        agentId: "v1",
+        words: [{ text: "a", begin: 0, end: 1 }],
+        backgroundText: "ooh",
+        backgroundWords: [
+          { text: "ooh", begin: 2, end: 3 },
+          { text: "ah", begin: 5, end: 6 },
+        ],
+      },
+    ];
+    const result = nudgeSelectedWords(lines, [{ lineId: "L", type: "bg", wordIndex: 0 }], 0.1, 10);
+    expect(result.appliedDelta).toBeCloseTo(0.1);
+    expect(result.updates[0].updates.backgroundWords![0].begin).toBeCloseTo(2.1);
+    expect(result.updates[0].updates.backgroundWords![0].end).toBeCloseTo(3.1);
+    expect(result.updates[0].updates.words).toBeUndefined();
+  });
+
+  it("applies the same clamped delta across multiple lines", () => {
+    const lines = [
+      makeLine("L1", [{ text: "a", begin: 0, end: 1 }]),
+      makeLine("L2", [{ text: "b", begin: 5, end: 5.04 }]),
+    ];
+    const result = nudgeSelectedWords(
+      lines,
+      [
+        { lineId: "L1", type: "word", wordIndex: 0 },
+        { lineId: "L2", type: "word", wordIndex: 0 },
+      ],
+      0.05,
+      5.05,
+    );
+    expect(result.appliedDelta).toBeCloseTo(0.01);
+    expect(result.updates).toHaveLength(2);
+  });
+
+  it("returns no-op for empty selection", () => {
+    const lines = [makeLine("L", [{ text: "a", begin: 0, end: 1 }])];
+    const result = nudgeSelectedWords(lines, [], 0.05, 10);
+    expect(result.appliedDelta).toBe(0);
+    expect(result.updates).toEqual([]);
+  });
+
+  it("returns no-op for zero delta", () => {
+    const lines = [makeLine("L", [{ text: "a", begin: 0, end: 1 }])];
+    const result = nudgeSelectedWords(lines, [{ lineId: "L", type: "word", wordIndex: 0 }], 0, 10);
+    expect(result.appliedDelta).toBe(0);
+    expect(result.updates).toEqual([]);
   });
 });
