@@ -1,9 +1,9 @@
 import { useAudioStore } from "@/stores/audio";
 import { useConfirm } from "@/stores/confirm-store";
 import { useModalStackStore } from "@/stores/modal-stack";
-import { type LyricLine, useProjectStore } from "@/stores/project";
+import { type LineTemplate, type LyricLine, useProjectStore } from "@/stores/project";
 import { cn } from "@/utils/cn";
-import { fillEmptyLinesWithInstance } from "@/views/timeline/fill-empty-lines-with-instance";
+import { decidePasteInstanceAction } from "@/views/timeline/decide-paste-instance-action";
 import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
 import { instanceToTemplate } from "@/views/timeline/group-ops";
 import type { ClipboardData } from "@/views/timeline/selection-types";
@@ -80,32 +80,34 @@ const PastePreview: React.FC<PastePreviewProps> = ({ clipboard, scrollContainerR
       const cursorY = e.clientY - containerRect.top + container.scrollTop;
       const hoveredLineIndex = getLineIndexAtY(cursorY, lines, layout);
 
-      if (clipboard.sourceInstance) {
-        const { groupId, instanceIdx } = clipboard.sourceInstance;
-        const template = instanceToTemplate(lines, groupId, instanceIdx);
+      const placeInstance = async (
+        groupId: string,
+        template: LineTemplate[],
+        successMessage: string,
+      ): Promise<boolean> => {
         if (template.length === 0) {
           toast.error("Could not derive instance template");
-          return;
+          return true;
         }
-        if (hoveredLineIndex < 0) {
-          toast.error(
-            `Drop on ${template.length} empty line${template.length === 1 ? "" : "s"} to paste this instance`,
-          );
-          return;
-        }
-        const fill = fillEmptyLinesWithInstance({
+        const decision = decidePasteInstanceAction({
           lines,
           groupId,
           template,
-          startIndex: hoveredLineIndex,
-          instanceStart: Math.max(0, cursorTime),
+          hoveredLineIndex,
+          cursorTime,
         });
-        if (fill.ok) {
-          useProjectStore.getState().setLinesWithHistory(fill.updatedLines!);
+        if (decision.kind === "no-target") {
+          toast.error(
+            `Drop on ${template.length} empty line${template.length === 1 ? "" : "s"} to paste this instance`,
+          );
+          return true;
+        }
+        if (decision.kind === "fill") {
+          useProjectStore.getState().setLinesWithHistory(decision.updatedLines);
           useTimelineStore.getState().setPasteMode({ status: "idle" });
           useTimelineStore.getState().clearSelection();
-          toast.success("Linked instance added");
-          return;
+          toast.success(successMessage);
+          return true;
         }
         const ok = await confirm({
           title: `Insert ${template.length} new row${template.length === 1 ? "" : "s"} here?`,
@@ -116,12 +118,19 @@ const PastePreview: React.FC<PastePreviewProps> = ({ clipboard, scrollContainerR
         });
         if (!ok) {
           useTimelineStore.getState().setPasteMode({ status: "idle" });
-          return;
+          return true;
         }
-        useProjectStore.getState().addInstance(groupId, template, Math.max(0, cursorTime), hoveredLineIndex);
+        useProjectStore.getState().addInstance(groupId, template, decision.instanceStart, decision.insertAt);
         useTimelineStore.getState().setPasteMode({ status: "idle" });
         useTimelineStore.getState().clearSelection();
-        toast.success("Linked instance added");
+        toast.success(successMessage);
+        return true;
+      };
+
+      if (clipboard.sourceInstance) {
+        const { groupId, instanceIdx } = clipboard.sourceInstance;
+        const template = instanceToTemplate(lines, groupId, instanceIdx);
+        await placeInstance(groupId, template, "Linked instance added");
         return;
       }
 
@@ -139,15 +148,7 @@ const PastePreview: React.FC<PastePreviewProps> = ({ clipboard, scrollContainerR
           });
           if (ok) {
             const template = instanceToTemplate(lines, match.groupId, match.instanceIdx);
-            if (template.length === 0) {
-              toast.error("Could not derive instance template");
-              return;
-            }
-            const insertAt = hoveredLineIndex >= 0 ? hoveredLineIndex : undefined;
-            useProjectStore.getState().addInstance(match.groupId, template, Math.max(0, cursorTime), insertAt);
-            useTimelineStore.getState().setPasteMode({ status: "idle" });
-            useTimelineStore.getState().clearSelection();
-            toast.success(`Linked as another ${groupLabel}`);
+            await placeInstance(match.groupId, template, `Linked as another ${groupLabel}`);
             return;
           }
         }
