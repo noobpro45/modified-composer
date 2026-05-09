@@ -1,6 +1,7 @@
 import { useProjectStore } from "@/stores/project";
+import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
 import { GUTTER_WIDTH, type WordSelection, useTimelineStore } from "@/views/timeline/timeline-store";
-import { getEffectiveLines } from "@/views/timeline/utils";
+import { computeRowLayout, getEffectiveLines } from "@/views/timeline/utils";
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 
 // -- Types ---------------------------------------------------------------------
@@ -55,56 +56,57 @@ function useMarquee(scrollContainerRef: RefObject<HTMLDivElement | null>) {
 
   const computeSelection = useCallback((rect: MarqueeRect): WordSelection[] => {
     const lines = getEffectiveLines(useProjectStore.getState().lines);
-    const { zoom, rowHeights, defaultRowHeight } = useTimelineStore.getState();
-    const selections: WordSelection[] = [];
+    const { zoom, rowHeights, defaultRowHeight, collapsedInstances } = useTimelineStore.getState();
+    const layout = computeRowLayout({
+      lines,
+      rowHeights,
+      defaultRowHeight,
+      collapsedInstances,
+      waveformHeight: WAVEFORM_HEIGHT,
+      bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
+      groupHeaderHeight: GROUP_HEADER_HEIGHT,
+    });
 
-    let rowTop = WAVEFORM_HEIGHT;
+    const selections: WordSelection[] = [];
+    const rectBottom = rect.y + rect.height;
+    const rectRight = rect.x + rect.width;
+
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       const line = lines[lineIndex];
+      const pos = layout.lineTops.get(line.id);
+      if (!pos) continue;
+
       const mainHeight = rowHeights[line.id] ?? defaultRowHeight;
       const hasBg = line.backgroundWords && line.backgroundWords.length > 0;
-      const bgHeight = hasBg ? mainHeight : BG_DROP_ZONE_HEIGHT;
-      const totalRowHeight = mainHeight + bgHeight + 1;
+      const mainTop = pos.top;
+      const mainBottom = mainTop + mainHeight;
 
-      const rowBottom = rowTop + totalRowHeight;
-      const rectBottom = rect.y + rect.height;
-      const rectRight = rect.x + rect.width;
-
-      if (rowTop < rectBottom && rowBottom > rect.y) {
-        const mainTop = rowTop;
-        const mainBottom = rowTop + mainHeight;
-
-        if (mainTop < rectBottom && mainBottom > rect.y && line.words) {
-          for (let wordIndex = 0; wordIndex < line.words.length; wordIndex++) {
-            const word = line.words[wordIndex];
-            const wordLeft = GUTTER_WIDTH + word.begin * zoom;
-            const wordRight = GUTTER_WIDTH + word.end * zoom;
-
-            if (wordLeft < rectRight && wordRight > rect.x) {
-              selections.push({ lineId: line.id, lineIndex, wordIndex, type: "word" });
-            }
-          }
-        }
-
-        if (hasBg && line.backgroundWords) {
-          const bgTop = mainBottom;
-          const bgBottom = bgTop + bgHeight;
-
-          if (bgTop < rectBottom && bgBottom > rect.y) {
-            for (let wordIndex = 0; wordIndex < line.backgroundWords.length; wordIndex++) {
-              const word = line.backgroundWords[wordIndex];
-              const wordLeft = GUTTER_WIDTH + word.begin * zoom;
-              const wordRight = GUTTER_WIDTH + word.end * zoom;
-
-              if (wordLeft < rectRight && wordRight > rect.x) {
-                selections.push({ lineId: line.id, lineIndex, wordIndex, type: "bg" });
-              }
-            }
+      if (mainTop < rectBottom && mainBottom > rect.y && line.words) {
+        for (let wordIndex = 0; wordIndex < line.words.length; wordIndex++) {
+          const word = line.words[wordIndex];
+          const wordLeft = GUTTER_WIDTH + word.begin * zoom;
+          const wordRight = GUTTER_WIDTH + word.end * zoom;
+          if (wordLeft < rectRight && wordRight > rect.x) {
+            selections.push({ lineId: line.id, lineIndex, wordIndex, type: "word" });
           }
         }
       }
 
-      rowTop = rowBottom;
+      if (hasBg && line.backgroundWords) {
+        const bgHeight = mainHeight;
+        const bgTop = mainBottom;
+        const bgBottom = bgTop + bgHeight;
+        if (bgTop < rectBottom && bgBottom > rect.y) {
+          for (let wordIndex = 0; wordIndex < line.backgroundWords.length; wordIndex++) {
+            const word = line.backgroundWords[wordIndex];
+            const wordLeft = GUTTER_WIDTH + word.begin * zoom;
+            const wordRight = GUTTER_WIDTH + word.end * zoom;
+            if (wordLeft < rectRight && wordRight > rect.x) {
+              selections.push({ lineId: line.id, lineIndex, wordIndex, type: "bg" });
+            }
+          }
+        }
+      }
     }
 
     return selections;
