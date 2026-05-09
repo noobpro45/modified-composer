@@ -72,8 +72,12 @@ const LyricsImportModal: React.FC<LyricsImportModalProps> = ({ isOpen, onClose }
         let importedLines = result.lines;
 
         if (result.agents?.length) {
+          const updateAgent = useProjectStore.getState().updateAgent;
           for (const agent of result.agents) {
-            if (!agents.find((a) => a.id === agent.id)) {
+            const existing = agents.find((a) => a.id === agent.id);
+            if (existing) {
+              updateAgent(agent.id, { name: agent.name, type: agent.type });
+            } else {
               addAgent(agent);
             }
           }

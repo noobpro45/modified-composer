@@ -419,10 +419,14 @@ const EditPanel: React.FC = () => {
           setMetadata(result.metadata);
         }
 
-        // Add imported agents (skip duplicates)
+        // Reconcile imported agents: update name/type on matching id, add otherwise
         if (result.agents?.length) {
+          const updateAgent = useProjectStore.getState().updateAgent;
           for (const agent of result.agents) {
-            if (!agents.find((a) => a.id === agent.id)) {
+            const existing = agents.find((a) => a.id === agent.id);
+            if (existing) {
+              updateAgent(agent.id, { name: agent.name, type: agent.type });
+            } else {
               addAgent(agent);
             }
           }
