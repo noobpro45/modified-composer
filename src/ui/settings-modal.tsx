@@ -19,6 +19,7 @@ import {
   IconLayoutRows,
   IconLock,
   IconMoodCheck,
+  IconMoodHappy,
   IconMoodSadDizzy,
   IconPlayerPlay,
   IconPlugConnected,
@@ -509,7 +510,17 @@ const CobaltInstanceRow: React.FC<{
     </span>
     <span className="flex items-center gap-1.5 min-w-0 max-w-[50%]">
       <span className="text-sm font-medium text-composer-text truncate">{instance.label}</span>
-      {status && <CobaltInstanceStatusIcon status={status} />}
+      {!onRemove ? (
+        <span
+          aria-label="Composer's default instance"
+          title="Composer's default instance"
+          className="inline-flex items-center justify-center shrink-0 text-composer-accent"
+        >
+          <IconMoodHappy size={14} />
+        </span>
+      ) : status ? (
+        <CobaltInstanceStatusIcon status={status} />
+      ) : null}
     </span>
     <span className="text-[11px] text-composer-text-muted font-mono truncate ml-auto text-right min-w-0">
       {displayHostFromUrl(instance.url)}
