@@ -11,6 +11,12 @@ interface CobaltInstance {
   url: string;
 }
 
+interface CobaltInstanceStatus {
+  status: "success" | "error";
+  errorMessage?: string;
+  at: number;
+}
+
 const DEFAULT_COBALT_INSTANCE_ID = "default";
 
 interface SettingsState {
@@ -43,6 +49,7 @@ interface SettingsState {
 
   cobaltInstances: CobaltInstance[];
   selectedCobaltInstanceId: string;
+  cobaltInstanceStatus: Record<string, CobaltInstanceStatus>;
 }
 
 interface SettingsActions {
@@ -52,6 +59,7 @@ interface SettingsActions {
   updateCobaltInstance: (id: string, updates: Partial<Omit<CobaltInstance, "id">>) => void;
   removeCobaltInstance: (id: string) => void;
   selectCobaltInstance: (id: string) => void;
+  recordCobaltInstanceResult: (id: string, status: "success" | "error", errorMessage?: string) => void;
 }
 
 // -- Defaults -----------------------------------------------------------------
@@ -86,6 +94,7 @@ const DEFAULTS: SettingsState = {
 
   cobaltInstances: [],
   selectedCobaltInstanceId: DEFAULT_COBALT_INSTANCE_ID,
+  cobaltInstanceStatus: {},
 };
 
 const BUILTIN_COBALT_INSTANCE: CobaltInstance = {
@@ -114,6 +123,7 @@ const useSettingsStore = create<SettingsState & SettingsActions>()(
           confirmGroupDissolution: state.confirmGroupDissolution,
           cobaltInstances: state.cobaltInstances,
           selectedCobaltInstanceId: state.selectedCobaltInstanceId,
+          cobaltInstanceStatus: state.cobaltInstanceStatus,
         })),
       addCobaltInstance: (instance) =>
         set((state) => {
@@ -125,12 +135,24 @@ const useSettingsStore = create<SettingsState & SettingsActions>()(
           cobaltInstances: state.cobaltInstances.map((i) => (i.id === id ? { ...i, ...updates } : i)),
         })),
       removeCobaltInstance: (id) =>
-        set((state) => ({
-          cobaltInstances: state.cobaltInstances.filter((i) => i.id !== id),
-          selectedCobaltInstanceId:
-            state.selectedCobaltInstanceId === id ? DEFAULT_COBALT_INSTANCE_ID : state.selectedCobaltInstanceId,
-        })),
+        set((state) => {
+          const nextStatus = { ...state.cobaltInstanceStatus };
+          delete nextStatus[id];
+          return {
+            cobaltInstances: state.cobaltInstances.filter((i) => i.id !== id),
+            selectedCobaltInstanceId:
+              state.selectedCobaltInstanceId === id ? DEFAULT_COBALT_INSTANCE_ID : state.selectedCobaltInstanceId,
+            cobaltInstanceStatus: nextStatus,
+          };
+        }),
       selectCobaltInstance: (id) => set({ selectedCobaltInstanceId: id }),
+      recordCobaltInstanceResult: (id, status, errorMessage) =>
+        set((state) => ({
+          cobaltInstanceStatus: {
+            ...state.cobaltInstanceStatus,
+            [id]: { status, errorMessage, at: Date.now() },
+          },
+        })),
     }),
     { name: "composer-settings" },
   ),
@@ -159,4 +181,4 @@ export {
   getActiveCobaltInstance,
   isUsingDefaultCobaltInstance,
 };
-export type { SettingsState, CobaltInstance };
+export type { SettingsState, CobaltInstance, CobaltInstanceStatus };

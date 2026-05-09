@@ -3,7 +3,12 @@ import { toast } from "sonner";
 import { useEnsureAuth } from "@/hooks/useEnsureAuth";
 import { type AudioSource, useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
-import { getActiveCobaltInstance, isUsingDefaultCobaltInstance } from "@/stores/settings";
+import {
+  DEFAULT_COBALT_INSTANCE_ID,
+  getActiveCobaltInstance,
+  isUsingDefaultCobaltInstance,
+  useSettingsStore,
+} from "@/stores/settings";
 import { CobaltApiError, formatCobaltErrorForToast, getAudio, getAudioFromStandardCobalt } from "@/utils/cobalt-api";
 
 // -- Constants ----------------------------------------------------------------
@@ -38,10 +43,12 @@ function useResolveYouTubeTunnel(): void {
       inFlight.set(videoId, controller);
       useAudioStore.getState().setIsLoading(true);
 
+      const instanceAtStart = getActiveCobaltInstance();
+      const isDefault = isUsingDefaultCobaltInstance();
       try {
         let tunnelUrl: string;
         let filename: string | undefined;
-        if (isUsingDefaultCobaltInstance()) {
+        if (isDefault) {
           const jwt = await ensureRef.current();
           if (controller.signal.aborted) return;
           ({ tunnelUrl, filename } = await getAudio(videoId, jwt));
@@ -69,16 +76,22 @@ function useResolveYouTubeTunnel(): void {
             project.setMetadata({ title: filename });
           }
         }
+
+        if (!isDefault && instanceAtStart.id !== DEFAULT_COBALT_INSTANCE_ID) {
+          useSettingsStore.getState().recordCobaltInstanceResult(instanceAtStart.id, "success");
+        }
       } catch (err) {
         if (controller.signal.aborted) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
         console.error(LOG_PREFIX, "tunnel fetch failed", err);
-        const instance = getActiveCobaltInstance();
         const message = formatCobaltErrorForToast(err, {
-          isDefault: isUsingDefaultCobaltInstance(),
-          instanceLabel: instance.label,
+          isDefault,
+          instanceLabel: instanceAtStart.label,
         });
         toast.error(message);
+        if (!isDefault && instanceAtStart.id !== DEFAULT_COBALT_INSTANCE_ID) {
+          useSettingsStore.getState().recordCobaltInstanceResult(instanceAtStart.id, "error", message);
+        }
         const current = useAudioStore.getState().source;
         if (current?.type === "youtube" && current.videoId === videoId) {
           useAudioStore.getState().setSource(previousSource);

@@ -2,7 +2,7 @@ import { useAudioStore } from "@/stores/audio";
 import { useConfirm } from "@/stores/confirm-store";
 import { BUILTIN_COBALT_INSTANCE, DEFAULT_COBALT_INSTANCE_ID, DEFAULTS, useSettingsStore } from "@/stores/settings";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
-import type { SettingsState } from "@/stores/settings";
+import type { CobaltInstanceStatus, SettingsState } from "@/stores/settings";
 import { Button } from "@/ui/button";
 import { Modal } from "@/ui/modal";
 import { cn } from "@/utils/cn";
@@ -17,10 +17,12 @@ import {
   IconExternalLink,
   IconKeyboard,
   IconLayoutRows,
+  IconLock,
+  IconMoodCheck,
+  IconMoodSadDizzy,
   IconPlayerPlay,
   IconPlugConnected,
   IconRefresh,
-  IconLock,
   IconRoute,
   IconSettings,
   IconTrash,
@@ -473,7 +475,8 @@ const CobaltInstanceRow: React.FC<{
   onSelect: () => void;
   onRemove?: () => void;
   onEdit?: () => void;
-}> = ({ instance, isSelected, onSelect, onRemove, onEdit }) => (
+  status?: CobaltInstanceStatus;
+}> = ({ instance, isSelected, onSelect, onRemove, onEdit, status }) => (
   <button
     type="button"
     onClick={() => {
@@ -504,7 +507,10 @@ const CobaltInstanceRow: React.FC<{
     >
       {isSelected && <span className="absolute inset-[2.5px] rounded-full bg-composer-accent" />}
     </span>
-    <span className="text-sm font-medium text-composer-text truncate min-w-0 max-w-[50%]">{instance.label}</span>
+    <span className="flex items-center gap-1.5 min-w-0 max-w-[50%]">
+      <span className="text-sm font-medium text-composer-text truncate">{instance.label}</span>
+      {status && <CobaltInstanceStatusIcon status={status} />}
+    </span>
     <span className="text-[11px] text-composer-text-muted font-mono truncate ml-auto text-right min-w-0">
       {displayHostFromUrl(instance.url)}
     </span>
@@ -527,6 +533,36 @@ const CobaltInstanceRow: React.FC<{
     )}
   </button>
 );
+
+const CobaltInstanceStatusIcon: React.FC<{ status: CobaltInstanceStatus }> = ({ status }) => {
+  const tooltip =
+    status.status === "success"
+      ? `Last attempt worked (${formatRelativeTime(status.at)})`
+      : `Last attempt failed: ${status.errorMessage ?? "unknown error"} (${formatRelativeTime(status.at)})`;
+  return (
+    <span
+      title={tooltip}
+      aria-label={tooltip}
+      className={cn(
+        "inline-flex items-center justify-center shrink-0",
+        status.status === "success" ? "text-composer-accent" : "text-amber-400",
+      )}
+    >
+      {status.status === "success" ? <IconMoodCheck size={14} /> : <IconMoodSadDizzy size={14} />}
+    </span>
+  );
+};
+
+function formatRelativeTime(timestamp: number): string {
+  const diffSec = Math.max(1, Math.floor((Date.now() - timestamp) / 1000));
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}h ago`;
+  const diffDay = Math.floor(diffHour / 24);
+  return `${diffDay}d ago`;
+}
 
 const CobaltInstanceEditRow: React.FC<{
   initialLabel: string;
@@ -659,6 +695,7 @@ const CobaltInstanceAddForm: React.FC<{
 const AdvancedSection: React.FC = () => {
   const cobaltInstances = useSettingsStore((s) => s.cobaltInstances);
   const selectedCobaltInstanceId = useSettingsStore((s) => s.selectedCobaltInstanceId);
+  const cobaltInstanceStatus = useSettingsStore((s) => s.cobaltInstanceStatus);
   const addCobaltInstance = useSettingsStore((s) => s.addCobaltInstance);
   const updateCobaltInstance = useSettingsStore((s) => s.updateCobaltInstance);
   const removeCobaltInstance = useSettingsStore((s) => s.removeCobaltInstance);
@@ -702,6 +739,7 @@ const AdvancedSection: React.FC = () => {
               onSelect={() => selectCobaltInstance(inst.id)}
               onRemove={() => removeCobaltInstance(inst.id)}
               onEdit={() => setEditingId(inst.id)}
+              status={cobaltInstanceStatus[inst.id]}
             />
           ),
         )}
