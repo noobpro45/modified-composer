@@ -4,6 +4,7 @@ import { isAnyModalOpen } from "@/stores/modal-stack";
 import { type LyricLine, useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { showGroupActionToast } from "@/utils/group-toast";
+import { handleWordChangeWithDivergenceCheck } from "@/utils/word-divergence-flow";
 import { convertLineToWord } from "@/utils/sync-helpers";
 import { findMatchingShortcut } from "@/utils/shortcut-matcher";
 import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
@@ -386,22 +387,15 @@ function useTimelineKeyboard(
           const mergedText = sorted.map((s) => mWords[s.wordIndex].text).join("");
           const merged = { text: mergedText, begin: mWords[firstIdx].begin, end: mWords[lastIdx].end };
           const updatedWords = [...mWords.slice(0, firstIdx), merged, ...mWords.slice(lastIdx + 1)];
-          const { updateLineWithHistory: mergeUpdate } = useProjectStore.getState();
+          const newText = updatedWords
+            .map((w) => w.text)
+            .join("")
+            .trimEnd();
           if (first.type === "word") {
-            mergeUpdate(first.lineId, {
-              words: updatedWords,
-              text: updatedWords
-                .map((w) => w.text)
-                .join("")
-                .trimEnd(),
-            });
+            void handleWordChangeWithDivergenceCheck(first.lineId, updatedWords, "words", { text: newText });
           } else {
-            mergeUpdate(first.lineId, {
-              backgroundWords: updatedWords,
-              backgroundText: updatedWords
-                .map((w) => w.text)
-                .join("")
-                .trimEnd(),
+            void handleWordChangeWithDivergenceCheck(first.lineId, updatedWords, "backgroundWords", {
+              backgroundText: newText,
             });
           }
           useTimelineStore.getState().clearSelection();

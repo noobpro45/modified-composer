@@ -1182,3 +1182,212 @@ describe("propagateWordChanges · smart sync preserves unchanged-word timing", (
     expect(b?.detached).toBe(true);
   });
 });
+
+// -- applyWordCountChange mutator (modal resolutions) -------------------------
+
+describe("applyWordCountChange · resolutions", () => {
+  beforeEach(() => {
+    useProjectStore.getState().reset();
+    useProjectStore.getState().clearHistory();
+  });
+
+  function setupChorus() {
+    useProjectStore.setState({
+      lines: [
+        {
+          id: "A",
+          text: "I love you",
+          agentId: "v1",
+          groupId: "g1",
+          instanceIdx: 0,
+          templateLineIdx: 0,
+          words: [
+            { text: "I ", begin: 0, end: 0.3 },
+            { text: "love ", begin: 0.3, end: 0.6 },
+            { text: "you", begin: 0.6, end: 1 },
+          ],
+        },
+        {
+          id: "B",
+          text: "I love you",
+          agentId: "v1",
+          groupId: "g1",
+          instanceIdx: 1,
+          templateLineIdx: 0,
+          words: [
+            { text: "I ", begin: 30, end: 30.4 },
+            { text: "love ", begin: 30.4, end: 30.7 },
+            { text: "you", begin: 30.7, end: 31.2 },
+          ],
+        },
+      ],
+      groups: [{ id: "g1", label: "Chorus", color: "#f472b6", templateVersion: 1 }],
+    });
+  }
+
+  const splitWords = [
+    { text: "I ", begin: 0, end: 0.3 },
+    { text: "lo", begin: 0.3, end: 0.45 },
+    { text: "ve ", begin: 0.45, end: 0.6 },
+    { text: "you", begin: 0.6, end: 1 },
+  ];
+
+  it("'apply' propagates the structural change with smart-sync to all linked siblings", () => {
+    setupChorus();
+    useProjectStore.getState().applyWordCountChange("A", splitWords, "words", "apply");
+    const after = useProjectStore.getState().lines;
+    const a = after.find((l) => l.id === "A");
+    const b = after.find((l) => l.id === "B");
+    expect(a?.words).toHaveLength(4);
+    expect(b?.words).toHaveLength(4);
+    // Sibling B's "I" and "you" preserved
+    expect(b?.words?.[0]).toEqual({ text: "I ", begin: 30, end: 30.4 });
+    expect(b?.words?.[3]).toEqual({ text: "you", begin: 30.7, end: 31.2 });
+    // Neither is detached
+    expect(a?.detached).toBeUndefined();
+    expect(b?.detached).toBeUndefined();
+  });
+
+  it("'detach' marks source detached and leaves siblings untouched", () => {
+    setupChorus();
+    useProjectStore.getState().applyWordCountChange("A", splitWords, "words", "detach");
+    const after = useProjectStore.getState().lines;
+    const a = after.find((l) => l.id === "A");
+    const b = after.find((l) => l.id === "B");
+    expect(a?.detached).toBe(true);
+    expect(a?.words).toHaveLength(4);
+    expect(b?.words).toHaveLength(3);
+    expect(b?.words?.[0]).toEqual({ text: "I ", begin: 30, end: 30.4 });
+  });
+
+  it("'cancel' is a no-op", () => {
+    setupChorus();
+    const before = useProjectStore.getState().lines;
+    useProjectStore.getState().applyWordCountChange("A", splitWords, "words", "cancel");
+    expect(useProjectStore.getState().lines).toEqual(before);
+  });
+
+  it("apply with extraUpdates: text propagates as a linked field to siblings", () => {
+    setupChorus();
+    const mergedWords = [
+      { text: "I ", begin: 0, end: 0.3 },
+      { text: "loveyou", begin: 0.3, end: 1 },
+    ];
+    useProjectStore.getState().applyWordCountChange("A", mergedWords, "words", "apply", { text: "I loveyou" });
+    const after = useProjectStore.getState().lines;
+    expect(after.find((l) => l.id === "A")?.text).toBe("I loveyou");
+    expect(after.find((l) => l.id === "B")?.text).toBe("I loveyou");
+  });
+
+  it("detach with extraUpdates: text only changes on source, not siblings", () => {
+    setupChorus();
+    const mergedWords = [
+      { text: "I ", begin: 0, end: 0.3 },
+      { text: "loveyou", begin: 0.3, end: 1 },
+    ];
+    useProjectStore.getState().applyWordCountChange("A", mergedWords, "words", "detach", { text: "I loveyou" });
+    const after = useProjectStore.getState().lines;
+    expect(after.find((l) => l.id === "A")?.text).toBe("I loveyou");
+    expect(after.find((l) => l.id === "B")?.text).toBe("I love you"); // unchanged
+  });
+
+  it("detached siblings are skipped on apply", () => {
+    setupChorus();
+    // Mark B detached upfront
+    useProjectStore.setState((s) => ({
+      lines: s.lines.map((l) => (l.id === "B" ? { ...l, detached: true } : l)),
+    }));
+    useProjectStore.getState().applyWordCountChange("A", splitWords, "words", "apply");
+    const b = useProjectStore.getState().lines.find((l) => l.id === "B");
+    expect(b?.words).toHaveLength(3); // untouched, still 3 words
+    expect(b?.detached).toBe(true);
+  });
+
+  it("non-linked source: apply just writes to source, no siblings touched", () => {
+    useProjectStore.setState({
+      lines: [
+        {
+          id: "X",
+          text: "I love",
+          agentId: "v1",
+          words: [
+            { text: "I ", begin: 0, end: 0.3 },
+            { text: "love", begin: 0.3, end: 1 },
+          ],
+        },
+      ],
+      groups: [],
+    });
+    useProjectStore.getState().applyWordCountChange(
+      "X",
+      [
+        { text: "I ", begin: 0, end: 0.3 },
+        { text: "lo", begin: 0.3, end: 0.6 },
+        { text: "ve", begin: 0.6, end: 1 },
+      ],
+      "words",
+      "apply",
+    );
+    const x = useProjectStore.getState().lines.find((l) => l.id === "X");
+    expect(x?.words).toHaveLength(3);
+  });
+
+  it("backgroundWords field: 'apply' propagates BG structural change with smart-sync", () => {
+    useProjectStore.setState({
+      lines: [
+        {
+          id: "A",
+          text: "main",
+          agentId: "v1",
+          groupId: "g1",
+          instanceIdx: 0,
+          templateLineIdx: 0,
+          backgroundText: "ah ah",
+          backgroundWords: [
+            { text: "ah ", begin: 0, end: 0.3 },
+            { text: "ah", begin: 0.3, end: 0.6 },
+          ],
+        },
+        {
+          id: "B",
+          text: "main",
+          agentId: "v1",
+          groupId: "g1",
+          instanceIdx: 1,
+          templateLineIdx: 0,
+          backgroundText: "ah ah",
+          backgroundWords: [
+            { text: "ah ", begin: 30, end: 30.4 },
+            { text: "ah", begin: 30.4, end: 30.8 },
+          ],
+        },
+      ],
+      groups: [{ id: "g1", label: "Chorus", color: "#f472b6", templateVersion: 1 }],
+    });
+    useProjectStore.getState().applyWordCountChange(
+      "A",
+      [
+        { text: "ah ", begin: 0, end: 0.3 },
+        { text: "a", begin: 0.3, end: 0.45 },
+        { text: "h", begin: 0.45, end: 0.6 },
+      ],
+      "backgroundWords",
+      "apply",
+    );
+    const b = useProjectStore.getState().lines.find((l) => l.id === "B");
+    expect(b?.backgroundWords).toHaveLength(3);
+    expect(b?.backgroundWords?.[0]).toEqual({ text: "ah ", begin: 30, end: 30.4 });
+  });
+
+  it("apply produces a single history entry covering source + all siblings (single undo restores)", () => {
+    setupChorus();
+    useProjectStore.getState().applyWordCountChange("A", splitWords, "words", "apply");
+    const before = useProjectStore.getState().lines;
+    expect(before.find((l) => l.id === "A")?.words).toHaveLength(4);
+    expect(before.find((l) => l.id === "B")?.words).toHaveLength(4);
+    useProjectStore.getState().undo();
+    const after = useProjectStore.getState().lines;
+    expect(after.find((l) => l.id === "A")?.words).toHaveLength(3);
+    expect(after.find((l) => l.id === "B")?.words).toHaveLength(3);
+  });
+});

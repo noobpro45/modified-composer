@@ -1,0 +1,75 @@
+import { useState } from "react";
+import { useDivergenceStore } from "@/stores/divergence-store";
+import { Button } from "@/ui/button";
+import { Modal } from "@/ui/modal";
+
+// -- Component ----------------------------------------------------------------
+
+const DivergenceModalHost: React.FC = () => {
+  const isOpen = useDivergenceStore((s) => s.isOpen);
+  const options = useDivergenceStore((s) => s.options);
+  const resolveAndClose = useDivergenceStore((s) => s.resolveAndClose);
+  const [dontAskAgain, setDontAskAgain] = useState(false);
+
+  if (!isOpen || !options) return null;
+
+  const close = (value: "apply" | "detach" | "cancel") => {
+    const pref = dontAskAgain && value !== "cancel" ? value : null;
+    resolveAndClose(value, pref);
+    setDontAskAgain(false);
+  };
+
+  const { affectedSiblingCount, groupLabel } = options;
+  const groupName = groupLabel ?? "this group";
+  const siblingNoun = affectedSiblingCount === 1 ? "instance" : "instances";
+
+  return (
+    <Modal isOpen onClose={() => close("cancel")} title="Word structure changed" className="max-w-md">
+      <div className="flex flex-col gap-4">
+        <div className="text-sm text-composer-text-secondary leading-relaxed select-text">
+          You changed the word count on a line in <strong>{groupName}</strong>. {affectedSiblingCount} other{" "}
+          {siblingNoun} will be affected.
+          <br />
+          <br />
+          <strong>Apply to all</strong> propagates the new structure to every instance, preserving each instance's
+          existing per-word timings wherever possible.
+          <br />
+          <br />
+          <strong>Detach</strong> keeps the change on this line only and unlinks it from the group.
+        </div>
+        <div className="text-xs text-composer-text-muted">This can be undone with Cmd+Z.</div>
+
+        <div className="flex items-center justify-between pt-2">
+          <label className="flex items-center gap-2 text-xs text-composer-text-muted cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={dontAskAgain}
+              onChange={(e) => setDontAskAgain(e.target.checked)}
+              className="h-3.5 w-3.5 rounded accent-composer-accent cursor-pointer"
+            />
+            Don't ask again (use this choice next time)
+          </label>
+          <div className="flex gap-2 select-none">
+            <Button variant="secondary" size="sm" onClick={() => close("cancel")}>
+              Cancel
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => close("detach")}>
+              Detach
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => close("apply")}
+              className="bg-composer-accent-dark hover:bg-composer-accent text-white"
+            >
+              Apply to all
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// -- Exports ------------------------------------------------------------------
+
+export { DivergenceModalHost };

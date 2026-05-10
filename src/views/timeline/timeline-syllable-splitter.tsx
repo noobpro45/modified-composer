@@ -3,6 +3,7 @@ import { useProjectStore } from "@/stores/project";
 import type { WordTiming } from "@/stores/project";
 import { Modal } from "@/ui/modal";
 import { distributeTiming } from "@/utils/syllable-utils";
+import { handleWordChangeWithDivergenceCheck } from "@/utils/word-divergence-flow";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { SplitModeContent } from "@/views/sync/syllable-splitter";
 import { useCallback, useEffect, useState } from "react";
@@ -85,17 +86,14 @@ const TimelineSyllableSplitter: React.FC = () => {
 
     const updatedWords = [...wordsArray.slice(0, wordIndex), ...newWords, ...wordsArray.slice(wordIndex + 1)];
 
-    const updateLineWithHistory = useProjectStore.getState().updateLineWithHistory;
     if (type === "word") {
-      updateLineWithHistory(lineId, { words: updatedWords });
+      void handleWordChangeWithDivergenceCheck(lineId, updatedWords, "words");
     } else {
-      updateLineWithHistory(lineId, {
-        backgroundWords: updatedWords,
-        backgroundText: updatedWords
-          .map((w) => w.text)
-          .join("")
-          .trimEnd(),
-      });
+      const newBgText = updatedWords
+        .map((w) => w.text)
+        .join("")
+        .trimEnd();
+      void handleWordChangeWithDivergenceCheck(lineId, updatedWords, "backgroundWords", { backgroundText: newBgText });
     }
 
     setIsOpen(false);

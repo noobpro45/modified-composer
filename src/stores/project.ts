@@ -126,6 +126,13 @@ interface ProjectActions {
   detachLine: (lineId: string) => void;
   propagateLinkedEdit: (groupId: string, templateLineIdx: number, lineUpdates: Partial<LyricLine>) => void;
   shiftInstance: (groupId: string, instanceIdx: number, deltaSeconds: number) => void;
+  applyWordCountChange: (
+    lineId: string,
+    newWords: WordTiming[],
+    field: "words" | "backgroundWords",
+    resolution: "apply" | "detach" | "cancel",
+    extraUpdates?: Partial<LyricLine>,
+  ) => void;
   dismissSuggestion: (fingerprint: string) => void;
   setDismissedSuggestions: (fingerprints: string[]) => void;
   clearDismissedSuggestions: () => void;
@@ -683,6 +690,54 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
         }),
       }),
     ),
+
+  applyWordCountChange: (lineId, newWords, field, resolution, extraUpdates = {}) =>
+    set((state) => {
+      if (resolution === "cancel") return state;
+      const target = state.lines.find((l) => l.id === lineId);
+      if (!target) return state;
+
+      const sourceBefore = target[field];
+      const isLinked = target.groupId !== undefined && target.templateLineIdx !== undefined && !target.detached;
+
+      if (resolution === "detach") {
+        return commitHistory(state, {
+          lines: state.lines.map((line) =>
+            line.id === lineId ? { ...line, ...extraUpdates, [field]: newWords, detached: true } : line,
+          ),
+        });
+      }
+
+      const propagateScope = isLinked
+        ? { groupId: target.groupId as string, templateLineIdx: target.templateLineIdx as number }
+        : null;
+      const linkedExtras = propagateScope ? extractLinkedFields(extraUpdates) : null;
+
+      const newLines = state.lines.map((line) => {
+        if (line.id === lineId) {
+          const merged: LyricLine = { ...line, ...extraUpdates, [field]: newWords };
+          if (field === "words" && newWords.length > 0 && line.begin !== undefined && !line.words?.length) {
+            merged.begin = undefined;
+            merged.end = undefined;
+          }
+          return merged;
+        }
+        if (
+          propagateScope &&
+          line.groupId === propagateScope.groupId &&
+          line.templateLineIdx === propagateScope.templateLineIdx &&
+          !line.detached
+        ) {
+          const propagated = applySiblingWords(newWords, sourceBefore, line[field]);
+          const siblingUpdates: Partial<LyricLine> = { ...(linkedExtras ?? {}) };
+          if (propagated) siblingUpdates[field] = propagated;
+          if (Object.keys(siblingUpdates).length > 0) return { ...line, ...siblingUpdates };
+        }
+        return line;
+      });
+
+      return commitHistory(state, { lines: newLines });
+    }),
 
   dismissSuggestion: (fingerprint) =>
     set((state) => {

@@ -9,6 +9,7 @@ import { useTour } from "@/tour/use-tour";
 import "@/tour/tour-theme.css";
 import { AppHeader } from "@/ui/app-header";
 import { ConfirmModalHost } from "@/ui/confirm-modal";
+import { DivergenceModalHost } from "@/ui/divergence-modal";
 import { HelpModal } from "@/ui/help-modal";
 import { SettingsModal } from "@/ui/settings-modal";
 import { TabBar } from "@/ui/tab-bar";
@@ -114,6 +115,7 @@ const App: React.FC = () => {
     <>
       <AppContent />
       <ConfirmModalHost />
+      <DivergenceModalHost />
       <Toaster
         theme="dark"
         position="bottom-center"

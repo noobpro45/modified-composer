@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 // -- Types --------------------------------------------------------------------
 
 type GranularityDefault = "word" | "line";
+type LinkedDivergenceAction = "ask" | "apply" | "detach";
 
 interface CobaltInstance {
   id: string;
@@ -46,6 +47,7 @@ interface SettingsState {
   confirmResetSettings: boolean;
   confirmResetShortcuts: boolean;
   confirmGroupDissolution: boolean;
+  linkedDivergenceAction: LinkedDivergenceAction;
 
   cobaltInstances: CobaltInstance[];
   selectedCobaltInstanceId: string;
@@ -91,6 +93,7 @@ const DEFAULTS: SettingsState = {
   confirmResetSettings: true,
   confirmResetShortcuts: true,
   confirmGroupDissolution: true,
+  linkedDivergenceAction: "ask",
 
   cobaltInstances: [],
   selectedCobaltInstanceId: DEFAULT_COBALT_INSTANCE_ID,
@@ -121,6 +124,7 @@ const useSettingsStore = create<SettingsState & SettingsActions>()(
           confirmResetSettings: state.confirmResetSettings,
           confirmResetShortcuts: state.confirmResetShortcuts,
           confirmGroupDissolution: state.confirmGroupDissolution,
+          linkedDivergenceAction: state.linkedDivergenceAction,
           cobaltInstances: state.cobaltInstances,
           selectedCobaltInstanceId: state.selectedCobaltInstanceId,
           cobaltInstanceStatus: state.cobaltInstanceStatus,
@@ -181,4 +185,4 @@ export {
   getActiveCobaltInstance,
   isUsingDefaultCobaltInstance,
 };
-export type { SettingsState, CobaltInstance, CobaltInstanceStatus };
+export type { SettingsState, CobaltInstance, CobaltInstanceStatus, LinkedDivergenceAction };
