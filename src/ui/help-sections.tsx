@@ -520,17 +520,30 @@ const GroupsSection: React.FC = () => (
 
     <div>
       <h4 className={HEADING}>Adding more instances</h4>
+      <p className={PROSE}>
+        Click the banner of the instance you want to copy, then press <strong>{MOD_KEY} + D</strong> (or right-click the
+        banner and pick "Add instance at playhead"). Composer picks one of three landings, in this order:
+      </p>
       <ul className={`${PROSE} list-disc pl-4 space-y-1`}>
         <li>
-          Click the banner of the instance you want to copy, then press <strong>{MOD_KEY} + D</strong>. A new linked
-          instance lands at the playhead.
+          <strong>Fills empty placeholder rows in place</strong> if a matching run of empty rows sits right after the
+          last timed line ending at or before the playhead. Nothing shifts down, the placeholders just light up.
         </li>
-        <li>Or right-click any banner and pick "Add instance at playhead". Same result.</li>
         <li>
-          You can also copy all words of an instance ({MOD_KEY} + C with the banner selected), then paste ({MOD_KEY} +
-          V) somewhere else. The paste creates a new linked instance at the cursor row, not a loose word dump.
+          <strong>Inserts new rows at the playhead</strong> if there's no fillable run but the playhead falls in a clean
+          time gap big enough for the instance.
+        </li>
+        <li>
+          <strong>Copies the instance to the clipboard and opens the paste-preview ghost</strong> if the playhead is
+          inside a playing line, the gap is too small, or you've already passed the last lyric. Toast says where to go
+          next: "No room at the playhead. {MOD_KEY} + V to paste somewhere clear." Move the cursor to a row you like and
+          click to drop it.
         </li>
       </ul>
+      <p className={`${PROSE} mt-2`}>
+        You can also use the regular clipboard: select every word of an instance ({MOD_KEY} + C with the banner
+        selected), then paste ({MOD_KEY} + V) somewhere else. Same fill/insert behavior at the destination.
+      </p>
     </div>
 
     <div>
@@ -649,7 +662,11 @@ const GroupsSection: React.FC = () => (
         <li>Word text and line text edits.</li>
         <li>Agent assignments.</li>
         <li>Background vocal text.</li>
-        <li>Word splits and merges (sibling timing scales proportionally to its own span).</li>
+        <li>
+          Word splits and merges. Siblings get the new word structure, and Composer keeps the timing of every word that
+          didn't actually change. Only the split or merged word's slot is divided up. Sibling rhythms you carefully
+          synced earlier survive.
+        </li>
         <li>Moving a word between main and background tracks.</li>
       </ul>
       <p className={`${PROSE} mt-2`}>Stays local to one instance:</p>
@@ -658,6 +675,21 @@ const GroupsSection: React.FC = () => (
         <li>Banner shifts and arrow-key nudge.</li>
         <li>Anything you do on a line that's been detached.</li>
       </ul>
+    </div>
+
+    <div>
+      <h4 className={HEADING}>The split-or-merge prompt</h4>
+      <p className={PROSE}>
+        When a split or merge on a linked line would actually shift sibling word timings (sibling rhythms differ from
+        the source), Composer pops a three-button modal: <strong>Apply to all</strong> (propagate with timing
+        preservation), <strong>Detach</strong> (keep the change on this line only, unlink it from the group), or{" "}
+        <strong>Cancel</strong>. The modal stays out of the way when sibling rhythms already match the source, since
+        propagation is a no-op for the unchanged words anyway.
+      </p>
+      <p className={`${PROSE} mt-2`}>
+        Tick "Don't ask again" in the modal to default to your choice next time. Reset the preference from{" "}
+        <strong>Settings → Confirmations</strong>.
+      </p>
     </div>
 
     <div>
@@ -682,11 +714,25 @@ const GroupsSection: React.FC = () => (
     </div>
 
     <div>
+      <h4 className={HEADING}>Emptying an instance</h4>
+      <p className={PROSE}>
+        Click the banner to select every word in an instance, then press <strong>Delete</strong>. Composer clears the
+        timed content and notices the instance is now empty across all its lines, so it strips the group attrs from
+        those rows automatically. You're left with empty placeholders that the fill flow above can repopulate later. The
+        other instances of the group are untouched.
+      </p>
+      <p className={`${PROSE} mt-2`}>
+        Partial deletes don't trigger this: if one line of a multi-line instance still has timed words, the instance
+        stays linked.
+      </p>
+    </div>
+
+    <div>
       <h4 className={HEADING}>Deleting a group</h4>
       <p className={PROSE}>
         Right-click any banner and pick <strong>Delete group</strong>. A confirmation modal warns you that all instances
-        will become standalone (text and timing survive, they just stop syncing). You can disable the confirmation in
-        Settings if you'd rather skip it every time.
+        will become standalone (text and timing survive, they just stop syncing). Tick "Don't ask again" to skip the
+        modal next time, or restore the prompt from <strong>Settings → Confirmations</strong>.
       </p>
     </div>
 
