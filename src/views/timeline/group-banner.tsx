@@ -133,26 +133,28 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
   const width = Math.max(BANNER_MIN_WIDTH, (instanceEnd - instanceStart) * zoom);
   const deltaSecondsLive = dragOffsetPx / Math.max(zoom, 1);
 
-  // When collapsed, render thin ticks on the banner showing approximate word positions
-  const wordTicks = (() => {
+  // Reactive subscription to lines so word edits inside a collapsed banner
+  // update the tick positions automatically. Filter in useMemo to avoid
+  // returning a new array reference from the store selector (which would
+  // cause infinite re-renders).
+  const allLines = useProjectStore((s) => s.lines);
+  const wordTicks = useMemo(() => {
     if (!isCollapsed) return [];
     const span = instanceEnd - instanceStart;
     if (span <= 0) return [];
-    const lines = useProjectStore.getState().lines;
     const ticks: Array<{ leftPct: number; widthPct: number }> = [];
-    for (const line of lines) {
+    for (const line of allLines) {
       if (line.groupId !== group.id || line.instanceIdx !== instanceIdx) continue;
-      if (line.words?.length) {
-        for (const w of line.words) {
-          const startPct = ((w.begin - instanceStart) / span) * 100;
-          const endPct = ((w.end - instanceStart) / span) * 100;
-          const widthPct = Math.max(0.4, endPct - startPct);
-          ticks.push({ leftPct: startPct, widthPct });
-        }
+      if (!line.words?.length) continue;
+      for (const w of line.words) {
+        const startPct = ((w.begin - instanceStart) / span) * 100;
+        const endPct = ((w.end - instanceStart) / span) * 100;
+        const widthPct = Math.max(0.4, endPct - startPct);
+        ticks.push({ leftPct: startPct, widthPct });
       }
     }
     return ticks;
-  })();
+  }, [isCollapsed, instanceStart, instanceEnd, allLines, group.id, instanceIdx]);
 
   return (
     <motion.div
