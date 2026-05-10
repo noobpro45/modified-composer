@@ -189,29 +189,31 @@ const TimelineContextMenu: React.FC = () => {
   const handleAddLine = useCallback(
     (position: "above" | "below") => {
       if (!contextMenu || contextMenu.target.kind !== "gutter") return;
-      const { lineIndex } = contextMenu.target;
+      // Operate on raw lines, not effective lines. getEffectiveLines synthesises
+      // single-word arrays for line-synced rows; if we wrote those back via
+      // setLinesWithHistory, every line-synced row would silently flip to
+      // word-synced (and TTML granularity would change on save).
+      const lineId = contextMenu.target.lineId;
+      const targetIndex = rawLines.findIndex((l) => l.id === lineId);
+      if (targetIndex === -1) return;
       const defaultAgentId = agents[0]?.id ?? "v1";
-      const newLine = {
-        id: crypto.randomUUID(),
-        text: "",
-        agentId: defaultAgentId,
-      };
-      const newLines = [...lines];
-      const insertIndex = position === "above" ? lineIndex : lineIndex + 1;
+      const newLine = { id: crypto.randomUUID(), text: "", agentId: defaultAgentId };
+      const newLines = [...rawLines];
+      const insertIndex = position === "above" ? targetIndex : targetIndex + 1;
       newLines.splice(insertIndex, 0, newLine);
       setLinesWithHistory(newLines);
       clearContextMenu();
     },
-    [contextMenu, lines, agents, setLinesWithHistory, clearContextMenu],
+    [contextMenu, rawLines, agents, setLinesWithHistory, clearContextMenu],
   );
 
   const handleDeleteLine = useCallback(() => {
     if (!contextMenu || contextMenu.target.kind !== "gutter") return;
-    const { lineIndex } = contextMenu.target;
-    const newLines = lines.filter((_, i) => i !== lineIndex);
+    const lineId = contextMenu.target.lineId;
+    const newLines = rawLines.filter((l) => l.id !== lineId);
     setLinesWithHistory(newLines);
     clearContextMenu();
-  }, [contextMenu, lines, setLinesWithHistory, clearContextMenu]);
+  }, [contextMenu, rawLines, setLinesWithHistory, clearContextMenu]);
 
   const gutterLineGroupInfo = useMemo(() => {
     if (!contextMenu || contextMenu.target.kind !== "gutter") return null;
