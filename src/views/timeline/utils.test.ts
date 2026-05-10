@@ -374,6 +374,72 @@ describe("instanceTimingBounds", () => {
     expect(bounds.start).toBe(4);
     expect(bounds.end).toBe(7);
   });
+
+  it("ignores stale line.begin/end when words are present (header bounds track word edits, not line-level cache)", () => {
+    // The user-reported regression: nudging all words in an instance left
+    // shifts every word, but the header's right edge stays affixed because
+    // line.begin/end were left stale. Header should follow the word array,
+    // not a leftover line-level value from import.
+    const lines: LyricLine[] = [
+      {
+        id: "a",
+        text: "x",
+        agentId: "v1",
+        // Stale line-level timing (e.g. from TTML import that populated both)
+        begin: 10,
+        end: 20,
+        words: [
+          { text: "hello", begin: 5, end: 6 },
+          { text: "world", begin: 6, end: 7 },
+        ],
+      },
+    ];
+    const bounds = instanceTimingBounds(lines);
+    expect(bounds.start).toBe(5);
+    expect(bounds.end).toBe(7);
+  });
+
+  it("ignores stale line.begin/end when only bg words are present", () => {
+    const lines: LyricLine[] = [
+      {
+        id: "a",
+        text: "x",
+        agentId: "v1",
+        begin: 10,
+        end: 20,
+        backgroundWords: [{ text: "ah", begin: 5, end: 6 }],
+      },
+    ];
+    const bounds = instanceTimingBounds(lines);
+    expect(bounds.start).toBe(5);
+    expect(bounds.end).toBe(6);
+  });
+
+  it("falls back to line.begin/end ONLY when the line is truly line-synced (no words and no bg words)", () => {
+    const lines: LyricLine[] = [{ id: "a", text: "x", agentId: "v1", begin: 5, end: 7 }];
+    const bounds = instanceTimingBounds(lines);
+    expect(bounds.start).toBe(5);
+    expect(bounds.end).toBe(7);
+  });
+
+  it("mixes correctly across multiple lines: word-synced lines use words, line-synced uses begin/end", () => {
+    const lines: LyricLine[] = [
+      {
+        id: "a",
+        text: "x",
+        agentId: "v1",
+        // Stale line-level should be IGNORED; words win
+        begin: 100,
+        end: 200,
+        words: [{ text: "hello", begin: 5, end: 6 }],
+      },
+      // Truly line-synced — no words, line.begin/end is the source of truth
+      { id: "b", text: "y", agentId: "v1", begin: 10, end: 12 },
+    ];
+    const bounds = instanceTimingBounds(lines);
+    expect(bounds.start).toBe(5);
+    expect(bounds.end).toBe(12);
+  });
 });
 
 describe("getWordsInInstance", () => {
