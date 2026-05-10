@@ -856,7 +856,7 @@ function getAgentColor(agentId: string): string {
 }
 
 export { useProjectStore, DEFAULT_AGENTS, AGENT_PRESETS, AGENT_COLORS, getAgentColor, INITIAL_STATE };
-export { extractLinkedFields };
+export { extractLinkedFields, propagateWordChanges };
 
 export type {
   Agent,

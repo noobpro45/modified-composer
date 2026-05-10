@@ -1,4 +1,4 @@
-import { extractLinkedFields } from "@/stores/project";
+import { extractLinkedFields, propagateWordChanges } from "@/stores/project";
 import type { LyricLine } from "@/stores/project";
 
 // -- Types --------------------------------------------------------------------
@@ -118,31 +118,55 @@ function detachInstancesFromLines(lines: LyricLine[], instances: ImpactedInstanc
   });
 }
 
-function propagateContentUpdates(lines: LyricLine[], contentUpdates: ContentUpdate[]): LyricLine[] {
-  if (contentUpdates.length === 0) return lines;
+interface LinkedScope {
+  groupId: string;
+  templateLineIdx: number;
+  linkedUpdate: Partial<LyricLine>;
+  sourceWordsBefore: LyricLine["words"];
+  sourceWordsAfter: LyricLine["words"];
+  sourceBgWordsBefore: LyricLine["backgroundWords"];
+  sourceBgWordsAfter: LyricLine["backgroundWords"];
+}
+
+function propagateContentUpdates(
+  oldLines: LyricLine[],
+  newLines: LyricLine[],
+  contentUpdates: ContentUpdate[],
+): LyricLine[] {
+  if (contentUpdates.length === 0) return newLines;
+
+  const oldById = new Map<string, LyricLine>();
+  for (const line of oldLines) oldById.set(line.id, line);
 
   const updatesById = new Map<string, ContentUpdate>();
   for (const update of contentUpdates) {
     updatesById.set(update.id, update);
   }
 
-  const linkedScopes: Array<{ groupId: string; templateLineIdx: number; linkedUpdate: Partial<LyricLine> }> = [];
+  const linkedScopes: LinkedScope[] = [];
   for (const update of contentUpdates) {
-    const source = lines.find((line) => line.id === update.id);
-    if (!source) continue;
-    if (source.groupId === undefined || source.templateLineIdx === undefined || source.detached) continue;
+    const sourceNew = newLines.find((line) => line.id === update.id);
+    const sourceOld = oldById.get(update.id);
+    if (!sourceNew || !sourceOld) continue;
+    if (sourceNew.groupId === undefined || sourceNew.templateLineIdx === undefined || sourceNew.detached) continue;
     const linkedUpdate = extractLinkedFields(update.updates);
-    if (Object.keys(linkedUpdate).length === 0) continue;
+    const wordsChanged = "words" in update.updates;
+    const bgWordsChanged = "backgroundWords" in update.updates;
+    if (Object.keys(linkedUpdate).length === 0 && !wordsChanged && !bgWordsChanged) continue;
     linkedScopes.push({
-      groupId: source.groupId,
-      templateLineIdx: source.templateLineIdx,
+      groupId: sourceNew.groupId,
+      templateLineIdx: sourceNew.templateLineIdx,
       linkedUpdate,
+      sourceWordsBefore: sourceOld.words,
+      sourceWordsAfter: sourceNew.words,
+      sourceBgWordsBefore: sourceOld.backgroundWords,
+      sourceBgWordsAfter: sourceNew.backgroundWords,
     });
   }
 
-  if (linkedScopes.length === 0) return lines;
+  if (linkedScopes.length === 0) return newLines;
 
-  return lines.map((line) => {
+  return newLines.map((line) => {
     if (updatesById.has(line.id)) return line;
     if (line.groupId === undefined || line.templateLineIdx === undefined || line.detached) return line;
 
@@ -151,6 +175,14 @@ function propagateContentUpdates(lines: LyricLine[], contentUpdates: ContentUpda
       if (line.groupId !== scope.groupId) continue;
       if (line.templateLineIdx !== scope.templateLineIdx) continue;
       Object.assign(merged, scope.linkedUpdate);
+      const propagatedWords = propagateWordChanges(scope.sourceWordsAfter, scope.sourceWordsBefore, line.words);
+      if (propagatedWords) merged.words = propagatedWords;
+      const propagatedBg = propagateWordChanges(
+        scope.sourceBgWordsAfter,
+        scope.sourceBgWordsBefore,
+        line.backgroundWords,
+      );
+      if (propagatedBg) merged.backgroundWords = propagatedBg;
     }
     if (Object.keys(merged).length === 0) return line;
     return { ...line, ...merged };

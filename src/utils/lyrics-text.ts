@@ -1,5 +1,12 @@
-import type { LyricLine } from "@/stores/project";
+import type { LyricLine, WordTiming } from "@/stores/project";
 import { cleanSplitCharacters, getSplitCharacter, stripSplitCharacter } from "@/utils/split-character";
+import { splitIntoWordsWithMeta } from "@/utils/sync-helpers";
+
+function remapWordTextsPreservingTiming(oldWords: WordTiming[], newText: string): WordTiming[] | null {
+  const { parts, trailingSpace } = splitIntoWordsWithMeta(newText);
+  if (parts.length !== oldWords.length) return null;
+  return oldWords.map((oldWord, i) => ({ ...oldWord, text: parts[i] + (trailingSpace[i] ? " " : "") }));
+}
 
 // -- Helpers ------------------------------------------------------------------
 
@@ -42,6 +49,14 @@ function textToLyricLines(text: string, defaultAgentId: string, existingLines: L
     const positionMatch = existingLines[index];
     if (positionMatch && !usedExistingIds.has(positionMatch.id)) {
       usedExistingIds.add(positionMatch.id);
+
+      if (positionMatch.words?.length) {
+        const remapped = remapWordTextsPreservingTiming(positionMatch.words, cleanedText);
+        if (remapped) {
+          return { ...positionMatch, text: cleanedText, words: remapped };
+        }
+      }
+
       return {
         ...positionMatch,
         text: cleanedText,

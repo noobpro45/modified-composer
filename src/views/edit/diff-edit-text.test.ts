@@ -141,7 +141,7 @@ describe("diffEditTextChange", () => {
 describe("propagateContentUpdates", () => {
   it("returns input unchanged when there are no updates", () => {
     const lines: LyricLine[] = [{ id: "L1", text: "a", agentId: "v1" }];
-    expect(propagateContentUpdates(lines, [])).toBe(lines);
+    expect(propagateContentUpdates(lines, lines, [])).toBe(lines);
   });
 
   it("does nothing when the source line is not grouped", () => {
@@ -149,7 +149,7 @@ describe("propagateContentUpdates", () => {
       { id: "L1", text: "edited", agentId: "v1" },
       { id: "L2", text: "other", agentId: "v1" },
     ];
-    const out = propagateContentUpdates(lines, [{ id: "L1", updates: { text: "edited" } }]);
+    const out = propagateContentUpdates(lines, lines, [{ id: "L1", updates: { text: "edited" } }]);
     expect(out[1].text).toBe("other");
   });
 
@@ -158,7 +158,7 @@ describe("propagateContentUpdates", () => {
       { id: "L1", text: "edited", agentId: "v1", groupId: "g1", instanceIdx: 0, templateLineIdx: 0 },
       { id: "L2", text: "stale", agentId: "v1", groupId: "g1", instanceIdx: 1, templateLineIdx: 0 },
     ];
-    const out = propagateContentUpdates(lines, [{ id: "L1", updates: { text: "edited" } }]);
+    const out = propagateContentUpdates(lines, lines, [{ id: "L1", updates: { text: "edited" } }]);
     expect(out[0].text).toBe("edited");
     expect(out[1].text).toBe("edited");
   });
@@ -178,7 +178,7 @@ describe("propagateContentUpdates", () => {
         words: [{ text: "I love", begin: 10, end: 11 }],
       },
     ];
-    const out = propagateContentUpdates(lines, [
+    const out = propagateContentUpdates(lines, lines, [
       { id: "L1", updates: { text: "I luv", words: undefined, begin: undefined, end: undefined } },
     ]);
     expect(out[1].text).toBe("I luv");
@@ -187,12 +187,72 @@ describe("propagateContentUpdates", () => {
     expect(out[1].end).toBeUndefined();
   });
 
+  it("propagates per-word text changes to siblings while preserving sibling word timings", () => {
+    const oldLines: LyricLine[] = [
+      {
+        id: "L1",
+        text: "I love you",
+        agentId: "v1",
+        groupId: "g1",
+        instanceIdx: 0,
+        templateLineIdx: 0,
+        words: [
+          { text: "I ", begin: 10, end: 10.4 },
+          { text: "love ", begin: 10.4, end: 10.8 },
+          { text: "you", begin: 10.8, end: 11.2 },
+        ],
+      },
+      {
+        id: "L2",
+        text: "I love you",
+        agentId: "v1",
+        groupId: "g1",
+        instanceIdx: 1,
+        templateLineIdx: 0,
+        words: [
+          { text: "I ", begin: 30, end: 30.5 },
+          { text: "love ", begin: 30.5, end: 31.0 },
+          { text: "you", begin: 31.0, end: 31.5 },
+        ],
+      },
+    ];
+    const newLines: LyricLine[] = [
+      {
+        ...oldLines[0],
+        text: "I luv you",
+        words: [
+          { text: "I ", begin: 10, end: 10.4 },
+          { text: "luv ", begin: 10.4, end: 10.8 },
+          { text: "you", begin: 10.8, end: 11.2 },
+        ],
+      },
+      oldLines[1],
+    ];
+
+    const out = propagateContentUpdates(oldLines, newLines, [
+      {
+        id: "L1",
+        updates: {
+          text: "I luv you",
+          words: newLines[0].words,
+        },
+      },
+    ]);
+
+    expect(out[1].text).toBe("I luv you");
+    expect(out[1].words?.[1].text).toBe("luv ");
+    expect(out[1].words?.[1].begin).toBe(30.5);
+    expect(out[1].words?.[1].end).toBe(31.0);
+    expect(out[1].words?.[0].text).toBe("I ");
+    expect(out[1].words?.[0].begin).toBe(30);
+  });
+
   it("skips detached siblings", () => {
     const lines: LyricLine[] = [
       { id: "L1", text: "edited", agentId: "v1", groupId: "g1", instanceIdx: 0, templateLineIdx: 0 },
       { id: "L2", text: "stale", agentId: "v1", groupId: "g1", instanceIdx: 1, templateLineIdx: 0, detached: true },
     ];
-    const out = propagateContentUpdates(lines, [{ id: "L1", updates: { text: "edited" } }]);
+    const out = propagateContentUpdates(lines, lines, [{ id: "L1", updates: { text: "edited" } }]);
     expect(out[1].text).toBe("stale");
   });
 
@@ -201,7 +261,7 @@ describe("propagateContentUpdates", () => {
       { id: "L1", text: "edited", agentId: "v1", groupId: "g1", instanceIdx: 0, templateLineIdx: 0 },
       { id: "L2", text: "stale", agentId: "v1", groupId: "g2", instanceIdx: 0, templateLineIdx: 0 },
     ];
-    const out = propagateContentUpdates(lines, [{ id: "L1", updates: { text: "edited" } }]);
+    const out = propagateContentUpdates(lines, lines, [{ id: "L1", updates: { text: "edited" } }]);
     expect(out[1].text).toBe("stale");
   });
 
@@ -210,7 +270,7 @@ describe("propagateContentUpdates", () => {
       { id: "L1", text: "edited", agentId: "v1", groupId: "g1", instanceIdx: 0, templateLineIdx: 0 },
       { id: "L2", text: "stale", agentId: "v1", groupId: "g1", instanceIdx: 1, templateLineIdx: 1 },
     ];
-    const out = propagateContentUpdates(lines, [{ id: "L1", updates: { text: "edited" } }]);
+    const out = propagateContentUpdates(lines, lines, [{ id: "L1", updates: { text: "edited" } }]);
     expect(out[1].text).toBe("stale");
   });
 
@@ -219,7 +279,7 @@ describe("propagateContentUpdates", () => {
       { id: "L1", text: "edited", agentId: "v1", groupId: "g1", instanceIdx: 0, templateLineIdx: 0 },
       { id: "L2", text: "stale", agentId: "v1", groupId: "g1", instanceIdx: 1, templateLineIdx: 0 },
     ];
-    const out = propagateContentUpdates(lines, [{ id: "L1", updates: { text: "edited" } }]);
+    const out = propagateContentUpdates(lines, lines, [{ id: "L1", updates: { text: "edited" } }]);
     expect(out[0]).toBe(lines[0]);
   });
 });

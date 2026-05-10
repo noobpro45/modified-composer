@@ -147,6 +147,48 @@ describe("textToLyricLines · group attrs preservation", () => {
     expect(result[1].begin).toBe(30);
   });
 
+  it("preserves word timings on the edited line when word count matches (single-word swap)", () => {
+    const existing: LyricLine[] = [
+      {
+        id: "L1",
+        text: "I love you",
+        agentId: "v1",
+        words: [
+          { text: "I ", begin: 0, end: 0.4 },
+          { text: "love ", begin: 0.4, end: 0.8 },
+          { text: "you", begin: 0.8, end: 1.2 },
+        ],
+      },
+    ];
+    const result = textToLyricLines("I luv you", "v1", existing);
+    expect(result[0].text).toBe("I luv you");
+    expect(result[0].words).toBeDefined();
+    expect(result[0].words?.length).toBe(3);
+    expect(result[0].words?.[1].text).toBe("luv ");
+    expect(result[0].words?.[1].begin).toBe(0.4);
+    expect(result[0].words?.[1].end).toBe(0.8);
+    expect(result[0].words?.[0].begin).toBe(0);
+    expect(result[0].words?.[2].end).toBe(1.2);
+  });
+
+  it("clears words when the edited word count differs", () => {
+    const existing: LyricLine[] = [
+      {
+        id: "L1",
+        text: "I love you",
+        agentId: "v1",
+        words: [
+          { text: "I ", begin: 0, end: 0.4 },
+          { text: "love ", begin: 0.4, end: 0.8 },
+          { text: "you", begin: 0.8, end: 1.2 },
+        ],
+      },
+    ];
+    const result = textToLyricLines("I really love you", "v1", existing);
+    expect(result[0].text).toBe("I really love you");
+    expect(result[0].words).toBeUndefined();
+  });
+
   it("typo on first instance preserves the second instance's words", () => {
     const existing: LyricLine[] = [
       {
@@ -175,7 +217,9 @@ describe("textToLyricLines · group attrs preservation", () => {
     const result = textToLyricLines("choru\nchorus", "v1", existing);
     expect(result[0].id).toBe("L1");
     expect(result[0].text).toBe("choru");
-    expect(result[0].words).toBeUndefined();
+    expect(result[0].words?.length).toBe(1);
+    expect(result[0].words?.[0].text).toBe("choru");
+    expect(result[0].words?.[0].begin).toBe(10);
     expect(result[1].id).toBe("L2");
     expect(result[1].text).toBe("chorus");
     expect(result[1].words).toEqual(existing[1].words);

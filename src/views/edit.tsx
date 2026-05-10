@@ -446,7 +446,7 @@ const EditPanel: React.FC = () => {
       }
 
       const finalLines =
-        diff.contentUpdates.length === 0 ? lyricLines : propagateContentUpdates(lyricLines, diff.contentUpdates);
+        diff.contentUpdates.length === 0 ? lyricLines : propagateContentUpdates(lines, lyricLines, diff.contentUpdates);
       linesSetByUs.current = finalLines;
       setLines(finalLines);
     },
