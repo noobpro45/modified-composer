@@ -17,6 +17,7 @@ import {
   findWordAtTime,
   getLineTiming,
   getWordsInInstance,
+  instanceTimingBounds,
   isLineSynced,
   partitionNudgeSelections,
   shiftSelectionsTogether,
@@ -650,14 +651,10 @@ function useTimelineKeyboard(
             toast.error("Select words inside one instance first");
             break;
           }
-          let earliest = Number.POSITIVE_INFINITY;
-          for (const line of projectLines) {
-            if (line.groupId !== inst.groupId || line.instanceIdx !== inst.instanceIdx) continue;
-            if (line.words?.length) {
-              for (const w of line.words) if (w.begin < earliest) earliest = w.begin;
-            }
-            if (line.begin !== undefined && line.begin < earliest) earliest = line.begin;
-          }
+          const instanceLines = projectLines.filter(
+            (l) => l.groupId === inst.groupId && l.instanceIdx === inst.instanceIdx,
+          );
+          const { start: earliest } = instanceTimingBounds(instanceLines);
           if (!Number.isFinite(earliest)) break;
           const audioEl = useAudioStore.getState().audioElement;
           const playheadTime = audioEl?.currentTime ?? useAudioStore.getState().currentTime;

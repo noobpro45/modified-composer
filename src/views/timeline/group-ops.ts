@@ -116,20 +116,27 @@ function instanceLineRange(
   let endTime = Number.NEGATIVE_INFINITY;
   for (const line of lines) {
     if (line.groupId !== groupId || line.instanceIdx !== instanceIdx) continue;
-    if (line.words?.length) {
-      for (const w of line.words) {
+    const hasWords = !!line.words?.length;
+    const hasBgWords = !!line.backgroundWords?.length;
+    if (hasWords) {
+      for (const w of line.words!) {
         if (w.begin < startTime) startTime = w.begin;
         if (w.end > endTime) endTime = w.end;
       }
     }
-    if (line.backgroundWords?.length) {
-      for (const w of line.backgroundWords) {
+    if (hasBgWords) {
+      for (const w of line.backgroundWords!) {
         if (w.begin < startTime) startTime = w.begin;
         if (w.end > endTime) endTime = w.end;
       }
     }
-    if (line.begin !== undefined && line.begin < startTime) startTime = line.begin;
-    if (line.end !== undefined && line.end > endTime) endTime = line.end;
+    // Only fall back to line-level begin/end for truly line-synced rows.
+    // line.begin/end can lag behind word edits (TTML import populates both,
+    // word edits don't write back), so it's a stale cache when words exist.
+    if (!hasWords && !hasBgWords) {
+      if (line.begin !== undefined && line.begin < startTime) startTime = line.begin;
+      if (line.end !== undefined && line.end > endTime) endTime = line.end;
+    }
   }
   if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) return { startTime: 0, endTime: 0 };
   return { startTime, endTime };

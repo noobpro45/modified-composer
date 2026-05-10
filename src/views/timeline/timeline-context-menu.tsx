@@ -13,7 +13,7 @@ import { findInsertionSlot, normalizeTrailingSpaces } from "@/utils/word-spaces"
 import { createGroupFromSelection, fillSelectionGaps, instanceToTemplate } from "@/views/timeline/group-ops";
 import { scrollToInstanceHeader } from "@/views/timeline/scroll-helpers";
 import { type WordSelection, useTimelineStore } from "@/views/timeline/timeline-store";
-import { getEffectiveLines, isLineSynced } from "@/views/timeline/utils";
+import { getEffectiveLines, instanceTimingBounds, isLineSynced } from "@/views/timeline/utils";
 import { IconCommand } from "@tabler/icons-react";
 import { flip, FloatingPortal, shift, useFloating } from "@floating-ui/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
@@ -444,14 +444,8 @@ const TimelineContextMenu: React.FC = () => {
     const audioEl = useAudioStore.getState().audioElement;
     const playheadTime = audioEl?.currentTime ?? useAudioStore.getState().currentTime;
     const projectLines = useProjectStore.getState().lines;
-    let earliest = Number.POSITIVE_INFINITY;
-    for (const line of projectLines) {
-      if (line.groupId !== groupId || line.instanceIdx !== instanceIdx) continue;
-      if (line.words?.length) {
-        for (const w of line.words) if (w.begin < earliest) earliest = w.begin;
-      }
-      if (line.begin !== undefined && line.begin < earliest) earliest = line.begin;
-    }
+    const instanceLines = projectLines.filter((l) => l.groupId === groupId && l.instanceIdx === instanceIdx);
+    const { start: earliest } = instanceTimingBounds(instanceLines);
     if (!Number.isFinite(earliest)) return;
     const delta = playheadTime - earliest;
     useProjectStore.getState().shiftInstance(groupId, instanceIdx, delta);
