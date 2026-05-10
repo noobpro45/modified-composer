@@ -128,6 +128,8 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
       { keys: ["F2"], description: "Edit selected word text" },
       { keys: ["S"], description: "Split selected word into syllables", shortcutId: "timeline.splitSyllable" },
       { keys: ["M"], description: "Merge adjacent selected words", shortcutId: "timeline.mergeWords" },
+      { keys: ["ArrowLeft"], description: "Nudge selected words left", shortcutId: "timeline.nudgeLeft" },
+      { keys: ["ArrowRight"], description: "Nudge selected words right", shortcutId: "timeline.nudgeRight" },
       { keys: ["Double Click"], description: "Edit word / create word" },
     ],
   },
@@ -161,7 +163,8 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
     title: "Edit Mode",
     shortcuts: [
       { keys: ["Click"], description: "Select / deselect line" },
-      { keys: ["Alt", "Click"], description: "Select range of lines" },
+      { keys: ["Shift", "Click"], description: "Select range of lines" },
+      { keys: ["Drag"], description: "Drag on line numbers to select a range" },
     ],
   },
 ];
