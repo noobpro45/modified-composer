@@ -316,6 +316,22 @@ const EditPanel: React.FC = () => {
   const parsed = useMemo(() => parseLyrics(rawText, lines, defaultAgentId), [rawText, lines, defaultAgentId]);
   const bracketCount = useMemo(() => parsed.filter((p) => p.hasBrackets).length, [parsed]);
   const nonEmptyCount = useMemo(() => parsed.filter((p) => !p.isEmpty).length, [parsed]);
+  const instanceCountByGroup = useMemo(() => {
+    const indices = new Map<string, Set<number>>();
+    for (const l of lines) {
+      if (l.groupId !== undefined && l.instanceIdx !== undefined) {
+        let set = indices.get(l.groupId);
+        if (!set) {
+          set = new Set();
+          indices.set(l.groupId, set);
+        }
+        set.add(l.instanceIdx);
+      }
+    }
+    const counts = new Map<string, number>();
+    for (const [k, v] of indices) counts.set(k, v.size);
+    return counts;
+  }, [lines]);
 
   const handleAgentChange = useCallback((lineId: string, agentId: string) => {
     useProjectStore.getState().updateLineWithHistory(lineId, { agentId });
@@ -661,13 +677,7 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
                     line.instanceIdx !== undefined &&
                     (next?.groupId !== line.groupId || next?.instanceIdx !== line.instanceIdx);
                   const group = line.groupId ? groups.find((g) => g.id === line.groupId) : undefined;
-                  const totalInstances = group
-                    ? new Set(
-                        lines
-                          .filter((l) => l.groupId === group.id && l.instanceIdx !== undefined)
-                          .map((l) => l.instanceIdx),
-                      ).size
-                    : 0;
+                  const totalInstances = group ? (instanceCountByGroup.get(group.id) ?? 0) : 0;
                   const groupTooltip =
                     group && totalInstances > 1
                       ? `Part of ${group.label} · linked to ${totalInstances - 1} other instance${totalInstances - 1 === 1 ? "" : "s"}. Edits propagate.`

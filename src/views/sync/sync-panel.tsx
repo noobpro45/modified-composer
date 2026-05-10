@@ -46,6 +46,23 @@ const SyncPanel: React.FC = () => {
   const isPlaying = useAudioStore((s) => s.isPlaying);
   const setIsPlaying = useAudioStore((s) => s.setIsPlaying);
 
+  const instanceCountByGroup = useMemo(() => {
+    const indices = new Map<string, Set<number>>();
+    for (const l of lines) {
+      if (l.groupId !== undefined && l.instanceIdx !== undefined) {
+        let set = indices.get(l.groupId);
+        if (!set) {
+          set = new Set();
+          indices.set(l.groupId, set);
+        }
+        set.add(l.instanceIdx);
+      }
+    }
+    const counts = new Map<string, number>();
+    for (const [k, v] of indices) counts.set(k, v.size);
+    return counts;
+  }, [lines]);
+
   const [syncState, setSyncState] = useState<SyncState>({
     position: { lineIndex: 0, wordIndex: 0 },
     isActive: false,
@@ -392,13 +409,7 @@ const SyncPanel: React.FC = () => {
             {lines.map((line, index) => {
               const timing = getLineTiming(line);
               const linkedGroup = line.groupId ? groups.find((g) => g.id === line.groupId) : undefined;
-              const totalInstances = linkedGroup
-                ? new Set(
-                    lines
-                      .filter((l) => l.groupId === linkedGroup.id && l.instanceIdx !== undefined)
-                      .map((l) => l.instanceIdx),
-                  ).size
-                : 0;
+              const totalInstances = linkedGroup ? (instanceCountByGroup.get(linkedGroup.id) ?? 0) : 0;
               const linkInfo =
                 linkedGroup && line.instanceIdx !== undefined
                   ? {
