@@ -81,6 +81,7 @@ const WordBlock: React.FC<WordBlockProps> = ({
       ref={setNodeRef}
       id={id}
       data-word-block
+      data-syllable-position={syllablePosition}
       className={cn(
         "absolute top-1 bottom-1 flex items-center justify-center",
         "text-xs text-white truncate select-none cursor-grab",

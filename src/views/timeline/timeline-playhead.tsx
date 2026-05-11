@@ -2,6 +2,7 @@ import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { getBannerNodes } from "@/views/timeline/banner-progress-registry";
 import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
+import { buildPlayheadMask } from "@/views/timeline/timeline-playhead-mask";
 import { GUTTER_WIDTH, useTimelineStore } from "@/views/timeline/timeline-store";
 import { computeRowLayout, getLineTiming } from "@/views/timeline/utils";
 import { useCallback, useEffect, useRef } from "react";
@@ -12,6 +13,10 @@ interface TimelinePlayheadProps {
   containerHeight: number;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
 }
+
+// -- Constants -----------------------------------------------------------------
+
+const HIT_BUFFER_PX = 18;
 
 // -- Component -----------------------------------------------------------------
 
@@ -28,6 +33,9 @@ const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({ containerHeight, sc
   const rafRef = useRef<number | null>(null);
   const lastFollowedLineRef = useRef<number>(-1);
   const verticalTargetRef = useRef<number | null>(null);
+  const lastMaskRef = useRef<string>("");
+  const playheadCenterXLocalRef = useRef<number>(0);
+  const containerLeftRef = useRef<number>(0);
 
   // RAF loop - always runs, reads directly from audio element and stores
   useEffect(() => {
@@ -126,6 +134,20 @@ const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({ containerHeight, sc
         playheadRef.current.style.height = `${container.scrollHeight}px`;
       }
 
+      const containerRect = containerRef.current?.getBoundingClientRect();
+      if (containerRect) {
+        const playheadCenterXLocal = displayTime * zoom - actualScrollLeft + GUTTER_WIDTH;
+        const playheadCenterXViewport = playheadCenterXLocal + containerRect.left;
+        playheadCenterXLocalRef.current = playheadCenterXLocal;
+        containerLeftRef.current = containerRect.left;
+        const mask = buildPlayheadMask(playheadCenterXViewport, containerRect.top);
+        if (mask !== lastMaskRef.current) {
+          lastMaskRef.current = mask;
+          playheadRef.current.style.maskImage = mask;
+          playheadRef.current.style.webkitMaskImage = mask;
+        }
+      }
+
       // Update progress fill on collapsed banner DOM nodes (registered via mount)
       const banners = getBannerNodes();
       for (const banner of banners) {
@@ -153,9 +175,45 @@ const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({ containerHeight, sc
     };
   }, [scrollContainerRef]);
 
+  useEffect(() => {
+    let yielded = false;
+
+    const onMove = (e: MouseEvent) => {
+      const playhead = playheadRef.current;
+      if (!playhead) return;
+
+      const playheadCenterXViewport = containerLeftRef.current + playheadCenterXLocalRef.current;
+      const nearPlayhead =
+        e.clientX >= playheadCenterXViewport - HIT_BUFFER_PX && e.clientX <= playheadCenterXViewport + HIT_BUFFER_PX;
+
+      if (!nearPlayhead) {
+        if (yielded) {
+          yielded = false;
+          playhead.classList.remove("playhead-yield");
+        }
+        return;
+      }
+
+      const stack = document.elementsFromPoint(e.clientX, e.clientY);
+      const overWord = stack.some(
+        (el) =>
+          el instanceof HTMLElement && el !== playhead && !playhead.contains(el) && el.closest("[data-word-block]"),
+      );
+
+      if (overWord !== yielded) {
+        yielded = overWord;
+        playhead.classList.toggle("playhead-yield", overWord);
+      }
+    };
+
+    document.addEventListener("mousemove", onMove);
+    return () => document.removeEventListener("mousemove", onMove);
+  }, []);
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return;
+
       e.preventDefault();
       setIsPlaying(false);
 
@@ -206,6 +264,12 @@ const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({ containerHeight, sc
           height: containerHeight,
           willChange: "transform",
           transition: "transform 32ms linear",
+          maskPosition: "-16px 0",
+          WebkitMaskPosition: "-16px 0",
+          maskSize: "calc(100% + 32px) 100%",
+          WebkitMaskSize: "calc(100% + 32px) 100%",
+          maskClip: "no-clip",
+          WebkitMaskClip: "no-clip",
         }}
         onMouseDown={handleMouseDown}
       >
