@@ -23,7 +23,7 @@ function textToLyricLines(text: string, defaultAgentId: string, existingLines: L
   }
 
   const usedExistingIds = new Set<string>();
-  const newLines = text.split("\n").filter((line) => line.trim() !== "");
+  const newLines = text.split("\n");
   // Position-based fallback only makes sense when the user is editing-in-place
   // (same number of typed lines as existing lines). If the count changed, the
   // user inserted or deleted rows: position-match would silently overwrite the

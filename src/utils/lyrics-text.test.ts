@@ -219,6 +219,38 @@ describe("textToLyricLines · group attrs preservation", () => {
     expect(result[1].id).toBe("L2");
   });
 
+  it("preserves an empty draft line when the user edits a sibling line", () => {
+    const existing: LyricLine[] = [
+      { id: "A", text: "verse one", agentId: "v1" },
+      { id: "EMPTY", text: "", agentId: "v1" },
+      { id: "C", text: "verse three", agentId: "v1" },
+    ];
+    const result = textToLyricLines("verse one edited\n\nverse three", "v1", existing);
+    expect(result).toHaveLength(3);
+    expect(result[0].id).toBe("A");
+    expect(result[0].text).toBe("verse one edited");
+    expect(result[1].id).toBe("EMPTY");
+    expect(result[1].text).toBe("");
+    expect(result[2].id).toBe("C");
+    expect(result[2].text).toBe("verse three");
+  });
+
+  it("fills an empty draft line when user types into its position", () => {
+    const existing: LyricLine[] = [
+      { id: "A", text: "first", agentId: "v1" },
+      { id: "DRAFT", text: "", agentId: "v1" },
+    ];
+    const result = textToLyricLines("first\nfilled in", "v1", existing);
+    expect(result).toHaveLength(2);
+    expect(result[1].id).toBe("DRAFT");
+    expect(result[1].text).toBe("filled in");
+  });
+
+  it("explicit blank line in textarea round-trips as text: ''", () => {
+    const result = textToLyricLines("a\n\nb", "v1", []);
+    expect(result.map((l) => l.text)).toEqual(["a", "", "b"]);
+  });
+
   it("typo on first instance preserves the second instance's words", () => {
     const existing: LyricLine[] = [
       {
