@@ -222,7 +222,7 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
                 className="sticky left-[48px] z-10 inline-flex items-center gap-2 px-3 text-xs text-composer-text-muted italic bg-composer-bg/80 backdrop-blur-sm"
                 style={{ height: rowHeight, maxWidth: "calc(100% - 48px)" }}
               >
-                <span className="truncate">
+                <span className="truncate pr-0.5">
                   {displayText.slice(0, 60)}
                   {displayText.length > 60 ? "..." : ""}
                 </span>
