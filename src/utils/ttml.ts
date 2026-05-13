@@ -9,6 +9,11 @@ function escapeXml(str: string): string {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 }
 
+function emitWordSpan(word: { text: string; begin: number; end: number; explicit?: true }, text: string): string {
+  const explicitAttr = word.explicit ? ' composer:explicit="true"' : "";
+  return `<span begin="${formatTime(word.begin)}" end="${formatTime(word.end)}"${explicitAttr}>${escapeXml(text)}</span>`;
+}
+
 // -- Generator ----------------------------------------------------------------
 
 interface TTMLOptions {
@@ -77,25 +82,23 @@ function generateTTML({ metadata, agents, lines, groups, granularity, minify = f
     let content = "";
 
     if (granularity === "word" && line.words?.length) {
-      // Word-level timing - build spans inline
       for (let i = 0; i < line.words.length; i++) {
         const word = line.words[i];
         const text = word.text.trimEnd();
         const needsSpace = i < line.words.length - 1 && word.text.endsWith(" ");
-        content += `<span begin="${formatTime(word.begin)}" end="${formatTime(word.end)}">${escapeXml(text)}</span>${needsSpace ? " " : ""}`;
+        content += `${emitWordSpan(word, text)}${needsSpace ? " " : ""}`;
       }
     } else {
       content = escapeXml(stripSplitCharacter(line.text));
     }
 
-    // Background vocals
     if (line.backgroundText && line.backgroundWords?.length) {
       let bgContent = "";
       for (let i = 0; i < line.backgroundWords.length; i++) {
         const bgWord = line.backgroundWords[i];
         const text = bgWord.text.trimEnd();
         const needsSpace = i < line.backgroundWords.length - 1 && bgWord.text.endsWith(" ");
-        bgContent += `<span begin="${formatTime(bgWord.begin)}" end="${formatTime(bgWord.end)}">${escapeXml(text)}</span>${needsSpace ? " " : ""}`;
+        bgContent += `${emitWordSpan(bgWord, text)}${needsSpace ? " " : ""}`;
       }
       content += `<span ttm:role="x-bg">${bgContent}</span>`;
     } else if (line.backgroundText) {

@@ -255,6 +255,12 @@ const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     description: "Nudge selected words right",
     defaultBinding: { key: "ArrowRight" },
   },
+  {
+    id: "timeline.toggleExplicit",
+    scope: "timeline",
+    description: "Toggle explicit on selected word(s)",
+    defaultBinding: { key: "e", shift: true },
+  },
 ];
 
 // -- Helpers ------------------------------------------------------------------

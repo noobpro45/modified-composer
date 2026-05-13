@@ -23,6 +23,7 @@
     "clsx": "^2.1.1",
     "driver.js": "^1.4.0",
     "motion": "^12.24.12",
+    "obscenity": "^0.4.6",
     "overlayscrollbars": "^2.14.0",
     "overlayscrollbars-react": "^0.5.6",
     "prism-react-renderer": "^2.4.1",

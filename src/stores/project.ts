@@ -19,6 +19,7 @@ interface WordTiming {
   text: string;
   begin: number;
   end: number;
+  explicit?: true;
 }
 
 interface LyricLine {
@@ -47,6 +48,7 @@ interface WordTemplate {
   text: string;
   relativeBegin: number;
   relativeEnd: number;
+  explicit?: true;
 }
 
 interface LineTemplate {
@@ -89,6 +91,7 @@ interface ProjectState {
   history: HistoryEntry[];
   historyIndex: number;
   dismissedSuggestions: string[];
+  dismissedExplicitSuggestions: string[];
   // True when state.lines or state.groups has changed since the last history
   // entry was written (e.g., per-keystroke setLines from the Edit textarea).
   // The next history-aware mutator snapshots this state into history first
@@ -137,9 +140,17 @@ interface ProjectActions {
     resolution: "apply" | "detach" | "cancel",
     extraUpdates?: Partial<LyricLine>,
   ) => void;
+  toggleWordExplicit: (lineId: string, field: "words" | "backgroundWords", wordIndices: number[]) => void;
+  markWordsExplicit: (
+    targets: Array<{ lineId: string; field: "words" | "backgroundWords"; wordIndex: number }>,
+    value: boolean,
+  ) => void;
   dismissSuggestion: (fingerprint: string) => void;
   setDismissedSuggestions: (fingerprints: string[]) => void;
   clearDismissedSuggestions: () => void;
+  dismissExplicitSuggestion: (fingerprint: string) => void;
+  setDismissedExplicitSuggestions: (fingerprints: string[]) => void;
+  clearDismissedExplicitSuggestions: () => void;
 }
 
 // -- Constants ----------------------------------------------------------------
@@ -192,6 +203,7 @@ function createInitialState(): ProjectState {
     history: [],
     historyIndex: -1,
     dismissedSuggestions: [],
+    dismissedExplicitSuggestions: [],
     isDirtySinceHistory: false,
   };
 }
@@ -606,6 +618,7 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
                 text: w.text,
                 begin: w.relativeBegin + instanceStart,
                 end: w.relativeEnd + instanceStart,
+                ...(w.explicit ? { explicit: true as const } : {}),
               })),
             }
           : {}),
@@ -616,6 +629,7 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
                 text: w.text,
                 begin: w.relativeBegin + instanceStart,
                 end: w.relativeEnd + instanceStart,
+                ...(w.explicit ? { explicit: true as const } : {}),
               })),
             }
           : {}),
@@ -752,6 +766,56 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
       return commitHistory(state, { lines: newLines });
     }),
 
+  toggleWordExplicit: (lineId, field, wordIndices) => {
+    if (wordIndices.length === 0) return;
+    const state = get();
+    const target = state.lines.find((l) => l.id === lineId);
+    if (!target) return;
+    const currentWords = target[field];
+    if (!currentWords || currentWords.length === 0) return;
+
+    const indexSet = new Set(wordIndices.filter((i) => i >= 0 && i < currentWords.length));
+    if (indexSet.size === 0) return;
+
+    const allMarked = Array.from(indexSet).every((i) => currentWords[i].explicit === true);
+    const nextExplicit = !allMarked;
+
+    const newWords: WordTiming[] = currentWords.map((word, i) => {
+      if (!indexSet.has(i)) return word;
+      if (nextExplicit) return { ...word, explicit: true };
+      const { explicit: _explicit, ...rest } = word;
+      return rest;
+    });
+
+    get().applyWordCountChange(lineId, newWords, field, "apply");
+  },
+
+  markWordsExplicit: (targets, value) =>
+    set((state) => {
+      if (targets.length === 0) return state;
+      let lines = state.lines;
+      let changed = false;
+      for (const target of targets) {
+        const line = lines.find((l) => l.id === target.lineId);
+        if (!line) continue;
+        const currentWords = line[target.field];
+        if (!currentWords || target.wordIndex < 0 || target.wordIndex >= currentWords.length) continue;
+        if ((currentWords[target.wordIndex].explicit === true) === value) continue;
+
+        const newWords: WordTiming[] = currentWords.map((word, i) => {
+          if (i !== target.wordIndex) return word;
+          if (value) return { ...word, explicit: true as const };
+          const { explicit: _explicit, ...rest } = word;
+          return rest;
+        });
+
+        lines = applyExplicitTargetToLines(lines, target.lineId, target.field, newWords);
+        changed = true;
+      }
+      if (!changed) return state;
+      return commitHistory(state, { lines });
+    }),
+
   dismissSuggestion: (fingerprint) =>
     set((state) => {
       if (state.dismissedSuggestions.includes(fingerprint)) return state;
@@ -761,7 +825,51 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
   setDismissedSuggestions: (fingerprints) => set({ dismissedSuggestions: fingerprints }),
 
   clearDismissedSuggestions: () => set({ dismissedSuggestions: [], isDirty: true }),
+
+  dismissExplicitSuggestion: (fingerprint) =>
+    set((state) => {
+      if (state.dismissedExplicitSuggestions.includes(fingerprint)) return state;
+      return {
+        dismissedExplicitSuggestions: [...state.dismissedExplicitSuggestions, fingerprint],
+        isDirty: true,
+      };
+    }),
+
+  setDismissedExplicitSuggestions: (fingerprints) => set({ dismissedExplicitSuggestions: fingerprints }),
+
+  clearDismissedExplicitSuggestions: () => set({ dismissedExplicitSuggestions: [], isDirty: true }),
 }));
+
+function applyExplicitTargetToLines(
+  lines: LyricLine[],
+  lineId: string,
+  field: "words" | "backgroundWords",
+  newWords: WordTiming[],
+): LyricLine[] {
+  const target = lines.find((l) => l.id === lineId);
+  if (!target) return lines;
+  const sourceBefore = target[field];
+  const isLinked = target.groupId !== undefined && target.templateLineIdx !== undefined && !target.detached;
+  const propagateScope = isLinked
+    ? { groupId: target.groupId as string, templateLineIdx: target.templateLineIdx as number }
+    : null;
+
+  return lines.map((line) => {
+    if (line.id === lineId) {
+      return { ...line, [field]: newWords };
+    }
+    if (
+      propagateScope &&
+      line.groupId === propagateScope.groupId &&
+      line.templateLineIdx === propagateScope.templateLineIdx &&
+      !line.detached
+    ) {
+      const propagated = applySiblingWords(newWords, sourceBefore, line[field]);
+      if (propagated) return { ...line, [field]: propagated };
+    }
+    return line;
+  });
+}
 
 function extractLinkedFields(updates: Partial<LyricLine>): Partial<LyricLine> {
   const linked: Partial<LyricLine> = {};

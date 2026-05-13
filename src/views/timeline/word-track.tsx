@@ -350,6 +350,7 @@ const WordTrack: React.FC<WordTrackProps> = ({
             zoom={zoom}
             isDimmed={hasSelection && !isWordSelected(selectedWords, lineId, wordIndex, trackType)}
             isSelected={isWordSelected(selectedWords, lineId, wordIndex, trackType)}
+            isExplicit={word.explicit === true}
             syllablePosition={showSyllableIndicators ? syllablePositions[wordIndex] : "none"}
             leftHighlighted={hoveredBoundary === wordIndex - 1 && isBoundaryConjoined(wordIndex - 1)}
             rightHighlighted={hoveredBoundary === wordIndex && isBoundaryConjoined(wordIndex)}

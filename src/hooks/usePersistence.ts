@@ -41,6 +41,7 @@ function usePersistence(): void {
         state.setGranularity(project.granularity);
         state.setAgents(project.agents);
         state.setDismissedSuggestions(project.dismissedSuggestions ?? []);
+        state.setDismissedExplicitSuggestions(project.dismissedExplicitSuggestions ?? []);
         state.markClean();
       }
 
@@ -66,6 +67,7 @@ function usePersistence(): void {
           state.granularity,
           audioSource,
           state.dismissedSuggestions,
+          state.dismissedExplicitSuggestions,
         );
       }
     });

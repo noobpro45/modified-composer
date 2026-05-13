@@ -11,6 +11,7 @@ import { isMac } from "@/utils/platform";
 // -- Matching -----------------------------------------------------------------
 
 function matchesBinding(event: KeyboardEvent, binding: ShortcutBinding): boolean {
+  if (binding.key === "") return false;
   const eventKey = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   const bindingKey = binding.key.length === 1 ? binding.key.toLowerCase() : binding.key;
 
