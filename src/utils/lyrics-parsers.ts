@@ -325,6 +325,18 @@ function parseTtmlTimestamp(timestamp: string): number {
   return seconds + millis / 1000;
 }
 
+function readExplicitFlag(el: Element): boolean {
+  for (const attr of el.attributes) {
+    const local = (attr.localName ?? attr.name).toLowerCase();
+    if (local === "explicit" || local === "obscene") {
+      const raw = (attr.value ?? "").trim().toLowerCase();
+      if (raw === "" || raw === "true" || raw === "1" || raw === "yes") return true;
+      return false;
+    }
+  }
+  return false;
+}
+
 function extractTimedWords(parent: Element, excludeContainer?: Element | null): WordTiming[] {
   const words: WordTiming[] = [];
 
@@ -342,7 +354,9 @@ function extractTimedWords(parent: Element, excludeContainer?: Element | null): 
         const end = parseTtmlTimestamp(el.getAttribute("end") ?? "");
         const text = el.textContent ?? "";
         if (text.trim()) {
-          words.push({ text, begin, end });
+          const word: WordTiming = { text, begin, end };
+          if (readExplicitFlag(el)) word.explicit = true;
+          words.push(word);
         }
       }
     } else if (node.nodeType === Node.TEXT_NODE) {

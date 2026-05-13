@@ -126,10 +126,14 @@ const ShortcutRebindRow: React.FC<ShortcutRebindRowProps> = ({ definition }) => 
             onClick={startCapture}
             className="flex items-center gap-1 cursor-pointer rounded px-1 py-0.5 -mx-1 transition-colors hover:bg-composer-button/50"
           >
-            {keys.map((key, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: key order is fixed
-              <KeyBadge key={`${key}-${i}`} keyName={key} />
-            ))}
+            {keys.length === 0 ? (
+              <span className="text-xs text-composer-text-muted italic">Unbound</span>
+            ) : (
+              keys.map((key, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: key order is fixed
+                <KeyBadge key={`${key}-${i}`} keyName={key} />
+              ))
+            )}
           </button>
         </div>
       </div>

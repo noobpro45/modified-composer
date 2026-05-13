@@ -16,6 +16,7 @@ interface SavedProject {
   audioFileName?: string;
   audioSource?: SavedAudioSource;
   dismissedSuggestions?: string[];
+  dismissedExplicitSuggestions?: string[];
 }
 
 // -- Constants ----------------------------------------------------------------
@@ -97,6 +98,7 @@ async function saveCurrentProject(
   granularity: GranularityMode,
   audioSource: SavedAudioSource | undefined,
   dismissedSuggestions: string[],
+  dismissedExplicitSuggestions: string[],
 ): Promise<void> {
   const audioFileName = audioSource?.kind === "file" ? audioSource.name : undefined;
   const project: SavedProject = {
@@ -110,6 +112,7 @@ async function saveCurrentProject(
     audioFileName,
     audioSource,
     dismissedSuggestions,
+    dismissedExplicitSuggestions,
   };
   await setInStore(CURRENT_PROJECT_KEY, project);
 }
@@ -157,6 +160,7 @@ function exportProjectToFile(
   groups: LinkGroup[],
   granularity: GranularityMode,
   dismissedSuggestions: string[],
+  dismissedExplicitSuggestions: string[],
   audioFileName?: string,
 ): void {
   const project: SavedProject = {
@@ -169,6 +173,7 @@ function exportProjectToFile(
     granularity,
     audioFileName,
     dismissedSuggestions,
+    dismissedExplicitSuggestions,
   };
 
   const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
@@ -197,7 +202,16 @@ async function importProjectFromFile(file: File): Promise<SavedProject> {
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 let pendingSaveArgs:
-  | [ProjectMetadata, Agent[], LyricLine[], LinkGroup[], GranularityMode, SavedAudioSource | undefined, string[]]
+  | [
+      ProjectMetadata,
+      Agent[],
+      LyricLine[],
+      LinkGroup[],
+      GranularityMode,
+      SavedAudioSource | undefined,
+      string[],
+      string[],
+    ]
   | null = null;
 
 function debouncedSave(
@@ -208,8 +222,18 @@ function debouncedSave(
   granularity: GranularityMode,
   audioSource: SavedAudioSource | undefined,
   dismissedSuggestions: string[],
+  dismissedExplicitSuggestions: string[],
 ): void {
-  pendingSaveArgs = [metadata, agents, lines, groups, granularity, audioSource, dismissedSuggestions];
+  pendingSaveArgs = [
+    metadata,
+    agents,
+    lines,
+    groups,
+    granularity,
+    audioSource,
+    dismissedSuggestions,
+    dismissedExplicitSuggestions,
+  ];
   if (saveTimeout) {
     clearTimeout(saveTimeout);
   }

@@ -17,6 +17,7 @@ interface WordBlockProps {
   zoom: number;
   isDimmed: boolean;
   isSelected: boolean;
+  isExplicit?: boolean;
   syllablePosition?: SyllablePosition;
   leftHighlighted?: boolean;
   rightHighlighted?: boolean;
@@ -49,6 +50,7 @@ const WordBlock: React.FC<WordBlockProps> = ({
   zoom,
   isDimmed,
   isSelected,
+  isExplicit,
   syllablePosition = "none",
   leftHighlighted,
   rightHighlighted,
@@ -89,6 +91,7 @@ const WordBlock: React.FC<WordBlockProps> = ({
         SYLLABLE_RADIUS[syllablePosition],
         isDimmed && "opacity-30",
         isDragging && "opacity-50 cursor-grabbing z-50",
+        isExplicit && "is-explicit-word",
       )}
       style={{
         left,

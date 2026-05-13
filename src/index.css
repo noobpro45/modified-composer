@@ -37,6 +37,7 @@
   --color-composer-error: #b45555;
   --color-composer-error-text: #ffe5e5;
   --color-composer-warning: #f5a623;
+  --color-composer-explicit: #ff7a85;
 
   /* Typography */
   --font-family-sans: "Satoshi", "Avenir", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
@@ -192,6 +193,14 @@ input[type="range"].settings-slider::-moz-range-progress {
   opacity: 0 !important;
   pointer-events: none;
   transition: opacity 0.15s ease;
+}
+
+.is-explicit-word {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--color-composer-explicit) 20%, transparent) 0 3px,
+    transparent 3px 8px
+  );
 }
 
 /* Reduced motion */

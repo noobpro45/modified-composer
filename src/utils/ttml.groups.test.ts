@@ -240,3 +240,70 @@ describe("ttml import · per-line group attrs", () => {
     expect(result.groups).toBeUndefined();
   });
 });
+
+describe("ttml export · explicit word attribute", () => {
+  it('emits composer:explicit="true" only on flagged words', () => {
+    const ttml = generateTTML({
+      metadata: baseMetadata,
+      agents: baseAgents,
+      lines: [
+        {
+          id: "a",
+          text: "clean dirty",
+          agentId: "v1",
+          words: [
+            { text: "clean ", begin: 1, end: 1.5 },
+            { text: "dirty", begin: 1.5, end: 2, explicit: true },
+          ],
+        },
+      ],
+      granularity: "word",
+    });
+    expect(ttml).toContain(">clean</span>");
+    expect(ttml).toMatch(/<span begin="[^"]*" end="[^"]*" composer:explicit="true">dirty<\/span>/);
+    expect(ttml).not.toContain('composer:explicit="true">clean');
+  });
+
+  it("emits composer:explicit on a background word's inner span, not the x-bg container", () => {
+    const ttml = generateTTML({
+      metadata: baseMetadata,
+      agents: baseAgents,
+      lines: [
+        {
+          id: "a",
+          text: "main",
+          agentId: "v1",
+          words: [{ text: "main", begin: 1, end: 2 }],
+          backgroundText: "oh shit",
+          backgroundWords: [
+            { text: "oh ", begin: 2, end: 2.25 },
+            { text: "shit", begin: 2.25, end: 2.5, explicit: true },
+          ],
+        },
+      ],
+      granularity: "word",
+    });
+    expect(ttml).toContain(`<span ttm:role="x-bg">`);
+    expect(ttml).not.toMatch(/<span [^>]*ttm:role="x-bg"[^>]*composer:explicit/);
+    expect(ttml).not.toMatch(/<span [^>]*composer:explicit[^>]*ttm:role="x-bg"/);
+    expect(ttml).toMatch(/<span begin="[^"]*" end="[^"]*" composer:explicit="true">shit<\/span>/);
+  });
+
+  it("round-trip: AMLL amll:obscene import → export normalizes to composer:explicit", () => {
+    const amll = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><head><metadata><ttm:agent type="person" xml:id="v1"/></metadata></head><body><div><p begin="00:01.000" end="00:02.000" ttm:agent="v1"><span begin="00:01.000" end="00:01.500">clean</span> <span begin="00:01.500" end="00:02.000" amll:obscene="true">dirty</span></p></div></body></tt>`;
+    const imported = parseLyricsFile("amll.ttml", amll);
+    expect(imported.lines[0].words![1].explicit).toBe(true);
+
+    const exported = generateTTML({
+      metadata: baseMetadata,
+      agents: baseAgents,
+      lines: imported.lines,
+      granularity: "word",
+    });
+    expect(exported).toMatch(/composer:explicit="true">dirty/);
+    expect(exported).not.toContain("amll:obscene");
+
+    const reimported = parseLyricsFile("re.ttml", exported);
+    expect(reimported.lines[0].words![1].explicit).toBe(true);
+  });
+});

@@ -55,6 +55,7 @@ function proportionalRemap(sourceAfter: WordTiming[], siblingWords: WordTiming[]
     text: w.text,
     begin: siblingStart + ((w.begin - sourceStart) / sourceSpan) * siblingSpan,
     end: siblingStart + ((w.end - sourceStart) / sourceSpan) * siblingSpan,
+    ...(w.explicit ? { explicit: true as const } : {}),
   }));
 }
 
@@ -92,7 +93,12 @@ function applySiblingWords(
   while (i < sourceAfter.length) {
     if (matchedBefore[i] !== null) {
       const bIdx = matchedBefore[i] as number;
-      result[i] = { ...siblingWords[bIdx], text: sourceAfter[i].text };
+      const { explicit: _siblingExplicit, ...siblingBase } = siblingWords[bIdx];
+      result[i] = {
+        ...siblingBase,
+        text: sourceAfter[i].text,
+        ...(sourceAfter[i].explicit ? { explicit: true as const } : {}),
+      };
       lastMatchedBefore = bIdx;
       i++;
       continue;
@@ -126,11 +132,13 @@ function applySiblingWords(
 
     for (let k = i; k < runEnd; k++) {
       const w = sourceAfter[k];
+      const explicitExtra = w.explicit ? { explicit: true as const } : {};
       if (sourceSegSpan > 0 && slotSpan > 0) {
         result[k] = {
           text: w.text,
           begin: slotStart + ((w.begin - sourceSegStart) / sourceSegSpan) * slotSpan,
           end: slotStart + ((w.end - sourceSegStart) / sourceSegSpan) * slotSpan,
+          ...explicitExtra,
         };
       } else if (slotSpan > 0) {
         const each = slotSpan / runLen;
@@ -138,9 +146,10 @@ function applySiblingWords(
           text: w.text,
           begin: slotStart + each * (k - i),
           end: slotStart + each * (k - i + 1),
+          ...explicitExtra,
         };
       } else {
-        result[k] = { text: w.text, begin: slotStart, end: slotStart };
+        result[k] = { text: w.text, begin: slotStart, end: slotStart, ...explicitExtra };
       }
     }
 

@@ -73,6 +73,7 @@ const TimelineContextMenu: React.FC = () => {
   const groups = useProjectStore((s) => s.groups);
   const updateLineWithHistory = useProjectStore((s) => s.updateLineWithHistory);
   const setLinesWithHistory = useProjectStore((s) => s.setLinesWithHistory);
+  const toggleWordExplicit = useProjectStore((s) => s.toggleWordExplicit);
   const duration = useAudioStore((s) => s.duration);
   const confirm = useConfirm();
 
@@ -135,6 +136,35 @@ const TimelineContextMenu: React.FC = () => {
     // Dispatch a custom event so the syllable splitter can pick it up
     window.dispatchEvent(new CustomEvent("timeline:split-syllable"));
   }, [contextMenu, clearContextMenu]);
+
+  const explicitToggleContext = useMemo(() => {
+    if (!contextMenu || contextMenu.target.kind !== "word") return null;
+    const { lineId, wordIndex, type } = contextMenu.target;
+    const line = rawLines.find((l) => l.id === lineId);
+    if (!line) return null;
+    const field: "words" | "backgroundWords" = type === "word" ? "words" : "backgroundWords";
+    const wordsArray = line[field];
+    if (!wordsArray || wordsArray.length === 0) return null;
+
+    const selectedWords = useTimelineStore.getState().selectedWords;
+    const selectionMatchesTarget = selectedWords.some(
+      (w) => w.lineId === lineId && w.type === type && w.wordIndex === wordIndex,
+    );
+    const indices =
+      selectionMatchesTarget && selectedWords.length > 1
+        ? selectedWords.filter((w) => w.lineId === lineId && w.type === type).map((w) => w.wordIndex)
+        : [wordIndex];
+
+    const allMarked = indices.every((i) => wordsArray[i]?.explicit === true);
+    return { lineId, field, indices, allMarked };
+  }, [contextMenu, rawLines]);
+
+  const handleToggleExplicit = useCallback(() => {
+    if (!explicitToggleContext) return;
+    const { lineId, field, indices } = explicitToggleContext;
+    toggleWordExplicit(lineId, field, indices);
+    clearContextMenu();
+  }, [explicitToggleContext, toggleWordExplicit, clearContextMenu]);
 
   const handleDeleteWord = useCallback(() => {
     if (!contextMenu || contextMenu.target.kind !== "word") return;
@@ -613,6 +643,24 @@ const TimelineContextMenu: React.FC = () => {
                   }
                   shortcut={getEffectiveKeysArray("timeline.createGroup")}
                   onClick={handleCreateGroupFromSelection}
+                />
+              </>
+            )}
+            {explicitToggleContext && (
+              <>
+                <MenuDivider />
+                <MenuItem
+                  label={
+                    explicitToggleContext.allMarked
+                      ? explicitToggleContext.indices.length > 1
+                        ? `Unmark ${explicitToggleContext.indices.length} as explicit`
+                        : "Unmark explicit"
+                      : explicitToggleContext.indices.length > 1
+                        ? `Mark ${explicitToggleContext.indices.length} as explicit`
+                        : "Mark as explicit"
+                  }
+                  shortcut={getEffectiveKeysArray("timeline.toggleExplicit")}
+                  onClick={handleToggleExplicit}
                 />
               </>
             )}

@@ -48,3 +48,47 @@ describe("parseLyricsFile - TTML with undeclared namespaces (AMLL)", () => {
     expect(result.lines[0].text).toBe("Hello");
   });
 });
+
+describe("parseLyricsFile - TTML word explicit attribute", () => {
+  it('recognizes amll:obscene="true" on a word span', () => {
+    const content = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><head><metadata><ttm:agent type="person" xml:id="v1"/></metadata></head><body><div><p begin="00:44.055" end="00:45.861" ttm:agent="v1"><span begin="00:44.055" end="00:44.192">Bot</span> <span begin="00:44.192" end="00:44.370">tom</span> <span begin="00:44.370" end="00:44.601">lip</span> <span begin="00:44.601" end="00:44.832" amll:obscene="true">curlin'</span></p></div></body></tt>`;
+    const result = parseLyricsFile("song.ttml", content);
+    const words = result.lines[0].words!;
+    expect(words[0].explicit).toBeUndefined();
+    expect(words[3].text).toBe("curlin'");
+    expect(words[3].explicit).toBe(true);
+  });
+
+  it('recognizes composer:explicit="true" on a word span', () => {
+    const content = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:composer="https://composer.boidu.dev/ttml"><head><metadata><ttm:agent type="person" xml:id="v1"/></metadata></head><body><div><p begin="00:01.000" end="00:02.000" ttm:agent="v1"><span begin="00:01.000" end="00:01.500">clean</span> <span begin="00:01.500" end="00:02.000" composer:explicit="true">dirty</span></p></div></body></tt>`;
+    const result = parseLyricsFile("song.ttml", content);
+    const words = result.lines[0].words!;
+    expect(words[0].explicit).toBeUndefined();
+    expect(words[1].explicit).toBe(true);
+  });
+
+  it("recognizes an unprefixed obscene attribute", () => {
+    const content = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><head><metadata><ttm:agent type="person" xml:id="v1"/></metadata></head><body><div><p begin="00:01.000" end="00:02.000" ttm:agent="v1"><span begin="00:01.000" end="00:02.000" obscene="1">dirty</span></p></div></body></tt>`;
+    const result = parseLyricsFile("song.ttml", content);
+    expect(result.lines[0].words![0].explicit).toBe(true);
+  });
+
+  it('treats explicit="false" / "0" as not explicit', () => {
+    const content = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:composer="https://composer.boidu.dev/ttml"><head><metadata><ttm:agent type="person" xml:id="v1"/></metadata></head><body><div><p begin="00:01.000" end="00:02.000" ttm:agent="v1"><span begin="00:01.000" end="00:01.500" composer:explicit="false">clean</span> <span begin="00:01.500" end="00:02.000" composer:explicit="0">also</span></p></div></body></tt>`;
+    const result = parseLyricsFile("song.ttml", content);
+    const words = result.lines[0].words!;
+    expect(words[0].explicit).toBeUndefined();
+    expect(words[1].explicit).toBeUndefined();
+  });
+
+  it("recognizes explicit on a word inside x-bg, landing on backgroundWords", () => {
+    const content = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:composer="https://composer.boidu.dev/ttml"><head><metadata><ttm:agent type="person" xml:id="v1"/></metadata></head><body><div><p begin="00:01.000" end="00:02.500" ttm:agent="v1"><span begin="00:01.000" end="00:02.000">main</span><span ttm:role="x-bg"><span begin="00:02.000" end="00:02.250">oh</span> <span begin="00:02.250" end="00:02.500" composer:explicit="true">shit</span></span></p></div></body></tt>`;
+    const result = parseLyricsFile("song.ttml", content);
+    const line = result.lines[0];
+    expect(line.words![0].explicit).toBeUndefined();
+    expect(line.backgroundWords).toBeDefined();
+    expect(line.backgroundWords![0].explicit).toBeUndefined();
+    expect(line.backgroundWords![1].text).toContain("shit");
+    expect(line.backgroundWords![1].explicit).toBe(true);
+  });
+});

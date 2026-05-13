@@ -197,6 +197,83 @@ describe("applySiblingWords · delete", () => {
   });
 });
 
+describe("applySiblingWords · explicit flag propagation", () => {
+  it("matched word: source explicit=true overrides sibling's absent flag", () => {
+    const sourceBefore: WordTiming[] = [
+      { text: "I ", begin: 0, end: 0.3 },
+      { text: "love ", begin: 0.3, end: 0.6 },
+    ];
+    const sourceAfter: WordTiming[] = [
+      { text: "I ", begin: 0, end: 0.3 },
+      { text: "love ", begin: 0.3, end: 0.6, explicit: true },
+    ];
+    const sibling: WordTiming[] = [
+      { text: "I ", begin: 30, end: 30.4 },
+      { text: "love ", begin: 30.4, end: 30.7 },
+    ];
+    const result = applySiblingWords(sourceAfter, sourceBefore, sibling);
+    expect(result![0].explicit).toBeUndefined();
+    expect(result![1].explicit).toBe(true);
+    expect(result![1].begin).toBeCloseTo(30.4);
+    expect(result![1].end).toBeCloseTo(30.7);
+  });
+
+  it("matched word: source unmarked clears sibling's previous flag", () => {
+    const sourceBefore: WordTiming[] = [
+      { text: "I ", begin: 0, end: 0.3 },
+      { text: "love ", begin: 0.3, end: 0.6, explicit: true },
+    ];
+    const sourceAfter: WordTiming[] = [
+      { text: "I ", begin: 0, end: 0.3 },
+      { text: "love ", begin: 0.3, end: 0.6 },
+    ];
+    const sibling: WordTiming[] = [
+      { text: "I ", begin: 30, end: 30.4 },
+      { text: "love ", begin: 30.4, end: 30.7, explicit: true },
+    ];
+    const result = applySiblingWords(sourceAfter, sourceBefore, sibling);
+    expect(result![1].explicit).toBeUndefined();
+  });
+
+  it("interpolated word during split inherits source explicit flag", () => {
+    const sourceBefore: WordTiming[] = [
+      { text: "I ", begin: 0, end: 0.3 },
+      { text: "fuck ", begin: 0.3, end: 0.6 },
+      { text: "you", begin: 0.6, end: 1 },
+    ];
+    const sourceAfter: WordTiming[] = [
+      { text: "I ", begin: 0, end: 0.3 },
+      { text: "fu", begin: 0.3, end: 0.45, explicit: true },
+      { text: "ck ", begin: 0.45, end: 0.6, explicit: true },
+      { text: "you", begin: 0.6, end: 1 },
+    ];
+    const sibling: WordTiming[] = [
+      { text: "I ", begin: 30, end: 30.4 },
+      { text: "fuck ", begin: 30.4, end: 30.7 },
+      { text: "you", begin: 30.7, end: 31.2 },
+    ];
+    const result = applySiblingWords(sourceAfter, sourceBefore, sibling);
+    expect(result![0].explicit).toBeUndefined();
+    expect(result![1].explicit).toBe(true);
+    expect(result![2].explicit).toBe(true);
+    expect(result![3].explicit).toBeUndefined();
+  });
+
+  it("proportionalRemap carries source explicit onto each output word", () => {
+    const sourceAfter: WordTiming[] = [
+      { text: "fuck", begin: 0, end: 0.5, explicit: true },
+      { text: "off", begin: 0.5, end: 1 },
+    ];
+    const sibling: WordTiming[] = [
+      { text: "fuck", begin: 10, end: 10.6 },
+      { text: "off", begin: 10.6, end: 11 },
+    ];
+    const result = proportionalRemap(sourceAfter, sibling);
+    expect(result![0].explicit).toBe(true);
+    expect(result![1].explicit).toBeUndefined();
+  });
+});
+
 describe("applySiblingWords · fallback paths", () => {
   it("falls back to proportional remap when sibling word count differs from sourceBefore (sibling already diverged)", () => {
     const sourceBefore: WordTiming[] = [

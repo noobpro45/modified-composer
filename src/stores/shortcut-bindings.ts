@@ -44,6 +44,7 @@ function getEffectiveBinding(id: string): ShortcutBinding {
 
 function getEffectiveKeysArray(id: string): string[] {
   const binding = getEffectiveBinding(id);
+  if (binding.key === "") return [];
   const keys: string[] = [];
   if (binding.mod) keys.push("Mod");
   if (binding.meta) keys.push("Meta");

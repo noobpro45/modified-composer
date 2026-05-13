@@ -661,6 +661,24 @@ function useTimelineKeyboard(
           scrollToInstanceHeader(inst.groupId, inst.instanceIdx);
           break;
         }
+        case "timeline.toggleExplicit": {
+          const { selectedWords: explicitSel } = useTimelineStore.getState();
+          if (explicitSel.length === 0) break;
+          e.preventDefault();
+          const grouped = new Map<string, { lineId: string; field: "words" | "backgroundWords"; indices: number[] }>();
+          for (const w of explicitSel) {
+            const field: "words" | "backgroundWords" = w.type === "word" ? "words" : "backgroundWords";
+            const key = `${w.lineId}:${field}`;
+            const existing = grouped.get(key);
+            if (existing) existing.indices.push(w.wordIndex);
+            else grouped.set(key, { lineId: w.lineId, field, indices: [w.wordIndex] });
+          }
+          const toggle = useProjectStore.getState().toggleWordExplicit;
+          for (const group of grouped.values()) {
+            toggle(group.lineId, group.field, group.indices);
+          }
+          break;
+        }
         case "timeline.shiftInstanceToPlayhead": {
           const projectLines = useProjectStore.getState().lines;
           const inst = currentInstanceFromSelection(projectLines, useTimelineStore.getState().selectedWords);
