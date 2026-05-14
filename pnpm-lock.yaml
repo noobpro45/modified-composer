@@ -12,8 +12,8 @@ importers:
   .:
     dependencies:
       '@braccato/core':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.1.4
+        version: 0.1.4
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -26,9 +26,15 @@ importers:
       '@floating-ui/react':
         specifier: ^0.27.16
         version: 0.27.16(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@lit/react':
+        specifier: ^1.0.8
+        version: 1.0.8(@types/react@19.2.7)
       '@tabler/icons-react':
         specifier: ^3.36.1
         version: 3.36.1(react@19.2.3)
+      '@uimaxbai/am-lyrics':
+        specifier: ^1.5.3
+        version: 1.5.3(@lit/react@1.0.8(@types/react@19.2.7))(react@19.2.3)
       '@wavesurfer/react':
         specifier: ^1.0.12
         version: 1.0.12(react@19.2.3)(wavesurfer.js@7.12.1)
@@ -38,6 +44,9 @@ importers:
       driver.js:
         specifier: ^1.4.0
         version: 1.4.0
+      lit:
+        specifier: ^3.3.2
+        version: 3.3.2
       motion:
         specifier: ^12.24.12
         version: 12.24.12(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -305,8 +314,8 @@ packages:
   '@blazediff/core@1.9.1':
     resolution: {integrity: sha512-ehg3jIkYKulZh+8om/O25vkvSsXXwC+skXmyA87FFx6A/45eqOkZsBltMw/TVteb0mloiGT8oGRTcjRAz66zaA==}
 
-  '@braccato/core@0.1.2':
-    resolution: {integrity: sha512-gnJlQ6QbImbCet0+Bwb4U1/jUaQG+WjMTUFbRSJGYsgcvRTRm32Ct+/TpRYRtdoJrPXTt8ciGXeNAHp5XezlnA==}
+  '@braccato/core@0.1.4':
+    resolution: {integrity: sha512-/Qj26/+uVJhmztn9AQHC3919A0WEXT7Qgy8MQWyv8tbRr/4aqyQMUQ/r7+IcNs4+FWJS8jZHSyPrEhAk0tnm3A==}
 
   '@braccato/parsers@0.1.1':
     resolution: {integrity: sha512-S4LlT8vTMNiXvVUC5iaQiLvu8KUNZn7oAI0LRaQ0W75THlX/pTSEp3EoB3UBzI2F0k3ARvxL9qNuxpd3+WHmeQ==}
@@ -746,6 +755,11 @@ packages:
   '@lit-labs/ssr-dom-shim@1.5.1':
     resolution: {integrity: sha512-Aou5UdlSpr5whQe8AA/bZG0jMj96CoJIWbGfZ91qieWu5AWUMKw8VR/pAkQkJYvBNhmCcWnZlyyk5oze8JIqYA==}
 
+  '@lit/react@1.0.8':
+    resolution: {integrity: sha512-p2+YcF+JE67SRX3mMlJ1TKCSTsgyOVdAwd/nxp3NuV1+Cb6MWALbN6nT7Ld4tpmYofcE5kcaSY1YBB9erY+6fw==}
+    peerDependencies:
+      '@types/react': 17 || 18 || 19
+
   '@lit/reactive-element@2.1.2':
     resolution: {integrity: sha512-pbCDiVMnne1lYUIaYNN5wrwQXDtHaYtg7YEFPeW+hws6U47WeFvISGUWekPGKWOP1ygrs0ef0o1VJMk1exos5A==}
 
@@ -1031,6 +1045,17 @@ packages:
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
+
+  '@uimaxbai/am-lyrics@1.5.3':
+    resolution: {integrity: sha512-1A9pU4UZ+EReiGPNrFdz/7D5+fd//i5q51MtUVZR+KhrumfDmPoo3a593hWjbj8gxmxQdREMaKALFo1kcekNCw==}
+    peerDependencies:
+      '@lit/react': ^1.0.0
+      react: '>=17.0.0'
+    peerDependenciesMeta:
+      '@lit/react':
+        optional: true
+      react:
+        optional: true
 
   '@vercel/og@0.11.1':
     resolution: {integrity: sha512-02rXXRABFq1B03w3aNhcVfxkY+8Ba5QFi4ax0zS0oOiD/LL9WUd/LA7BjVPakrQmVhIBjuo2oBM5U25R9IuXMg==}
@@ -1574,8 +1599,8 @@ packages:
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
-  magicast@0.5.2:
-    resolution: {integrity: sha512-E3ZJh4J3S9KfwdjZhe2afj6R9lGIN5Pher1pF39UGrXRqq/VDaGVIGN13BjHd2u8B61hArAGOnso7nBOouW3TQ==}
+  magicast@0.5.3:
+    resolution: {integrity: sha512-pVKE4UdSQ7DvHzivsCIFx2BJn1mHG6KsyrFcaxFx6tONdneEuThrDx0Cj3AMg58KyN4pzYT+LHOotxDQDjNvkw==}
 
   make-dir@4.0.0:
     resolution: {integrity: sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw==}
@@ -2368,7 +2393,7 @@ snapshots:
 
   '@blazediff/core@1.9.1': {}
 
-  '@braccato/core@0.1.2':
+  '@braccato/core@0.1.4':
     dependencies:
       '@braccato/parsers': 0.1.1
       lit: 3.3.2
@@ -2676,6 +2701,10 @@ snapshots:
 
   '@lit-labs/ssr-dom-shim@1.5.1': {}
 
+  '@lit/react@1.0.8(@types/react@19.2.7)':
+    dependencies:
+      '@types/react': 19.2.7
+
   '@lit/reactive-element@2.1.2':
     dependencies:
       '@lit-labs/ssr-dom-shim': 1.5.1
@@ -2891,6 +2920,14 @@ snapshots:
 
   '@types/trusted-types@2.0.7': {}
 
+  '@uimaxbai/am-lyrics@1.5.3(@lit/react@1.0.8(@types/react@19.2.7))(react@19.2.3)':
+    dependencies:
+      '@babel/runtime': 7.29.2
+      lit: 3.3.2
+    optionalDependencies:
+      '@lit/react': 1.0.8(@types/react@19.2.7)
+      react: 19.2.3
+
   '@vercel/og@0.11.1':
     dependencies:
       '@resvg/resvg-wasm': 2.4.0
@@ -2948,7 +2985,7 @@ snapshots:
       istanbul-lib-coverage: 3.2.2
       istanbul-lib-report: 3.0.1
       istanbul-reports: 3.2.0
-      magicast: 0.5.2
+      magicast: 0.5.3
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
@@ -3484,7 +3521,7 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  magicast@0.5.2:
+  magicast@0.5.3:
     dependencies:
       '@babel/parser': 7.29.3
       '@babel/types': 7.29.0
