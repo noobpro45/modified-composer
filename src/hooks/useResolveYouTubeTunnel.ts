@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useEnsureAuth } from "@/hooks/useEnsureAuth";
@@ -16,15 +17,74 @@ import { CobaltApiError, formatCobaltErrorForToast, getAudio, getAudioFromStanda
 const LOG_PREFIX = "[YouTubeTunnel]";
 const AUDIO_MIME = "audio/ogg";
 
-// -- Module state -------------------------------------------------------------
+interface TunnelResult {
+  file: File;
+  filename: string | undefined;
+  instanceLabel: string;
+  instanceId: string;
+  wasDefault: boolean;
+}
 
-const inFlight = new Map<string, AbortController>();
+class TunnelError extends Error {
+  readonly cause: unknown;
+  readonly instanceId: string;
+  readonly instanceLabel: string;
+  readonly wasDefault: boolean;
 
-// -- Functions ----------------------------------------------------------------
+  constructor(cause: unknown, instanceId: string, instanceLabel: string, wasDefault: boolean) {
+    super("tunnel_failed");
+    this.name = "TunnelError";
+    this.cause = cause;
+    this.instanceId = instanceId;
+    this.instanceLabel = instanceLabel;
+    this.wasDefault = wasDefault;
+  }
+}
+
+// -- Helpers ------------------------------------------------------------------
 
 function buildAudioFile(buffer: ArrayBuffer, filename: string | undefined, videoId: string): File {
   const safeName = (filename ?? videoId).replace(/[\\/:*?"<>|]/g, "").trim() || videoId;
   return new File([buffer], `${safeName}.opus`, { type: AUDIO_MIME });
+}
+
+async function fetchTunnel(
+  videoId: string,
+  signal: AbortSignal,
+  ensureAuth: () => Promise<string>,
+): Promise<TunnelResult> {
+  const instanceAtStart = getActiveCobaltInstance();
+  const wasDefault = isUsingDefaultCobaltInstance();
+
+  try {
+    let tunnelUrl: string;
+    let filename: string | undefined;
+    if (wasDefault) {
+      const jwt = await ensureAuth();
+      if (signal.aborted) throw new DOMException("aborted", "AbortError");
+      ({ tunnelUrl, filename } = await getAudio(videoId, jwt));
+    } else {
+      ({ tunnelUrl, filename } = await getAudioFromStandardCobalt(videoId));
+    }
+    if (signal.aborted) throw new DOMException("aborted", "AbortError");
+
+    const res = await fetch(tunnelUrl, { signal });
+    if (!res.ok) throw new CobaltApiError("cobalt_failed", res.status);
+    const buffer = await res.arrayBuffer();
+    if (signal.aborted) throw new DOMException("aborted", "AbortError");
+    if (buffer.byteLength === 0) throw new CobaltApiError("empty_audio", res.status);
+
+    return {
+      file: buildAudioFile(buffer, filename, videoId),
+      filename,
+      instanceLabel: instanceAtStart.label,
+      instanceId: instanceAtStart.id,
+      wasDefault,
+    };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    throw new TunnelError(err, instanceAtStart.id, instanceAtStart.label, wasDefault);
+  }
 }
 
 // -- Hook ---------------------------------------------------------------------
@@ -34,101 +94,71 @@ function useResolveYouTubeTunnel(): void {
   const ensureRef = useRef(ensureAuth);
   ensureRef.current = ensureAuth;
 
+  const source = useAudioStore((s) => s.source);
+  const previousSourceRef = useRef<AudioSource>(null);
   useEffect(() => {
-    const handleSourceChange = async (videoId: string, previousSource: AudioSource) => {
-      const existing = inFlight.get(videoId);
-      if (existing) return;
-
-      const controller = new AbortController();
-      inFlight.set(videoId, controller);
-      useAudioStore.getState().setIsLoading(true);
-
-      const instanceAtStart = getActiveCobaltInstance();
-      const isDefault = isUsingDefaultCobaltInstance();
-      try {
-        let tunnelUrl: string;
-        let filename: string | undefined;
-        if (isDefault) {
-          const jwt = await ensureRef.current();
-          if (controller.signal.aborted) return;
-          ({ tunnelUrl, filename } = await getAudio(videoId, jwt));
-        } else {
-          ({ tunnelUrl, filename } = await getAudioFromStandardCobalt(videoId));
-        }
-        if (controller.signal.aborted) return;
-
-        const res = await fetch(tunnelUrl, { signal: controller.signal });
-        if (!res.ok) throw new CobaltApiError("cobalt_failed", res.status);
-        const buffer = await res.arrayBuffer();
-        if (controller.signal.aborted) return;
-        if (buffer.byteLength === 0) throw new CobaltApiError("empty_audio", res.status);
-
-        const current = useAudioStore.getState().source;
-        if (current?.type !== "youtube" || current.videoId !== videoId) return;
-
-        const file = buildAudioFile(buffer, filename, videoId);
-        useAudioStore.getState().setYouTubeFile(file);
-
-        if (filename) {
-          const project = useProjectStore.getState();
-          const currentTitle = project.metadata.title;
-          if (!currentTitle || currentTitle === videoId) {
-            project.setMetadata({ title: filename });
-          }
-        }
-
-        if (!isDefault && instanceAtStart.id !== DEFAULT_COBALT_INSTANCE_ID) {
-          useSettingsStore.getState().recordCobaltInstanceResult(instanceAtStart.id, "success");
-        }
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        console.error(LOG_PREFIX, "tunnel fetch failed", err);
-        const message = formatCobaltErrorForToast(err, {
-          isDefault,
-          instanceLabel: instanceAtStart.label,
-        });
-        toast.error(message);
-        if (!isDefault && instanceAtStart.id !== DEFAULT_COBALT_INSTANCE_ID) {
-          useSettingsStore.getState().recordCobaltInstanceResult(instanceAtStart.id, "error", message);
-        }
-        const current = useAudioStore.getState().source;
-        if (current?.type === "youtube" && current.videoId === videoId) {
-          useAudioStore.getState().setSource(previousSource);
-        }
-      } finally {
-        if (inFlight.get(videoId) === controller) inFlight.delete(videoId);
-        if (inFlight.size === 0) useAudioStore.getState().setIsLoading(false);
-      }
-    };
-
-    const initial = useAudioStore.getState().source;
-    if (initial?.type === "youtube" && !initial.file) {
-      handleSourceChange(initial.videoId, null);
-    }
-
-    const unsubscribe = useAudioStore.subscribe((state, prev) => {
-      if (state.source === prev.source) return;
-
-      if (prev.source?.type === "youtube") {
-        const stillNeeded = state.source?.type === "youtube" && state.source.videoId === prev.source.videoId;
-        if (!stillNeeded) {
-          const controller = inFlight.get(prev.source.videoId);
-          if (controller) controller.abort();
-        }
-      }
-
-      if (state.source?.type !== "youtube") return;
-      if (state.source.file) return;
-      handleSourceChange(state.source.videoId, prev.source);
-    });
-
     return () => {
-      unsubscribe();
-      for (const controller of inFlight.values()) controller.abort();
-      inFlight.clear();
+      previousSourceRef.current = source;
     };
-  }, []);
+  }, [source]);
+
+  const videoId = source?.type === "youtube" && !source.file ? source.videoId : null;
+
+  const query = useQuery<TunnelResult>({
+    queryKey: ["youtube-tunnel", videoId],
+    enabled: videoId !== null,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 0,
+    queryFn: ({ signal }) => fetchTunnel(videoId as string, signal, () => ensureRef.current()),
+  });
+
+  useEffect(() => {
+    if (!videoId) {
+      useAudioStore.getState().setIsLoading(false);
+      return;
+    }
+    useAudioStore.getState().setIsLoading(query.isFetching);
+  }, [videoId, query.isFetching]);
+
+  useEffect(() => {
+    const data = query.data;
+    if (!data || !videoId) return;
+    const current = useAudioStore.getState().source;
+    if (current?.type !== "youtube" || current.videoId !== videoId) return;
+    useAudioStore.getState().setYouTubeFile(data.file);
+
+    if (data.filename) {
+      const project = useProjectStore.getState();
+      const currentTitle = project.metadata.title;
+      if (!currentTitle || currentTitle === videoId) {
+        project.setMetadata({ title: data.filename });
+      }
+    }
+    if (!data.wasDefault && data.instanceId !== DEFAULT_COBALT_INSTANCE_ID) {
+      useSettingsStore.getState().recordCobaltInstanceResult(data.instanceId, "success");
+    }
+  }, [query.data, videoId]);
+
+  useEffect(() => {
+    const err = query.error;
+    if (!err || !videoId) return;
+    if (err instanceof DOMException && err.name === "AbortError") return;
+    console.error(LOG_PREFIX, "tunnel fetch failed", err);
+    const tunnelErr = err instanceof TunnelError ? err : null;
+    const cause = tunnelErr?.cause ?? err;
+    const instanceId = tunnelErr?.instanceId ?? getActiveCobaltInstance().id;
+    const instanceLabel = tunnelErr?.instanceLabel ?? getActiveCobaltInstance().label;
+    const wasDefault = tunnelErr?.wasDefault ?? isUsingDefaultCobaltInstance();
+    const message = formatCobaltErrorForToast(cause, { isDefault: wasDefault, instanceLabel });
+    toast.error(message);
+    if (!wasDefault && instanceId !== DEFAULT_COBALT_INSTANCE_ID) {
+      useSettingsStore.getState().recordCobaltInstanceResult(instanceId, "error", message);
+    }
+    const current = useAudioStore.getState().source;
+    if (current?.type === "youtube" && current.videoId === videoId) {
+      useAudioStore.getState().setSource(previousSourceRef.current);
+    }
+  }, [query.error, videoId]);
 }
 
 // -- Exports ------------------------------------------------------------------

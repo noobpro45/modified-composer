@@ -67,9 +67,11 @@ function handleAltDuplicate(event: DragEndEvent, lines: LyricLine[], zoom: numbe
   const updates: Array<{ id: string; updates: Partial<LyricLine> }> = [];
 
   const grouped = groupSelectionsByLine(wordsToDuplicate);
+  const linesById = new Map<string, LyricLine>();
+  for (const l of lines) linesById.set(l.id, l);
 
   for (const [lineId, selections] of grouped) {
-    const line = lines.find((l) => l.id === lineId);
+    const line = linesById.get(lineId);
     if (!line) continue;
 
     const wordDups: Array<{ text: string; begin: number; end: number }> = [];
@@ -202,17 +204,17 @@ function useTimelineDnd(lines: LyricLine[]) {
       const timeDelta = delta.x / zoom;
 
       if (dropId.startsWith("bg-drop-") && activeData.trackType === "word" && movedDownToBg) {
-        const indices = wordsToMove
-          .filter((s) => s.lineId === activeData.lineId && s.type === "word")
-          .map((s) => s.wordIndex);
+        const indices = wordsToMove.flatMap((s) =>
+          s.lineId === activeData.lineId && s.type === "word" ? [s.wordIndex] : [],
+        );
         moveWordToBg(activeData.lineId, indices, timeDelta, duration);
         return;
       }
 
       if (dropId.startsWith("main-drop-") && activeData.trackType === "bg" && movedUpToMain) {
-        const indices = wordsToMove
-          .filter((s) => s.lineId === activeData.lineId && s.type === "bg")
-          .map((s) => s.wordIndex);
+        const indices = wordsToMove.flatMap((s) =>
+          s.lineId === activeData.lineId && s.type === "bg" ? [s.wordIndex] : [],
+        );
         moveWordFromBg(activeData.lineId, indices, timeDelta, duration);
         return;
       }
@@ -222,14 +224,16 @@ function useTimelineDnd(lines: LyricLine[]) {
       if (wordsToMove.length > 1) {
         const grouped = groupSelectionsByLine(wordsToMove);
         const updates: Array<{ id: string; updates: Partial<LyricLine> }> = [];
+        const moveLinesById = new Map<string, LyricLine>();
+        for (const l of lines) moveLinesById.set(l.id, l);
 
         for (const [lineId, selections] of grouped) {
-          const moveLine = lines.find((l) => l.id === lineId);
+          const moveLine = moveLinesById.get(lineId);
           if (!moveLine) continue;
 
           const lineUpdates: Partial<LyricLine> = {};
-          const wordIndices = new Set(selections.filter((s) => s.type === "word").map((s) => s.wordIndex));
-          const bgIndices = new Set(selections.filter((s) => s.type === "bg").map((s) => s.wordIndex));
+          const wordIndices = new Set(selections.flatMap((s) => (s.type === "word" ? [s.wordIndex] : [])));
+          const bgIndices = new Set(selections.flatMap((s) => (s.type === "bg" ? [s.wordIndex] : [])));
 
           for (const [indices, trackKey] of [
             [wordIndices, "words"],
@@ -326,4 +330,3 @@ function useTimelineDnd(lines: LyricLine[]) {
 // -- Exports -------------------------------------------------------------------
 
 export { useTimelineDnd };
-export type { DragData };

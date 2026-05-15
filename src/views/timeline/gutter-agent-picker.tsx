@@ -32,12 +32,13 @@ const GutterAgentPicker: React.FC<GutterAgentPickerProps> = ({ lineId, lineIndex
   const handleAddNew = useCallback(
     (close: () => void) => {
       if (!newAgentName.trim()) return;
-      const usedNumbers = agents
-        .map((a) => a.id.match(/^v(\d+)$/))
-        .filter((m): m is RegExpMatchArray => m !== null)
-        .map((m) => Number.parseInt(m[1], 10));
+      const usedNumbers = new Set<number>();
+      for (const a of agents) {
+        const m = a.id.match(/^v(\d+)$/);
+        if (m) usedNumbers.add(Number.parseInt(m[1], 10));
+      }
       let next = 1;
-      while (usedNumbers.includes(next)) next++;
+      while (usedNumbers.has(next)) next++;
       const newId = `v${next}`;
       addAgent({ id: newId, type: "person", name: newAgentName.trim() });
       updateLineWithHistory(lineId, { agentId: newId });
@@ -89,7 +90,7 @@ const GutterAgentPicker: React.FC<GutterAgentPickerProps> = ({ lineId, lineIndex
                       : "text-composer-text hover:bg-composer-button"
                   }`}
                 >
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: agentColor }} />
+                  <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: agentColor }} />
                   {agent.name || agent.id}
                 </button>
               );

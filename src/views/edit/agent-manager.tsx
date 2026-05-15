@@ -3,18 +3,19 @@ import type { Agent, AgentType } from "@/stores/project";
 import { Button } from "@/ui/button";
 import { Popover } from "@/ui/popover";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { forwardRef, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 
 // -- Helpers ------------------------------------------------------------------
 
 function generateAgentId(existingAgents: { id: string }[]): string {
-  const usedNumbers = existingAgents
-    .map((a) => a.id.match(/^v(\d+)$/))
-    .filter((m): m is RegExpMatchArray => m !== null)
-    .map((m) => Number.parseInt(m[1], 10));
+  const usedNumbers = new Set<number>();
+  for (const a of existingAgents) {
+    const m = a.id.match(/^v(\d+)$/);
+    if (m) usedNumbers.add(Number.parseInt(m[1], 10));
+  }
 
   let next = 1;
-  while (usedNumbers.includes(next)) {
+  while (usedNumbers.has(next)) {
     next++;
   }
   return `v${next}`;
@@ -22,23 +23,23 @@ function generateAgentId(existingAgents: { id: string }[]): string {
 
 // -- Components ---------------------------------------------------------------
 
-const AgentBadge = forwardRef<HTMLDivElement, { agent: Agent } & React.HTMLAttributes<HTMLDivElement>>(
-  ({ agent, ...props }, ref) => {
-    const color = getAgentColor(agent.id);
+const AgentBadge: React.FC<
+  { agent: Agent; ref?: React.Ref<HTMLDivElement> } & React.HTMLAttributes<HTMLDivElement>
+> = ({ agent, ref, ...props }) => {
+  const color = getAgentColor(agent.id);
 
-    return (
-      <div
-        ref={ref}
-        {...props}
-        className="flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-md bg-composer-button cursor-pointer"
-      >
-        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-        <span className="text-sm text-composer-text">{agent.name || agent.id}</span>
-        <span className="text-xs text-composer-text-muted">{agent.id}</span>
-      </div>
-    );
-  },
-);
+  return (
+    <div
+      ref={ref}
+      {...props}
+      className="flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-md bg-composer-button cursor-pointer"
+    >
+      <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+      <span className="text-sm text-composer-text">{agent.name || agent.id}</span>
+      <span className="text-xs text-composer-text-muted">{agent.id}</span>
+    </div>
+  );
+};
 
 const EditAgentPopover: React.FC<{
   agent: Agent;
@@ -46,8 +47,8 @@ const EditAgentPopover: React.FC<{
   onRemove?: () => void;
 }> = ({ agent, removable = true, onRemove }) => {
   const updateAgent = useProjectStore((s) => s.updateAgent);
-  const [name, setName] = useState(agent.name || "");
-  const [type, setType] = useState<AgentType>(agent.type);
+  const [name, setName] = useState(() => agent.name || "");
+  const [type, setType] = useState<AgentType>(() => agent.type);
 
   const handleSave = useCallback(
     (close: () => void) => {
@@ -100,7 +101,7 @@ const EditAgentPopover: React.FC<{
                   onClick={() => handleDelete(close)}
                   className="text-composer-error-text bg-composer-error/80 hover:bg-composer-error flex items-center gap-2"
                 >
-                  <IconTrash className="w-4 h-4" />
+                  <IconTrash className="size-4" />
                 </Button>
               )}
             </div>
@@ -146,7 +147,7 @@ const AddAgentPopover: React.FC = () => {
       placement="bottom-start"
       trigger={
         <Button size="sm" hasIcon>
-          <IconPlus className="w-3.5 h-3.5" />
+          <IconPlus className="size-3.5" />
           Add
         </Button>
       }
@@ -165,7 +166,7 @@ const AddAgentPopover: React.FC = () => {
                     className="flex items-center gap-2 px-2 py-1.5 text-left rounded-md cursor-pointer hover:bg-composer-button"
                   >
                     <span
-                      className="w-2 h-2 rounded-full shrink-0"
+                      className="size-2 rounded-full shrink-0"
                       style={{ backgroundColor: getAgentColor(preset.id) }}
                     />
                     <span className="text-sm text-composer-text">{preset.name}</span>
@@ -240,4 +241,4 @@ const AgentManager: React.FC = () => {
 
 // -- Exports ------------------------------------------------------------------
 
-export { AgentManager, AgentBadge };
+export { AgentManager };

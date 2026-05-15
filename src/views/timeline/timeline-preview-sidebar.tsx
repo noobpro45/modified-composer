@@ -20,6 +20,44 @@ function getAgentAlignment(agentId: string): "left" | "center" | "right" {
 
 // -- Components ---------------------------------------------------------------
 
+const WordWithProgress: React.FC<{
+  text: string;
+  begin: number;
+  end: number;
+  lineIndex: number;
+}> = ({ text, begin, end, lineIndex }) => (
+  <span className="relative inline-block whitespace-pre">
+    <span className="text-composer-text-muted">{text}</span>
+    <span
+      className="absolute inset-0 text-composer-accent-text"
+      data-word-begin={begin}
+      data-word-end={end}
+      data-line-idx={lineIndex}
+      style={{ clipPath: "inset(0 100% 0 0)" }}
+    >
+      {text}
+    </span>
+  </span>
+);
+
+const BgWordsRow: React.FC<{
+  backgroundWords: NonNullable<LyricLine["backgroundWords"]>;
+  lineIndex: number;
+  alignmentClass: string;
+}> = ({ backgroundWords, lineIndex, alignmentClass }) => (
+  <div className={`flex flex-wrap items-center gap-y-0.5 text-xs font-medium mt-0.5 ${alignmentClass}`}>
+    {backgroundWords.map((bgWord) => (
+      <WordWithProgress
+        key={`bg-${bgWord.begin}-${bgWord.text}`}
+        text={bgWord.text}
+        begin={bgWord.begin}
+        end={bgWord.end}
+        lineIndex={lineIndex}
+      />
+    ))}
+  </div>
+);
+
 const MiniPreviewLine: React.FC<{
   line: LyricLine;
   lineIndex: number;
@@ -34,53 +72,21 @@ const MiniPreviewLine: React.FC<{
 
   const AgentDotLeft = (
     <span
-      className="inline-block w-1.5 h-1.5 mr-2 rounded-full"
+      className="inline-block size-1.5 mr-2 rounded-full"
       style={{ backgroundColor: agentColor, verticalAlign: "0.1em" }}
     />
   );
   const AgentDotRight = (
     <span
-      className="inline-block w-1.5 h-1.5 ml-2 rounded-full"
+      className="inline-block size-1.5 ml-2 rounded-full"
       style={{ backgroundColor: agentColor, verticalAlign: "0.1em" }}
     />
   );
 
-  const WordWithProgress: React.FC<{
-    text: string;
-    begin: number;
-    end: number;
-  }> = ({ text, begin, end }) => (
-    <span className="relative inline-block whitespace-pre">
-      <span className="text-composer-text-muted">{text}</span>
-      <span
-        className="absolute inset-0 text-composer-accent-text"
-        data-word-begin={begin}
-        data-word-end={end}
-        data-line-idx={lineIndex}
-        style={{ clipPath: "inset(0 100% 0 0)" }}
-      >
-        {text}
-      </span>
-    </span>
-  );
-
   const words = line.words ?? [];
-
-  const renderBgWords = () => {
-    if (!line.backgroundWords?.length) return null;
-    return (
-      <div className={`flex flex-wrap items-center gap-y-0.5 text-xs font-medium mt-0.5 ${alignmentClass}`}>
-        {line.backgroundWords.map((bgWord) => (
-          <WordWithProgress
-            key={`bg-${bgWord.begin}-${bgWord.text}`}
-            text={bgWord.text}
-            begin={bgWord.begin}
-            end={bgWord.end}
-          />
-        ))}
-      </div>
-    );
-  };
+  const bgWords = line.backgroundWords?.length ? (
+    <BgWordsRow backgroundWords={line.backgroundWords} lineIndex={lineIndex} alignmentClass={alignmentClass} />
+  ) : null;
 
   if (granularity === "line") {
     return (
@@ -107,7 +113,7 @@ const MiniPreviewLine: React.FC<{
           </span>
           {alignment === "right" && AgentDotRight}
         </div>
-        {renderBgWords()}
+        {bgWords}
       </div>
     );
   }
@@ -124,7 +130,13 @@ const MiniPreviewLine: React.FC<{
         {alignment === "left" && AgentDotLeft}
         {words.length > 0
           ? words.map((word) => (
-              <WordWithProgress key={`${word.begin}-${word.text}`} text={word.text} begin={word.begin} end={word.end} />
+              <WordWithProgress
+                key={`${word.begin}-${word.text}`}
+                text={word.text}
+                begin={word.begin}
+                end={word.end}
+                lineIndex={lineIndex}
+              />
             ))
           : splitIntoWords(line.text).map((word, idx) => (
               <span key={`${idx}-${word}`} className="text-composer-text-muted">
@@ -133,7 +145,7 @@ const MiniPreviewLine: React.FC<{
             ))}
         {alignment === "right" && AgentDotRight}
       </div>
-      {renderBgWords()}
+      {bgWords}
     </div>
   );
 };
@@ -177,13 +189,14 @@ const TimelinePreviewSidebar: React.FC = () => {
         const begin = Number.parseFloat(el.dataset.lineBegin ?? "0");
         const end = Number.parseFloat(el.dataset.lineEnd ?? "0");
         const { isActive, isComplete } = getTimingState(begin, end, currentTime);
+        const style = el.style;
 
         if (isActive) {
-          el.style.opacity = "1";
+          style.opacity = "1";
         } else if (isComplete) {
-          el.style.opacity = "0.6";
+          style.opacity = "0.6";
         } else {
-          el.style.opacity = "0.3";
+          style.opacity = "0.3";
         }
       }
 

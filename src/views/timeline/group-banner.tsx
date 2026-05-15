@@ -6,7 +6,7 @@ import { registerBanner } from "@/views/timeline/banner-progress-registry";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { getWordsInInstance } from "@/views/timeline/utils";
 import { IconChevronDown, IconLink } from "@tabler/icons-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // -- Types ---------------------------------------------------------------------
@@ -23,7 +23,6 @@ interface GroupBannerProps {
 
 // -- Constants -----------------------------------------------------------------
 
-const BANNER_VERTICAL_INSET = 4;
 const BANNER_MIN_WIDTH = 80;
 const DRAG_THRESHOLD_PX = 3;
 
@@ -151,7 +150,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
     if (!isCollapsed) return [];
     const span = instanceEnd - instanceStart;
     if (span <= 0) return [];
-    const ticks: Array<{ leftPct: number; widthPct: number }> = [];
+    const ticks: Array<{ idx: number; leftPct: number; widthPct: number }> = [];
     for (const line of allLines) {
       if (line.groupId !== group.id || line.instanceIdx !== instanceIdx) continue;
       if (!line.words?.length) continue;
@@ -159,14 +158,14 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
         const startPct = ((w.begin - instanceStart) / span) * 100;
         const endPct = ((w.end - instanceStart) / span) * 100;
         const widthPct = Math.max(0.4, endPct - startPct);
-        ticks.push({ leftPct: startPct, widthPct });
+        ticks.push({ idx: ticks.length, leftPct: startPct, widthPct });
       }
     }
     return ticks;
   }, [isCollapsed, instanceStart, instanceEnd, allLines, group.id, instanceIdx]);
 
   return (
-    <motion.div
+    <m.div
       ref={bannerRef}
       data-banner-progress=""
       data-instance-key={`${group.id}:${instanceIdx}`}
@@ -175,8 +174,9 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
       variants={pingVariants}
       animate={isPinging ? "ping" : "idle"}
       className={cn(
-        "absolute flex items-center gap-1 rounded-md cursor-grab select-none pl-1.5 pr-2.5",
+        "absolute top-1 bottom-1 flex items-center gap-1 rounded-md select-none pl-1.5 pr-2.5",
         "border text-[10px] font-medium text-composer-text z-[30]",
+        isDragging ? "cursor-grabbing" : "cursor-grab",
       )}
       onPointerDown={handlePointerDown}
       onMouseDown={(e) => e.stopPropagation()}
@@ -184,12 +184,9 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
       style={{
         left,
         width,
-        top: BANNER_VERTICAL_INSET,
-        bottom: BANNER_VERTICAL_INSET,
         background: `color-mix(in srgb, ${group.color} 18%, transparent)`,
         borderColor: `color-mix(in srgb, ${group.color} 60%, transparent)`,
         transform: isDragging ? `translateX(${dragOffsetPx}px)` : undefined,
-        cursor: isDragging ? "grabbing" : "grab",
       }}
     >
       <Button
@@ -202,7 +199,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
         className="shrink-0 w-auto h-auto p-0.5 opacity-70 hover:opacity-100 hover:bg-transparent text-current relative before:content-[''] before:absolute before:-inset-2"
       >
         <IconChevronDown
-          className={cn("w-3 h-3 transition-transform duration-200 ease-out", isCollapsed && "-rotate-90")}
+          className={cn("size-3 transition-transform duration-200 ease-out", isCollapsed && "-rotate-90")}
         />
       </Button>
       <span className="font-semibold whitespace-nowrap">{group.label}</span>
@@ -211,7 +208,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
         onMouseEnter={handleBadgeMouseEnter}
         onMouseLeave={handleBadgeMouseLeave}
       >
-        <IconLink className="w-2.5 h-2.5" />
+        <IconLink className="size-2.5" />
         {instanceIdx + 1} of {totalInstances}
         {isDragging && (
           <span className="ml-1 text-composer-text">
@@ -233,10 +230,9 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
             aria-hidden
             className="absolute left-1.5 right-1.5 bottom-0.5 h-[3px] pointer-events-none overflow-hidden"
           >
-            {wordTicks.map((t, i) => (
+            {wordTicks.map((t) => (
               <span
-                // biome-ignore lint/suspicious/noArrayIndexKey: order is stable for static word list
-                key={i}
+                key={`${t.idx}-${t.leftPct}-${t.widthPct}`}
                 className="absolute top-0 bottom-0 rounded-[1px]"
                 style={{
                   left: `${t.leftPct}%`,
@@ -249,7 +245,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
           </span>
         </>
       )}
-    </motion.div>
+    </m.div>
   );
 };
 
@@ -258,4 +254,3 @@ const GroupBanner = memo(GroupBannerComponent);
 // -- Exports -------------------------------------------------------------------
 
 export { GroupBanner };
-export type { GroupBannerProps };

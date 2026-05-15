@@ -1,5 +1,4 @@
 import { cn } from "@/utils/cn";
-import { forwardRef } from "react";
 
 // -- Types --------------------------------------------------------------------
 
@@ -10,6 +9,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   hasIcon?: boolean;
+  ref?: React.Ref<HTMLButtonElement>;
 }
 
 // -- Styles -------------------------------------------------------------------
@@ -26,37 +26,40 @@ const VARIANT_STYLES: Record<ButtonVariant, string> = {
 const SIZE_STYLES: Record<ButtonSize, string> = {
   sm: "h-7 px-2.5 text-xs",
   md: "h-8 px-3 text-sm",
-  icon: "h-8 w-8 p-0",
+  icon: "size-8 p-0",
 };
 
 const SIZE_STYLES_WITH_ICON: Record<ButtonSize, string> = {
   sm: "h-7 pl-2 pr-3 text-xs",
   md: "h-8 pl-2.5 pr-3.5 text-sm",
-  icon: "h-8 w-8 p-0",
+  icon: "size-8 p-0",
 };
 
 // -- Component ----------------------------------------------------------------
 
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = "secondary", size = "md", hasIcon = false, className, children, ...props }, ref) => {
-    const sizeStyles = hasIcon ? SIZE_STYLES_WITH_ICON[size] : SIZE_STYLES[size];
+const Button: React.FC<ButtonProps> = ({
+  variant = "secondary",
+  size = "md",
+  hasIcon = false,
+  className,
+  children,
+  ref,
+  ...props
+}) => {
+  const sizeStyles = hasIcon ? SIZE_STYLES_WITH_ICON[size] : SIZE_STYLES[size];
 
-    return (
-      <button
-        ref={ref}
-        type="button"
-        className={cn(BASE_STYLES, VARIANT_STYLES[variant], sizeStyles, className)}
-        {...props}
-      >
-        {children}
-      </button>
-    );
-  },
-);
-
-Button.displayName = "Button";
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={cn(BASE_STYLES, VARIANT_STYLES[variant], sizeStyles, className)}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+};
 
 // -- Exports ------------------------------------------------------------------
 
 export { Button };
-export type { ButtonVariant, ButtonSize };

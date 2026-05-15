@@ -19,7 +19,15 @@ interface ModalProps {
 
 // -- Component ----------------------------------------------------------------
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, className, bodyClassName, initialFocusRef }) => {
+const Modal: React.FC<ModalProps> = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+  className,
+  bodyClassName,
+  initialFocusRef,
+}) => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const { refs, context } = useFloating({ open: isOpen, onOpenChange: (open) => !open && onClose() });
 
@@ -30,15 +38,14 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, classNa
     [onClose],
   );
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    },
-    [onClose],
-  );
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCloseRef.current();
+    };
     document.addEventListener("keydown", handleKeyDown);
     document.body.style.overflow = "hidden";
     const { push, pop } = useModalStackStore.getState();
@@ -48,7 +55,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, classNa
       document.body.style.overflow = "";
       pop();
     };
-  }, [isOpen, handleKeyDown]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -57,6 +64,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, classNa
       <FloatingFocusManager context={context} modal returnFocus initialFocus={initialFocusRef}>
         <div
           ref={overlayRef}
+          role="presentation"
           onMouseDown={handleOverlayMouseDown}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
         >
@@ -76,7 +84,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, classNa
                   {title}
                 </h2>
                 <Button size="icon" variant="ghost" onClick={onClose}>
-                  <IconX className="w-5 h-5" />
+                  <IconX className="size-5" />
                 </Button>
               </div>
             )}

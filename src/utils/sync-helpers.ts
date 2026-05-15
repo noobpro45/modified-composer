@@ -37,10 +37,7 @@ function getNudgeAmount(): number {
 
 function splitIntoWords(text: string): string[] {
   const char = getSplitCharacter();
-  return text
-    .split(/\s+/)
-    .filter((w) => w.length > 0)
-    .flatMap((w) => w.split(char).filter((p) => p.length > 0));
+  return text.split(/\s+/).flatMap((w) => (w.length > 0 ? w.split(char).filter((p) => p.length > 0) : []));
 }
 
 function splitIntoWordsWithMeta(text: string): { parts: string[]; trailingSpace: boolean[] } {
@@ -139,24 +136,6 @@ function convertLineToWord<T extends ConvertibleLine>(line: T): T {
   return { ...line, words, begin: undefined, end: undefined };
 }
 
-function convertWordToLine<T extends ConvertibleLine>(line: T): T {
-  if (!line.words?.length) return line;
-
-  const firstWord = line.words[0];
-  const lastWord = line.words[line.words.length - 1];
-
-  return {
-    ...line,
-    begin: firstWord.begin,
-    end: lastWord.end,
-    words: undefined,
-  };
-}
-
-function hasWordTiming(lines: ConvertibleLine[]): boolean {
-  return lines.some((line) => line.words?.length);
-}
-
 function hasLineTiming(lines: ConvertibleLine[]): boolean {
   return lines.some((line) => line.begin !== undefined && line.end !== undefined && !line.words?.length);
 }
@@ -241,16 +220,14 @@ export {
   distributeWordsInLine,
   getNudgeAmount,
   convertLineToWord,
-  convertWordToLine,
   formatTimeMs,
   getLineTiming,
   getSyncedLineCount,
   getSyncedWordCount,
   getTotalWords,
   hasLineTiming,
-  hasWordTiming,
   parseTimeMs,
   splitIntoWords,
   splitIntoWordsWithMeta,
 };
-export type { LineTiming, SyncPosition, SyncState };
+export type { SyncState };

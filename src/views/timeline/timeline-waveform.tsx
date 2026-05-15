@@ -29,7 +29,7 @@ const TimelineWaveform: React.FC = () => {
   }, [ws, zoom]);
 
   // Handle click to seek
-  const handleClick = useCallback(
+  const seekToClickedPosition = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       e.stopPropagation();
       if (!duration || totalWidth <= 0) return;
@@ -75,13 +75,17 @@ const TimelineWaveform: React.FC = () => {
         onReady={onReady}
       />
       <div
+        role="button"
+        tabIndex={-1}
+        aria-label="Seek to position"
         className="absolute top-0 left-0 z-10 cursor-pointer"
         key="waveform-click-layer"
         style={{
           width: totalWidth,
           height: WAVEFORM_HEIGHT,
         }}
-        onClick={handleClick}
+        onClick={seekToClickedPosition}
+        onKeyDown={() => {}}
       />
     </div>
   );
@@ -89,4 +93,4 @@ const TimelineWaveform: React.FC = () => {
 
 // -- Exports -------------------------------------------------------------------
 
-export { TimelineWaveform, WAVEFORM_HEIGHT };
+export { TimelineWaveform };

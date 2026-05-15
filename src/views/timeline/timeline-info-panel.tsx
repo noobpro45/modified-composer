@@ -5,19 +5,17 @@ import { createBgWordsFromLine } from "@/utils/sync-helpers";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { formatTime, getEffectiveLines, isLineSynced } from "@/views/timeline/utils";
 import { IconBracketsContainEnd, IconBracketsContainStart, IconLink } from "@tabler/icons-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 // -- Components ----------------------------------------------------------------
 
 const BackgroundTextEditor: React.FC<{ lineId: string; backgroundText?: string }> = ({ lineId, backgroundText }) => {
-  const [value, setValue] = useState(backgroundText ?? "");
+  const [value, setValue] = useState(() => backgroundText ?? "");
   const [isEditing, setIsEditing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const focusOnMount = useCallback((el: HTMLInputElement | null) => {
+    el?.focus();
+  }, []);
   const updateLineWithHistory = useProjectStore((s) => s.updateLineWithHistory);
-
-  useEffect(() => {
-    if (isEditing) inputRef.current?.focus();
-  }, [isEditing]);
 
   const handleCommit = useCallback(() => {
     const trimmed = value.trim() || undefined;
@@ -49,7 +47,7 @@ const BackgroundTextEditor: React.FC<{ lineId: string; backgroundText?: string }
 
   return (
     <input
-      ref={inputRef}
+      ref={focusOnMount}
       type="text"
       value={value}
       onChange={(e) => setValue(e.target.value)}
@@ -77,11 +75,12 @@ const TimelineInfoPanel: React.FC = () => {
 
   const groupContext = useMemo(() => {
     if (selectedWords.length === 0) return null;
+    const rawLinesById = new Map(rawLines.map((l) => [l.id, l] as const));
     const instanceKeys = new Set<string>();
     let firstGroupId: string | undefined;
     let firstInstanceIdx: number | undefined;
     for (const sel of selectedWords) {
-      const realLine = rawLines.find((l) => l.id === sel.lineId);
+      const realLine = rawLinesById.get(sel.lineId);
       if (!realLine?.groupId || realLine.instanceIdx === undefined) return null;
       if (firstGroupId === undefined) {
         firstGroupId = realLine.groupId;
@@ -96,7 +95,7 @@ const TimelineInfoPanel: React.FC = () => {
     if (!group) return null;
     const sameInstance = instanceKeys.size === 1;
     const totalInstances = new Set(
-      rawLines.filter((l) => l.groupId === firstGroupId && l.instanceIdx !== undefined).map((l) => l.instanceIdx),
+      rawLines.flatMap((l) => (l.groupId === firstGroupId && l.instanceIdx !== undefined ? [l.instanceIdx] : [])),
     ).size;
     return {
       group,
@@ -133,6 +132,7 @@ const TimelineInfoPanel: React.FC = () => {
 
   const multiSelectionInfo = useMemo(() => {
     if (selectedWords.length <= 1) return null;
+    const rawLinesById = new Map(rawLines.map((l) => [l.id, l] as const));
     let minBegin = Number.POSITIVE_INFINITY;
     let maxEnd = 0;
     let lineCount = 0;
@@ -148,7 +148,7 @@ const TimelineInfoPanel: React.FC = () => {
 
       if (sel.type === "word" && !seenLineIds.has(line.id)) {
         seenLineIds.add(line.id);
-        const realLine = rawLines.find((l) => l.id === line.id);
+        const realLine = rawLinesById.get(line.id);
         if (realLine && isLineSynced(realLine)) lineCount++;
       }
     }
@@ -228,7 +228,7 @@ const TimelineInfoPanel: React.FC = () => {
             }}
             title="Selected words belong to this linked group"
           >
-            <IconLink className="w-3 h-3" />
+            <IconLink className="size-3" />
             <span className="tabular-nums">{groupHighlight.label}</span>
           </span>
         )}
@@ -274,12 +274,12 @@ const TimelineInfoPanel: React.FC = () => {
           }}
           title="This word belongs to a linked group"
         >
-          <IconLink className="w-3 h-3" />
+          <IconLink className="size-3" />
           <span className="tabular-nums">{groupHighlight.label}</span>
         </span>
       )}
       <div className="flex items-center gap-2">
-        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+        <div className="size-2.5 rounded-full" style={{ backgroundColor: color }} />
         <span className="text-sm text-composer-text-muted">Line {selectedWord.lineIndex + 1}</span>
       </div>
 
@@ -308,11 +308,11 @@ const TimelineInfoPanel: React.FC = () => {
 
       <div className="flex items-center gap-2 ml-auto">
         <Button variant="secondary" size="sm" hasIcon onClick={handleSetBeginToCursor} title="Set begin to cursor ([)">
-          <IconBracketsContainStart className="w-3.5 h-3.5" />
+          <IconBracketsContainStart className="size-3.5" />
           <span>Set Begin</span>
         </Button>
         <Button variant="secondary" size="sm" hasIcon onClick={handleSetEndToCursor} title="Set end to cursor (])">
-          <IconBracketsContainEnd className="w-3.5 h-3.5" />
+          <IconBracketsContainEnd className="size-3.5" />
           <span>Set End</span>
         </Button>
       </div>

@@ -22,7 +22,7 @@ const BracketWarning: React.FC<{ count: number }> = ({ count }) => {
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-composer-error/10 text-composer-error">
-      <IconAlertTriangle className="w-4 h-4 shrink-0" />
+      <IconAlertTriangle className="size-4 shrink-0" />
       <span>
         {count} line{count > 1 ? "s" : ""} contain{count === 1 ? "s" : ""} [brackets]
       </span>
@@ -42,7 +42,7 @@ const ImportSuccessBanner: React.FC<{
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg bg-composer-accent/10 text-composer-accent-text">
       <div className="flex items-center gap-2">
-        <IconFileImport className="w-4 h-4 shrink-0" />
+        <IconFileImport className="size-4 shrink-0" />
         <span>
           Imported {lineCount} lines from {filename}
           {result.hasTimingData && (
@@ -50,8 +50,8 @@ const ImportSuccessBanner: React.FC<{
           )}
         </span>
       </div>
-      <Button size="icon" variant="ghost" onClick={onDismiss} className="h-6 w-6">
-        <IconX className="w-4 h-4" />
+      <Button size="icon" variant="ghost" onClick={onDismiss} className="size-6">
+        <IconX className="size-4" />
       </Button>
     </div>
   );
@@ -95,7 +95,7 @@ const LinePreview: React.FC<{
     }
   }, [line.lineId, bgInput, onBackgroundChange]);
 
-  const handleClick = useCallback(
+  const selectLineForBulkEdit = useCallback(
     (e: React.MouseEvent) => {
       if ((e.target as HTMLElement).closest("select, button")) return;
       if (e.shiftKey) window.getSelection()?.removeAllRanges();
@@ -136,11 +136,16 @@ const LinePreview: React.FC<{
 
   return (
     <div
+      role="button"
+      tabIndex={-1}
       className={`relative flex items-center gap-2 px-3 py-0.5 group cursor-pointer ${
         isSelected ? "bg-composer-accent/15" : line.hasBrackets ? "bg-composer-error/5" : "hover:bg-composer-button/30"
       }`}
       onMouseDown={handleMouseDown}
-      onClick={handleClick}
+      onClick={selectLineForBulkEdit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onSelect(line.lineNumber, e.shiftKey);
+      }}
       title={groupTooltip}
     >
       {groupColor && (
@@ -151,10 +156,15 @@ const LinePreview: React.FC<{
         />
       )}
       <span
+        role="button"
+        tabIndex={-1}
         className="w-8 font-mono text-xs text-right shrink-0 text-composer-text-muted tabular-nums select-none cursor-pointer"
         onMouseDown={(e) => onGutterMouseDown(line.lineNumber, e)}
         onMouseEnter={(e) => onGutterMouseEnter(line.lineNumber, e)}
         onClick={handleGutterClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleGutterClick(e as unknown as React.MouseEvent);
+        }}
       >
         {line.lineNumber}
       </span>
@@ -199,7 +209,7 @@ const LinePreview: React.FC<{
                 type="button"
                 className="flex items-center gap-1 px-1.5 h-5 text-xs rounded cursor-pointer bg-composer-button hover:bg-composer-button-hover text-composer-text-muted hover:text-composer-text"
               >
-                <IconMicrophone className="w-3 h-3" />
+                <IconMicrophone className="size-3" />
                 BG
               </button>
             }
@@ -228,7 +238,7 @@ const LinePreview: React.FC<{
         )}
 
         {line.hasTiming && <span className="text-xs text-composer-accent-text">synced</span>}
-        {line.hasBrackets && <IconAlertTriangle className="w-4 h-4 text-composer-error" />}
+        {line.hasBrackets && <IconAlertTriangle className="size-4 text-composer-error" />}
       </div>
     </div>
   );
@@ -363,7 +373,7 @@ const EditPanel: React.FC = () => {
   const handleBulkAgentChange = useCallback(
     (agentId: string) => {
       const selectedLineIds = new Set(
-        parsed.filter((p) => selectedLines.has(p.lineNumber) && p.lineId).map((p) => p.lineId),
+        parsed.flatMap((p) => (selectedLines.has(p.lineNumber) && p.lineId ? [p.lineId] : [])),
       );
       const updates = [...selectedLineIds].map((id) => ({ id: id as string, updates: { agentId } }));
       useProjectStore.getState().updateLinesWithHistory(updates);
@@ -424,7 +434,7 @@ const EditPanel: React.FC = () => {
           modalPendingRef.current = false;
           if (!ok) return;
           const detached = detachInstancesFromLines(action.lyricLines, action.impacted);
-          const remainingGroupIds = new Set(detached.map((l) => l.groupId).filter(Boolean) as string[]);
+          const remainingGroupIds = new Set(detached.flatMap((l) => (l.groupId ? [l.groupId] : [])));
           const nextGroups = groups.filter((g) => remainingGroupIds.has(g.id));
           linesSetByUs.current = detached;
           setLines(detached);
@@ -477,9 +487,9 @@ const EditPanel: React.FC = () => {
         // Reconcile imported agents: update name/type on matching id, add otherwise
         if (result.agents?.length) {
           const updateAgent = useProjectStore.getState().updateAgent;
+          const agentsById = new Map(agents.map((a) => [a.id, a] as const));
           for (const agent of result.agents) {
-            const existing = agents.find((a) => a.id === agent.id);
-            if (existing) {
+            if (agentsById.has(agent.id)) {
               updateAgent(agent.id, { name: agent.name, type: agent.type });
             } else {
               addAgent(agent);
@@ -536,7 +546,7 @@ const EditPanel: React.FC = () => {
             {nonEmptyCount} line{nonEmptyCount !== 1 ? "s" : ""}
           </span>
           <Button hasIcon onClick={handleImportClick}>
-            <IconFileImport className="w-4 h-4" />
+            <IconFileImport className="size-4" />
             Import File
           </Button>
           <input

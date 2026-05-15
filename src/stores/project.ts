@@ -337,9 +337,13 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
         });
       }
 
-      let newLines = [...state.lines];
+      const newLines = [...state.lines];
+      const indexById = new Map<string, number>();
+      for (let i = 0; i < newLines.length; i++) indexById.set(newLines[i].id, i);
+
       for (const { id, updates: lineUpdates } of updates) {
-        const target = newLines.find((l) => l.id === id);
+        const targetIdx = indexById.get(id);
+        const target = targetIdx !== undefined ? newLines[targetIdx] : undefined;
         const linkScope = target ? getLinkScope(target) : null;
         const sourceWordsBefore = target?.words;
         const sourceWordsAfter = lineUpdates.words;
@@ -347,25 +351,28 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
         const sourceBgAfter = lineUpdates.backgroundWords;
         const linkedUpdates = linkScope ? extractLinkedFields(lineUpdates) : null;
 
-        newLines = newLines.map((line) => {
-          if (line.id === id) {
-            const merged = { ...line, ...lineUpdates };
-            if (lineUpdates.words?.length && line.begin !== undefined && !line.words?.length) {
-              merged.begin = undefined;
-              merged.end = undefined;
-            }
-            return merged;
+        if (targetIdx !== undefined && target) {
+          const merged = { ...target, ...lineUpdates };
+          if (lineUpdates.words?.length && target.begin !== undefined && !target.words?.length) {
+            merged.begin = undefined;
+            merged.end = undefined;
           }
-          if (isLinkedSibling(line, linkScope)) {
+          newLines[targetIdx] = merged;
+        }
+
+        if (linkScope) {
+          for (let i = 0; i < newLines.length; i++) {
+            const line = newLines[i];
+            if (line.id === id) continue;
+            if (!isLinkedSibling(line, linkScope)) continue;
             const siblingUpdates: Partial<LyricLine> = { ...(linkedUpdates ?? {}) };
             const propagatedWords = propagateWordChanges(sourceWordsAfter, sourceWordsBefore, line.words);
             if (propagatedWords) siblingUpdates.words = propagatedWords;
             const propagatedBg = propagateWordChanges(sourceBgAfter, sourceBgBefore, line.backgroundWords);
             if (propagatedBg) siblingUpdates.backgroundWords = propagatedBg;
-            if (Object.keys(siblingUpdates).length > 0) return { ...line, ...siblingUpdates };
+            if (Object.keys(siblingUpdates).length > 0) newLines[i] = { ...line, ...siblingUpdates };
           }
-          return line;
-        });
+        }
       }
 
       newHistory.push({
@@ -546,7 +553,7 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
       const label = options.label ?? `Group ${state.groups.length + 1}`;
 
       const startToInstanceIdx = new Map<number, number>();
-      const sortedStarts = [...starts].sort((a, b) => a - b);
+      const sortedStarts = starts.toSorted((a, b) => a - b);
       sortedStarts.forEach((s, i) => startToInstanceIdx.set(s, i));
 
       const updatedLines = state.lines.map((line, idx) => {
@@ -596,9 +603,7 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
   addInstance: (groupId, structure, instanceStart, insertAtIndex) =>
     set((state) => {
       const usedIndices = new Set(
-        state.lines
-          .filter((l) => l.groupId === groupId && l.instanceIdx !== undefined)
-          .map((l) => l.instanceIdx as number),
+        state.lines.flatMap((l) => (l.groupId === groupId && l.instanceIdx !== undefined ? [l.instanceIdx] : [])),
       );
       let instanceIdx = 0;
       while (usedIndices.has(instanceIdx)) instanceIdx++;
@@ -795,8 +800,10 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
       if (targets.length === 0) return state;
       let lines = state.lines;
       let changed = false;
+      const linesById = new Map<string, LyricLine>();
+      for (const l of lines) linesById.set(l.id, l);
       for (const target of targets) {
-        const line = lines.find((l) => l.id === target.lineId);
+        const line = linesById.get(target.lineId);
         if (!line) continue;
         const currentWords = line[target.field];
         if (!currentWords || target.wordIndex < 0 || target.wordIndex >= currentWords.length) continue;
@@ -809,7 +816,11 @@ const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
           return rest;
         });
 
+        const before = lines;
         lines = applyExplicitTargetToLines(lines, target.lineId, target.field, newWords);
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i] !== before[i]) linesById.set(lines[i].id, lines[i]);
+        }
         changed = true;
       }
       if (!changed) return state;
@@ -901,14 +912,12 @@ function isLinkedSibling(line: LyricLine, scope: LinkScope | null): boolean {
 function applyMoveToBg(line: LyricLine, wordIndices: number[], timeDelta: number, duration: number): LyricLine | null {
   if (!line.words) return null;
   const indexSet = new Set(wordIndices);
-  const movedWords = line.words
-    .map((w, i) => ({ word: w, index: i }))
-    .filter(({ index }) => indexSet.has(index))
-    .map(({ word }) => {
-      const dur = word.end - word.begin;
-      const newBegin = Math.max(0, Math.min(duration - dur, word.begin + timeDelta));
-      return { ...word, begin: newBegin, end: newBegin + dur };
-    });
+  const movedWords = line.words.flatMap((word, index) => {
+    if (!indexSet.has(index)) return [];
+    const dur = word.end - word.begin;
+    const newBegin = Math.max(0, Math.min(duration - dur, word.begin + timeDelta));
+    return [{ ...word, begin: newBegin, end: newBegin + dur }];
+  });
 
   if (movedWords.length === 0) return null;
 
@@ -935,14 +944,12 @@ function applyMoveFromBg(
 ): LyricLine | null {
   if (!line.backgroundWords) return null;
   const indexSet = new Set(wordIndices);
-  const movedWords = line.backgroundWords
-    .map((w, i) => ({ word: w, index: i }))
-    .filter(({ index }) => indexSet.has(index))
-    .map(({ word }) => {
-      const dur = word.end - word.begin;
-      const newBegin = Math.max(0, Math.min(duration - dur, word.begin + timeDelta));
-      return { ...word, begin: newBegin, end: newBegin + dur };
-    });
+  const movedWords = line.backgroundWords.flatMap((word, index) => {
+    if (!indexSet.has(index)) return [];
+    const dur = word.end - word.begin;
+    const newBegin = Math.max(0, Math.min(duration - dur, word.begin + timeDelta));
+    return [{ ...word, begin: newBegin, end: newBegin + dur }];
+  });
 
   if (movedWords.length === 0) return null;
 
@@ -1020,19 +1027,17 @@ function getAgentColor(agentId: string): string {
   return AGENT_COLORS[agentId] ?? "#9ca3af"; // gray fallback
 }
 
-export { useProjectStore, DEFAULT_AGENTS, AGENT_PRESETS, AGENT_COLORS, getAgentColor, INITIAL_STATE };
+export { useProjectStore, DEFAULT_AGENTS, AGENT_PRESETS, getAgentColor, INITIAL_STATE };
 export { extractLinkedFields, propagateWordChanges };
 
 export type {
   Agent,
   AgentType,
-  EditorMode,
   GranularityMode,
   LineTemplate,
   LinkGroup,
   LyricLine,
   ProjectMetadata,
-  ProjectState,
   SimpleTab,
   WordTemplate,
   WordTiming,

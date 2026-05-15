@@ -18,7 +18,7 @@ import {
   IconUpload,
 } from "@tabler/icons-react";
 import { Highlight, themes } from "prism-react-renderer";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 // -- Components ---------------------------------------------------------------
 
@@ -38,8 +38,7 @@ const ExportPanel: React.FC = () => {
   const confirm = useConfirm();
 
   const [copied, setCopied] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedContent, setEditedContent] = useState<string | null>(null);
+  const [editState, setEditState] = useState<{ source: string; content: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasSyncedContent = useMemo(() => {
@@ -60,13 +59,8 @@ const ExportPanel: React.FC = () => {
     return generateTTML({ metadata, agents, lines, groups, granularity, minify: true, duration });
   }, [metadata, agents, lines, groups, granularity, duration, hasSyncedContent]);
 
-  // Reset edited content when generated content changes
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset when generated content changes
-  useEffect(() => {
-    setEditedContent(null);
-    setIsEditing(false);
-  }, [generatedTtml]);
-
+  const editedContent = editState && editState.source === generatedTtml ? editState.content : null;
+  const isEditing = editedContent !== null;
   const displayContent = editedContent ?? generatedTtml;
   const exportContent = editedContent ?? minifiedTtml;
 
@@ -95,15 +89,11 @@ const ExportPanel: React.FC = () => {
   }, [exportContent]);
 
   const handleEdit = useCallback(() => {
-    if (!isEditing) {
-      setEditedContent(displayContent);
-    }
-    setIsEditing(!isEditing);
-  }, [isEditing, displayContent]);
+    setEditState((prev) => (prev ? null : { source: generatedTtml, content: displayContent }));
+  }, [generatedTtml, displayContent]);
 
   const handleRegenerate = useCallback(() => {
-    setEditedContent(null);
-    setIsEditing(false);
+    setEditState(null);
   }, []);
 
   const handleExportProject = useCallback(() => {
@@ -175,7 +165,7 @@ const ExportPanel: React.FC = () => {
         className="hidden"
       />
       <Button hasIcon variant="secondary" onClick={() => fileInputRef.current?.click()} className="mt-2">
-        <IconFolderOpen className="w-4 h-4 text-composer-text opacity-50" />
+        <IconFolderOpen className="size-4 text-composer-text opacity-50" />
         Import Project
       </Button>
     </>
@@ -211,20 +201,20 @@ const ExportPanel: React.FC = () => {
         <div className="flex items-center gap-2">
           {editedContent !== null && (
             <Button hasIcon onClick={handleRegenerate}>
-              <IconRefresh className="w-4 h-4" />
+              <IconRefresh className="size-4" />
               Regenerate
             </Button>
           )}
           <Button hasIcon variant={isEditing ? "primary" : "secondary"} onClick={handleEdit}>
-            <IconEdit className="w-4 h-4" />
+            <IconEdit className="size-4" />
             {isEditing ? "Done" : "Edit"}
           </Button>
           <Button hasIcon onClick={handleCopy}>
-            {copied ? <IconCheck className="w-4 h-4" /> : <IconCopy className="w-4 h-4" />}
+            {copied ? <IconCheck className="size-4" /> : <IconCopy className="size-4" />}
             {copied ? "Copied" : "Copy"}
           </Button>
           <Button hasIcon variant="primary" onClick={handleDownload}>
-            <IconDownload className="w-4 h-4" />
+            <IconDownload className="size-4" />
             Download TTML
           </Button>
         </div>
@@ -242,15 +232,15 @@ const ExportPanel: React.FC = () => {
             className="hidden"
           />
           <Button hasIcon variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
-            <IconFolderOpen className="w-4 h-4 text-composer-text opacity-50" />
+            <IconFolderOpen className="size-4 text-composer-text opacity-50" />
             Import Project
           </Button>
           <Button hasIcon variant="ghost" size="sm" onClick={handleExportProject}>
-            <IconUpload className="w-4 h-4 text-composer-text opacity-50" />
+            <IconUpload className="size-4 text-composer-text opacity-50" />
             Export Project
           </Button>
           <Button hasIcon variant="ghost" size="sm" onClick={handleClearProject}>
-            <IconTrash className="w-4 h-4 text-composer-text opacity-50" />
+            <IconTrash className="size-4 text-composer-text opacity-50" />
             Clear
           </Button>
         </div>
@@ -261,7 +251,7 @@ const ExportPanel: React.FC = () => {
         {isEditing ? (
           <textarea
             value={editedContent ?? ""}
-            onChange={(e) => setEditedContent(e.target.value)}
+            onChange={(e) => setEditState({ source: generatedTtml, content: e.target.value })}
             className="w-full h-full p-4 rounded-lg font-mono text-xs bg-composer-bg-elevated text-composer-text resize-none focus:outline-none focus:ring-1 focus:ring-composer-accent"
             spellCheck={false}
           />

@@ -38,13 +38,12 @@ function MenuItem({
       <span>{label}</span>
       {shortcut && (
         <span className="inline-flex items-center gap-0.5">
-          {shortcut.map((key, i) => (
+          {shortcut.map((key) => (
             <span
-              // biome-ignore lint/suspicious/noArrayIndexKey: key order is fixed
-              key={`${key}-${i}`}
+              key={key}
               className="inline-flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-medium rounded bg-white/10 text-composer-text-muted leading-none shadow-[0_2px_0_0_rgba(0,0,0,0.3)]"
             >
-              {key === "Mod" && isMac ? <IconCommand className="w-2.5 h-2.5" /> : formatKey(key)}
+              {key === "Mod" && isMac ? <IconCommand className="size-2.5" /> : formatKey(key)}
             </span>
           ))}
         </span>
@@ -152,7 +151,7 @@ const TimelineContextMenu: React.FC = () => {
     );
     const indices =
       selectionMatchesTarget && selectedWords.length > 1
-        ? selectedWords.filter((w) => w.lineId === lineId && w.type === type).map((w) => w.wordIndex)
+        ? selectedWords.flatMap((w) => (w.lineId === lineId && w.type === type ? [w.wordIndex] : []))
         : [wordIndex];
 
     const allMarked = indices.every((i) => wordsArray[i]?.explicit === true);
@@ -298,9 +297,10 @@ const TimelineContextMenu: React.FC = () => {
       selectedLineIds.add(target.lineId);
     }
     if (selectedLineIds.size < 1) return null;
-    // If any included line is already in a group, can't form a new one.
+    const rawLinesById = new Map<string, LyricLine>();
+    for (const l of rawLines) rawLinesById.set(l.id, l);
     for (const id of selectedLineIds) {
-      const line = rawLines.find((l) => l.id === id);
+      const line = rawLinesById.get(id);
       if (line?.groupId !== undefined) return null;
     }
     const filled = fillSelectionGaps(rawLines, selectedLineIds);
@@ -342,9 +342,11 @@ const TimelineContextMenu: React.FC = () => {
     const selectedLineIds = new Set(selectedWords.map((w) => w.lineId));
     const targetIds = selectedLineIds.has(lineId) && selectedLineIds.size > 0 ? [...selectedLineIds] : [lineId];
 
+    const rawLinesByIdSplit = new Map<string, LyricLine>();
+    for (const l of rawLines) rawLinesByIdSplit.set(l.id, l);
     const updates: Array<{ id: string; updates: Partial<LyricLine> }> = [];
     for (const id of targetIds) {
-      const realLine = rawLines.find((l) => l.id === id);
+      const realLine = rawLinesByIdSplit.get(id);
       if (!realLine || !isLineSynced(realLine)) continue;
       const converted = convertLineToWord(realLine);
       if (converted.words) {
@@ -358,10 +360,12 @@ const TimelineContextMenu: React.FC = () => {
       useProjectStore.getState().updateLinesWithHistory(updates);
     }
 
+    const lineIndexById = new Map<string, number>();
+    for (let i = 0; i < lines.length; i++) lineIndexById.set(lines[i].id, i);
     const newSelections: Array<{ lineId: string; lineIndex: number; wordIndex: number; type: "word" | "bg" }> = [];
     for (const u of updates) {
-      const lineIndex = lines.findIndex((l) => l.id === u.id);
-      if (lineIndex < 0 || !u.updates.words) continue;
+      const lineIndex = lineIndexById.get(u.id);
+      if (lineIndex === undefined || !u.updates.words) continue;
       for (let wi = 0; wi < u.updates.words.length; wi++) {
         newSelections.push({ lineId: u.id, lineIndex, wordIndex: wi, type: "word" });
       }
@@ -379,7 +383,7 @@ const TimelineContextMenu: React.FC = () => {
     const allSameLine = selectedWords.every((w) => w.lineId === first.lineId && w.type === first.type);
     if (!allSameLine) return null;
 
-    const sorted = [...selectedWords].sort((a, b) => a.wordIndex - b.wordIndex);
+    const sorted = selectedWords.toSorted((a, b) => a.wordIndex - b.wordIndex);
     for (let i = 1; i < sorted.length; i++) {
       if (sorted[i].wordIndex !== sorted[i - 1].wordIndex + 1) return null;
     }
@@ -441,6 +445,15 @@ const TimelineContextMenu: React.FC = () => {
     clearContextMenu();
   }, [mergeInfo, lines, updateLineWithHistory, clearContextMenu]);
 
+  const placeLineHereInfo = useMemo(() => {
+    if (!contextMenu || contextMenu.target.kind !== "track") return null;
+    const trackTarget = contextMenu.target;
+    const targetLine = rawLines.find((l) => l.id === trackTarget.lineId);
+    if (!targetLine) return null;
+    const canPlace = targetLine.text.trim() !== "" && !targetLine.words?.length && targetLine.begin === undefined;
+    return canPlace ? targetLine : null;
+  }, [contextMenu, rawLines]);
+
   const splitIntoWordsInfo = useMemo(() => {
     if (!contextMenu || contextMenu.target.kind !== "word") return null;
     const target = contextMenu.target;
@@ -449,8 +462,9 @@ const TimelineContextMenu: React.FC = () => {
     const targetIds =
       selectedLineIds.has(target.lineId) && selectedLineIds.size > 0 ? [...selectedLineIds] : [target.lineId];
 
+    const rawLinesById = new Map(rawLines.map((l) => [l.id, l] as const));
     const lineSyncedIds = targetIds.filter((id) => {
-      const realLine = rawLines.find((l) => l.id === id);
+      const realLine = rawLinesById.get(id);
       return realLine && isLineSynced(realLine);
     });
 
@@ -524,9 +538,7 @@ const TimelineContextMenu: React.FC = () => {
     if (!group) return;
     const projectLines = useProjectStore.getState().lines;
     const instanceCount = new Set(
-      projectLines
-        .filter((l) => l.groupId === groupId && l.instanceIdx !== undefined)
-        .map((l) => l.instanceIdx as number),
+      projectLines.flatMap((l) => (l.groupId === groupId && l.instanceIdx !== undefined ? [l.instanceIdx] : [])),
     ).size;
 
     clearContextMenu();
@@ -564,7 +576,7 @@ const TimelineContextMenu: React.FC = () => {
       for (const l of projectLines) {
         if (l.groupId === groupId && l.instanceIdx !== undefined) indices.add(l.instanceIdx);
       }
-      const sorted = [...indices].sort((a, b) => a - b);
+      const sorted = Array.from(indices).sort((a, b) => a - b);
       if (sorted.length < 2) return;
       const here = sorted.indexOf(instanceIdx);
       const next = sorted[(here + direction + sorted.length) % sorted.length];
@@ -675,15 +687,7 @@ const TimelineContextMenu: React.FC = () => {
         {target.kind === "track" && (
           <>
             <MenuItem label="Add word here" shortcut={["Double Click"]} onClick={handleAddWordHere} />
-            {(() => {
-              const targetLine = rawLines.find((l) => l.id === target.lineId);
-              const canPlace =
-                targetLine &&
-                targetLine.text.trim() !== "" &&
-                !targetLine.words?.length &&
-                targetLine.begin === undefined;
-              return canPlace ? <MenuItem label="Place line here" onClick={handlePlaceLineHere} /> : null;
-            })()}
+            {placeLineHereInfo && <MenuItem label="Place line here" onClick={handlePlaceLineHere} />}
             {groupableSelection && (
               <>
                 <MenuDivider />
@@ -739,7 +743,7 @@ const TimelineContextMenu: React.FC = () => {
                             : "text-composer-text hover:bg-composer-button"
                         }`}
                       >
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
                         {agent.name || agent.id}
                       </button>
                     );
@@ -811,7 +815,7 @@ const TimelineContextMenu: React.FC = () => {
                   type="button"
                   aria-label={`Color ${c}`}
                   onClick={() => handleRecolorGroup(c)}
-                  className="w-6 h-6 rounded-md cursor-pointer border border-white/10 hover:ring-2 hover:ring-white/40 transition-[box-shadow]"
+                  className="size-6 rounded-md cursor-pointer border border-white/10 hover:ring-2 hover:ring-white/40 transition-[box-shadow]"
                   style={{ backgroundColor: c }}
                 />
               ))}

@@ -17,7 +17,6 @@ interface WordHandlers {
 interface WordRendererProps {
   word: string;
   idx: number;
-  lineNumber: number;
   timing: WordTiming | undefined;
   allWords: WordTiming[] | undefined;
   handlers: WordHandlers;
@@ -58,7 +57,6 @@ function renderWordContent(word: string, timing: WordTiming | undefined, isBackg
 const WordRenderer: React.FC<WordRendererProps> = ({
   word,
   idx,
-  lineNumber,
   timing,
   allWords,
   handlers,
@@ -76,16 +74,13 @@ const WordRenderer: React.FC<WordRendererProps> = ({
   const maxEnd = nextWord?.begin ?? Number.POSITIVE_INFINITY;
 
   return (
-    <span
-      key={`${lineNumber}-${isBackground ? "bg" : "main"}-${word}-${idx}`}
-      className={`inline-flex flex-col items-start ${isBackground ? "italic" : ""}`}
-    >
+    <span className={`inline-flex flex-col items-start ${isBackground ? "italic" : ""}`}>
       <span className="flex items-center gap-1 group/word">
         {renderWordContent(word, timing, isBackground, editMode)}
         {isSynced && timing && timing.end === timing.begin && (
           <Tooltip content="No duration - sync the next word to close this one or increase the end time">
             <span className="text-composer-warning">
-              <IconAlertTriangle className="w-3.5 h-3.5" />
+              <IconAlertTriangle className="size-3.5" />
             </span>
           </Tooltip>
         )}
@@ -105,7 +100,7 @@ const WordRenderer: React.FC<WordRendererProps> = ({
             onNudge={(delta) => handlers.onNudge?.(idx, delta)}
             onSetTime={(newBegin) => handlers.onSetTime?.(idx, newBegin)}
           />
-          <IconArrowRight className="w-2.5 h-2.5 text-composer-text opacity-25 mx-0.5" />
+          <IconArrowRight className="size-2.5 text-composer-text opacity-25 mx-0.5" />
           <TimeNudgeInput
             value={timing.end}
             currentTime={currentTime}
