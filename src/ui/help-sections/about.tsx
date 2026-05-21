@@ -41,6 +41,22 @@ const AboutSection: React.FC = () => (
     </div>
 
     <div>
+      <h4 className={HEADING}>Commercial use</h4>
+      <p className={PROSE}>
+        Composer is also available under a commercial license that removes the AGPL copyleft obligations and covers
+        commercial use of its output, such as a label or distributor publishing generated lyrics in a release. For
+        commercial or enterprise licensing, reach out to{" "}
+        <a
+          href="mailto:composer@boidu.dev"
+          className="text-composer-text underline underline-offset-2 hover:text-composer-text-bright"
+        >
+          composer@boidu.dev
+        </a>
+        .
+      </p>
+    </div>
+
+    <div>
       <h4 className={HEADING}>Community</h4>
       <ul className={`${PROSE} list-disc pl-4 space-y-1`}>
         <li>

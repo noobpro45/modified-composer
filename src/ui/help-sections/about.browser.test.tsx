@@ -12,4 +12,12 @@ describe("AboutSection", () => {
     const screen = await render(<AboutSection />);
     await expect.element(screen.getByRole("link", { name: "GitHub" })).toBeInTheDocument();
   });
+
+  it("documents commercial licensing with a contact link", async () => {
+    const screen = await render(<AboutSection />);
+    await expect.element(screen.getByRole("heading", { name: "Commercial use" })).toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("link", { name: "composer@boidu.dev" }))
+      .toHaveAttribute("href", "mailto:composer@boidu.dev");
+  });
 });
