@@ -1,10 +1,14 @@
 import { isLinked } from "@/domain/instance/predicates";
 import { useAudioStore } from "@/stores/audio";
 import { useConfirm } from "@/stores/confirm-store";
+import { isAnyModalOpen } from "@/stores/modal-stack";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { getAgentColor } from "@/domain/agent/colors";
+import { backgroundFields } from "@/domain/line/background";
+import type { LinkGroup } from "@/domain/group/template";
 import type { LyricLine } from "@/domain/line/model";
+import type { WordTiming } from "@/domain/word/timing";
 import { Button } from "@/ui/button";
 import { Popover } from "@/ui/popover";
 import { Scroll } from "@/ui/scroll";
@@ -19,6 +23,10 @@ import { parseLyrics } from "@/views/edit/parse-lyrics";
 import type { ParsedLine } from "@/views/edit/parse-lyrics";
 import { IconAlertTriangle, IconFileImport, IconMicrophone, IconX } from "@tabler/icons-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+
+// -- Constants ----------------------------------------------------------------
+
+const RUN_DEBOUNCE_MS = 500;
 
 // -- Components ---------------------------------------------------------------
 
@@ -274,6 +282,7 @@ const EditPanel: React.FC = () => {
   const agents = useProjectStore((s) => s.agents);
   const lines = useProjectStore((s) => s.lines);
   const groups = useProjectStore((s) => s.groups);
+  const activeTab = useProjectStore((s) => s.activeTab);
   const setLines = useProjectStore((s) => s.setLines);
   const setMetadata = useProjectStore((s) => s.setMetadata);
   const addAgent = useProjectStore((s) => s.addAgent);
@@ -285,6 +294,8 @@ const EditPanel: React.FC = () => {
   const linesSetByUs = useRef<LyricLine[] | null>(null);
   const modalPendingRef = useRef(false);
   const pastedRef = useRef(false);
+  const runBaselineRef = useRef<{ lines: LyricLine[]; wasDirty: boolean } | null>(null);
+  const debounceRef = useRef<number | null>(null);
   const [importResult, setImportResult] = useState<{
     result: ParseResult;
     filename: string;
@@ -331,15 +342,19 @@ const EditPanel: React.FC = () => {
     return extracted.length !== lines.length || extracted.some((line, i) => line !== lines[i]);
   }, [lines, extractOptions]);
 
+  const commitLinesWithHistory = useCallback((nextLines: LyricLine[], nextGroups?: LinkGroup[]) => {
+    useProjectStore.getState().setLinesWithHistory(nextLines, nextGroups);
+    const committed = useProjectStore.getState().lines;
+    linesSetByUs.current = committed;
+    setRawText(committed.map((line) => line.text).join("\n"));
+  }, []);
+
   const handleExtractBackgroundVocals = useCallback(() => {
     const current = useProjectStore.getState().lines;
     const next = extractBackgroundVocals(current, extractOptions);
     if (next.length === current.length && next.every((line, i) => line === current[i])) return;
-    useProjectStore.getState().setLinesWithHistory(next);
-    const committed = useProjectStore.getState().lines;
-    linesSetByUs.current = committed;
-    setRawText(committed.map((line) => line.text).join("\n"));
-  }, [extractOptions]);
+    commitLinesWithHistory(next);
+  }, [extractOptions, commitLinesWithHistory]);
 
   const handleAgentChange = useCallback((lineId: string, agentId: string) => {
     useProjectStore.getState().updateLineWithHistory(lineId, { agentId });
@@ -349,16 +364,14 @@ const EditPanel: React.FC = () => {
     const newBgText = text || undefined;
     const target = useProjectStore.getState().lines.find((l) => l.id === lineId);
 
-    const updates: Partial<LyricLine> = { backgroundText: newBgText };
+    let words: WordTiming[] | undefined;
     if (newBgText && target?.backgroundWords?.length) {
-      const remapped = remapWordTextsPreservingTiming(target.backgroundWords, newBgText);
-      if (remapped) updates.backgroundWords = remapped;
-      else updates.backgroundWords = undefined;
-    } else if (!newBgText) {
-      updates.backgroundWords = undefined;
+      words = remapWordTextsPreservingTiming(target.backgroundWords, newBgText) ?? undefined;
     }
 
-    useProjectStore.getState().updateLineWithHistory(lineId, updates);
+    useProjectStore
+      .getState()
+      .updateLineWithHistory(lineId, backgroundFields({ text: newBgText, words, source: "manual" }));
   }, []);
 
   const handleExtractLine = useCallback((lineId: string) => {
@@ -369,7 +382,11 @@ const EditPanel: React.FC = () => {
     useProjectStore.getState().updateLineWithHistory(lineId, {
       text: extracted.text,
       words: extracted.words,
-      backgroundText: extracted.backgroundText,
+      ...backgroundFields({
+        text: extracted.backgroundText,
+        words: extracted.backgroundWords,
+        source: extracted.backgroundTextSource ?? "manual",
+      }),
     });
   }, []);
 
@@ -440,6 +457,60 @@ const EditPanel: React.FC = () => {
     setSelectedLines(new Set());
   }, []);
 
+  const finalizeRun = useCallback(() => {
+    if (debounceRef.current !== null) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    const baseline = runBaselineRef.current;
+    if (baseline) {
+      runBaselineRef.current = null;
+      useProjectStore.getState().commitPendingLineEdit(baseline.lines, baseline.wasDirty);
+    }
+  }, []);
+
+  const scheduleRunFinalize = useCallback(() => {
+    if (debounceRef.current !== null) clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      debounceRef.current = null;
+      finalizeRun();
+    }, RUN_DEBOUNCE_MS);
+  }, [finalizeRun]);
+
+  const handleTextareaBlur = useCallback(() => {
+    finalizeRun();
+    if (!useSettingsStore.getState().autoExtractBackgroundVocals) return;
+    const current = useProjectStore.getState().lines;
+    const next = extractBackgroundVocals(current, {
+      mergeStandaloneLines: useSettingsStore.getState().mergeStandaloneBackgroundLines,
+    });
+    if (next.length === current.length && next.every((line, i) => line === current[i])) return;
+    commitLinesWithHistory(next);
+  }, [finalizeRun, commitLinesWithHistory]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (activeTab !== "edit") return;
+      if (isAnyModalOpen()) return;
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const target = e.target as HTMLElement;
+      if ((target.tagName === "INPUT" || target.tagName === "TEXTAREA") && target.id !== textareaId) return;
+      const key = e.key.toLowerCase();
+      const isUndo = key === "z" && !e.shiftKey;
+      const isRedo = (key === "z" && e.shiftKey) || key === "y";
+      if (!isUndo && !isRedo) return;
+      e.preventDefault();
+      finalizeRun();
+      if (isUndo) useProjectStore.getState().undo();
+      else useProjectStore.getState().redo();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeTab, finalizeRun, textareaId]);
+
+  useEffect(() => () => finalizeRun(), [finalizeRun]);
+
   const handleTextChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const wasPaste = pastedRef.current;
@@ -493,12 +564,8 @@ const EditPanel: React.FC = () => {
           const detached = detachInstancesFromLines(action.lyricLines, action.impacted);
           const remainingGroupIds = new Set(detached.flatMap((l) => (l.groupId ? [l.groupId] : [])));
           const nextGroups = groups.filter((g) => remainingGroupIds.has(g.id));
-          linesSetByUs.current = detached;
-          setLines(detached);
-          if (nextGroups.length !== groups.length) {
-            useProjectStore.getState().setGroups(nextGroups);
-          }
-          setRawText(detached.map((l) => l.text).join("\n"));
+          finalizeRun();
+          commitLinesWithHistory(detached, nextGroups);
         });
         return;
       }
@@ -509,16 +576,27 @@ const EditPanel: React.FC = () => {
       if (action.kind === "noop") return;
 
       let finalLines = action.finalLines;
-      if (wasPaste && useSettingsStore.getState().autoExtractBackgroundVocals) {
-        finalLines = extractBackgroundVocals(finalLines, {
-          mergeStandaloneLines: useSettingsStore.getState().mergeStandaloneBackgroundLines,
-        });
-        setRawText(finalLines.map((line) => line.text).join("\n"));
+
+      if (wasPaste) {
+        if (useSettingsStore.getState().autoExtractBackgroundVocals) {
+          finalLines = extractBackgroundVocals(finalLines, {
+            mergeStandaloneLines: useSettingsStore.getState().mergeStandaloneBackgroundLines,
+          });
+        }
+        finalizeRun();
+        commitLinesWithHistory(finalLines);
+        return;
+      }
+
+      if (runBaselineRef.current === null) {
+        const projectState = useProjectStore.getState();
+        runBaselineRef.current = { lines: projectState.lines, wasDirty: projectState.isDirtySinceHistory };
       }
       linesSetByUs.current = finalLines;
       setLines(finalLines);
+      scheduleRunFinalize();
     },
-    [confirm, defaultAgentId, groups, lines, setLines],
+    [confirm, defaultAgentId, groups, lines, setLines, finalizeRun, scheduleRunFinalize, commitLinesWithHistory],
   );
 
   const handleFileImport = useCallback(
@@ -660,6 +738,7 @@ const EditPanel: React.FC = () => {
             id={textareaId}
             value={rawText}
             onChange={handleTextChange}
+            onBlur={handleTextareaBlur}
             onPaste={() => {
               pastedRef.current = true;
             }}

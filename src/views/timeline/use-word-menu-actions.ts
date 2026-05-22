@@ -1,3 +1,4 @@
+import { CLEARED_BACKGROUND, manualBackgroundWordEdit } from "@/domain/line/background";
 import { mergeWordsIntoTrack } from "@/domain/word/merge-track";
 import { absorbDeletedSyllablesIntoNeighbors } from "@/domain/word/syllable-groups";
 import type { WordTiming } from "@/domain/word/timing";
@@ -74,12 +75,7 @@ function useWordMenuActions(targets: ContextMenuTargets, clearContextMenu: () =>
     if (type === "word") {
       updateLineWithHistory(lineId, { words: remaining });
     } else {
-      updateLineWithHistory(
-        lineId,
-        remaining.length > 0
-          ? { backgroundWords: remaining }
-          : { backgroundWords: undefined, backgroundText: undefined },
-      );
+      updateLineWithHistory(lineId, remaining.length > 0 ? manualBackgroundWordEdit(remaining) : CLEARED_BACKGROUND);
     }
     clearContextMenu();
   }, [contextMenu, lines, updateLineWithHistory, clearContextMenu]);
@@ -105,7 +101,7 @@ function useWordMenuActions(targets: ContextMenuTargets, clearContextMenu: () =>
     if (type === "word") {
       updateLineWithHistory(lineId, { words });
     } else {
-      updateLineWithHistory(lineId, { backgroundWords: words });
+      updateLineWithHistory(lineId, manualBackgroundWordEdit(words));
     }
     useTimelineStore.getState().setEditingWord({ lineId, wordIndex: newIndex, type });
     clearContextMenu();
@@ -145,7 +141,7 @@ function useWordMenuActions(targets: ContextMenuTargets, clearContextMenu: () =>
 
     const updatedWords = [...wordsArray.slice(0, firstIdx), merged, ...wordsArray.slice(lastIdx + 1)];
 
-    updateLineWithHistory(lineId, type === "word" ? { words: updatedWords } : { backgroundWords: updatedWords });
+    updateLineWithHistory(lineId, type === "word" ? { words: updatedWords } : manualBackgroundWordEdit(updatedWords));
 
     useTimelineStore.getState().clearSelection();
     clearContextMenu();

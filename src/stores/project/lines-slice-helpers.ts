@@ -1,8 +1,11 @@
 import { getLinkScope, isLinkedSibling } from "@/domain/group/linking";
+import { applyBackground, CLEARED_BACKGROUND, manualBackgroundWordEdit } from "@/domain/line/background";
 import { type LyricLine, reconcileLine } from "@/domain/line/model";
+import { reconstructLineText } from "@/domain/line/reconstruct-text";
 import { mergeWordsIntoTrack } from "@/domain/word/merge-track";
 import { computeByGroupId, expandSelectionToGroupmates } from "@/domain/word/syllable-groups";
 import type { WordTiming } from "@/domain/word/timing";
+import { getSplitCharacter } from "@/utils/split-character";
 import { resolveOverlapsForward, trimTrailingSpaceFromLast } from "@/utils/word-spaces";
 import { applySiblingWords } from "@/utils/word-diff";
 
@@ -11,6 +14,14 @@ import { applySiblingWords } from "@/utils/word-diff";
 type ExplicitTarget = { lineId: string; field: "words" | "backgroundWords"; wordIndex: number };
 
 // -- Helpers ------------------------------------------------------------------
+
+// A field-targeted word write that keeps background provenance coherent: writing
+// the backgroundWords track is a user edit, so it routes through the funnel and
+// stamps source "manual". A main-words write carries no provenance.
+function writeFieldWords(line: LyricLine, field: "words" | "backgroundWords", words: WordTiming[]): LyricLine {
+  if (field === "backgroundWords") return reconcileLine({ ...line, ...manualBackgroundWordEdit(words) });
+  return reconcileLine({ ...line, words });
+}
 
 function expandTargetsToSyllableGroups(targets: ExplicitTarget[], linesById: Map<string, LyricLine>): ExplicitTarget[] {
   const byLineField = new Map<string, { lineId: string; field: "words" | "backgroundWords"; indices: number[] }>();
@@ -43,11 +54,11 @@ function applyExplicitTargetToLines(
 
   return lines.map((line) => {
     if (line.id === lineId) {
-      return { ...line, [field]: newWords };
+      return writeFieldWords(line, field, newWords);
     }
     if (isLinkedSibling(line, linkScope)) {
       const propagated = applySiblingWords(newWords, sourceBefore, line[field]);
-      if (propagated) return { ...line, [field]: propagated };
+      if (propagated) return writeFieldWords(line, field, propagated);
     }
     return line;
   });
@@ -68,11 +79,11 @@ function applyMoveToBg(line: LyricLine, wordIndices: number[], timeDelta: number
   const remainingMain = trimTrailingSpaceFromLast(line.words.filter((_, i) => !indexSet.has(i)));
   const mergedBg = resolveOverlapsForward(mergeWordsIntoTrack(line.backgroundWords ?? [], movedWords), duration);
 
-  return {
-    ...line,
-    words: remainingMain,
-    backgroundWords: mergedBg,
-  };
+  return applyBackground(reconcileLine({ ...line, words: remainingMain }), {
+    words: mergedBg,
+    text: reconstructLineText(mergedBg, getSplitCharacter()),
+    source: "manual",
+  });
 }
 
 function applyMoveFromBg(
@@ -95,12 +106,14 @@ function applyMoveFromBg(
   const remainingBg = trimTrailingSpaceFromLast(line.backgroundWords.filter((_, i) => !indexSet.has(i)));
   const mergedMain = resolveOverlapsForward(mergeWordsIntoTrack(line.words ?? [], movedWords), duration);
 
-  const hasBg = remainingBg.length > 0;
-  return reconcileLine({
-    ...line,
-    words: mergedMain,
-    backgroundWords: hasBg ? remainingBg : undefined,
-    backgroundText: hasBg ? line.backgroundText : undefined,
+  const withMain = reconcileLine({ ...line, words: mergedMain });
+  if (remainingBg.length === 0) {
+    return reconcileLine({ ...withMain, ...CLEARED_BACKGROUND });
+  }
+  return applyBackground(withMain, {
+    words: remainingBg,
+    text: reconstructLineText(remainingBg, getSplitCharacter()),
+    source: "manual",
   });
 }
 
@@ -162,7 +175,7 @@ function applyMergeSyllableGroup(
     }
     if (!changed) return line;
     mutated = true;
-    return reconcileLine({ ...line, [field]: collapsed });
+    return writeFieldWords(line, field, collapsed);
   });
   if (!mutated) return null;
   return newLines;

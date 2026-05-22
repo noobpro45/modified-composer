@@ -48,6 +48,32 @@ function commitHistory(
   };
 }
 
+function commitPendingEdit(state: ProjectState, baseline: LyricLine[], baselineWasDirty = false) {
+  if (!state.isDirtySinceHistory) return {};
+  const newHistory = state.history.slice(0, state.historyIndex + 1);
+  // Seed the pre-run baseline when a non-history mutation dirtied the store
+  // before the run, otherwise undo would skip straight past it.
+  if (newHistory.length === 0 || baselineWasDirty) {
+    newHistory.push({
+      lines: structuredClone(baseline),
+      groups: structuredClone(state.groups),
+      timestamp: Date.now(),
+    });
+  }
+  newHistory.push({
+    lines: structuredClone(state.lines),
+    groups: structuredClone(state.groups),
+    timestamp: Date.now(),
+  });
+  if (newHistory.length > MAX_HISTORY_SIZE) newHistory.shift();
+  return {
+    isDirty: true,
+    isDirtySinceHistory: false,
+    history: newHistory,
+    historyIndex: newHistory.length - 1,
+  };
+}
+
 // -- Exports ------------------------------------------------------------------
 
-export { commitHistory };
+export { commitHistory, commitPendingEdit, MAX_HISTORY_SIZE };

@@ -105,11 +105,12 @@ interface HistoryActions {
   clearHistory: () => void;
   markDirty: () => void;
   markClean: () => void;
+  commitPendingLineEdit: (baseline: LyricLine[], baselineWasDirty?: boolean) => void;
 }
 
 interface LineActions {
   setLines: (lines: LyricLine[]) => void;
-  setLinesWithHistory: (lines: LyricLine[]) => void;
+  setLinesWithHistory: (lines: LyricLine[], groups?: LinkGroup[]) => void;
   updateLine: (id: string, updates: Partial<LyricLine>, options?: { deriveText?: boolean }) => void;
   updateLineWithHistory: (id: string, updates: Partial<LyricLine>, options?: { deriveText?: boolean }) => void;
   updateLinesWithHistory: (

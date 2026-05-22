@@ -1,3 +1,5 @@
+import { applyBackground } from "@/domain/line/background";
+import type { BackgroundSource } from "@/domain/line/background";
 import { isLinked } from "@/domain/instance/predicates";
 import type { LyricLine } from "@/domain/line/model";
 import { reconcileLine } from "@/domain/line/model";
@@ -114,23 +116,27 @@ function extractInlineWordSynced(line: LyricLine, classified: LineClassification
   const trimmedSurvivors = survivors.map((word, i) =>
     i === survivors.length - 1 ? { ...word, text: word.text.replace(/ +$/, "") } : word,
   );
-  return reconcileLine({
-    ...line,
-    words: trimmedSurvivors,
-    text: reconstructLineText(trimmedSurvivors, splitChar),
-    backgroundText: joinBackgroundText(line.backgroundText, classified.bgText),
-  });
+  const base = line.backgroundTextSource === "extraction" ? undefined : line.backgroundText;
+  return applyBackground(
+    reconcileLine({
+      ...line,
+      words: trimmedSurvivors,
+      text: reconstructLineText(trimmedSurvivors, splitChar),
+    }),
+    { text: joinBackgroundText(base, classified.bgText), source: base ? "manual" : "extraction" },
+  );
 }
 
 function extractInlineFromLine(line: LyricLine): LyricLine {
   const classified = classifyLine(line.text);
   if (classified.kind !== "inline") return line;
   if (isWordSynced(line)) return extractInlineWordSynced(line, classified);
-  return {
-    ...line,
-    text: classified.mainText,
-    backgroundText: joinBackgroundText(line.backgroundText, classified.bgText),
-  };
+  if (line.backgroundWords && line.backgroundWords.length > 0) return line;
+  const base = line.backgroundTextSource === "extraction" ? undefined : line.backgroundText;
+  return applyBackground(
+    { ...line, text: classified.mainText },
+    { text: joinBackgroundText(base, classified.bgText), source: base ? "manual" : "extraction" },
+  );
 }
 
 // -- Whole-list transform -----------------------------------------------------
@@ -146,35 +152,75 @@ function carriedBackgroundWords(standalone: LyricLine, bgText: string): WordTimi
   return null;
 }
 
-function mergeStandaloneInto(prev: LyricLine, standalone: LyricLine, bgText: string): LyricLine | null {
+function mergeStandaloneInto(
+  prev: LyricLine,
+  standalone: LyricLine,
+  bgText: string,
+  prevMergedThisPass: boolean,
+): LyricLine | null {
+  // On re-paste, prev's extraction-sourced background is stale output from a
+  // prior pass, so the standalone line replaces it. Manual background is kept.
+  // Extraction-sourced background produced earlier in this same pass (an
+  // already-merged standalone) is fresh, so further standalones append to it.
+  const prevIsExtraction = prev.backgroundTextSource === "extraction";
+  const prevIsStaleExtraction = prevIsExtraction && !prevMergedThisPass;
+  const baseText = prevIsStaleExtraction ? undefined : prev.backgroundText;
+  const baseWords = prevIsStaleExtraction ? undefined : prev.backgroundWords;
   const carried = carriedBackgroundWords(standalone, bgText);
-  const prevBgWords = prev.backgroundWords;
+
+  // Source for a result that keeps the prev base: a surviving extraction base
+  // is necessarily fresh same-pass output (stale extraction was dropped above),
+  // so it stays extraction; manual or legacy-undefined stays manual.
+  const keptBaseSource: BackgroundSource = prevIsExtraction ? "extraction" : "manual";
 
   if (carried && carried.length > 0) {
-    if (prevBgWords && prevBgWords.length > 0) {
-      const combined = [...prevBgWords, ...carried];
-      return { ...prev, backgroundWords: combined, backgroundText: reconstructLineText(combined, getSplitCharacter()) };
+    if (baseWords && baseWords.length > 0) {
+      const combined = [...baseWords, ...carried];
+      return applyBackground(prev, {
+        words: combined,
+        text: reconstructLineText(combined, getSplitCharacter()),
+        source: keptBaseSource,
+      });
     }
-    if (!prev.backgroundText) {
-      return { ...prev, backgroundWords: carried, backgroundText: reconstructLineText(carried, getSplitCharacter()) };
+    if (!baseText) {
+      return applyBackground(prev, {
+        words: carried,
+        text: reconstructLineText(carried, getSplitCharacter()),
+        source: "extraction",
+      });
     }
-    return { ...prev, backgroundText: joinBackgroundText(prev.backgroundText, bgText) };
+    return applyBackground(prev, { text: joinBackgroundText(baseText, bgText), source: keptBaseSource });
   }
 
-  if (prevBgWords && prevBgWords.length > 0) return null;
-  return { ...prev, backgroundText: joinBackgroundText(prev.backgroundText, bgText) };
+  if (baseWords && baseWords.length > 0) return null;
+  return applyBackground(prev, {
+    text: joinBackgroundText(baseText, bgText),
+    source: baseText ? keptBaseSource : "extraction",
+  });
 }
 
 function extractBackgroundVocals(lines: LyricLine[], options: ExtractOptions): LyricLine[] {
   const result: LyricLine[] = [];
+  // Result indices whose extraction-sourced background was written during this
+  // pass. Such content is fresh, so a later standalone appends to it; an
+  // extraction-sourced background carried in unchanged is stale prior output
+  // that a standalone replaces instead.
+  const freshExtractionIndices = new Set<number>();
   for (const line of lines) {
     const classified = classifyLine(line.text);
     if (classified.kind === "inline") {
-      result.push(extractInlineFromLine(line));
+      const extracted = extractInlineFromLine(line);
+      result.push(extracted);
+      // extracted === line means nothing was extracted; such a pass-through
+      // line may carry stale prior-pass provenance and must not count as fresh.
+      if (extracted !== line && extracted.backgroundTextSource === "extraction") {
+        freshExtractionIndices.add(result.length - 1);
+      }
       continue;
     }
     if (classified.kind === "standalone" && options.mergeStandaloneLines) {
-      const prev = result[result.length - 1];
+      const prevIndex = result.length - 1;
+      const prev = result[prevIndex];
       if (
         prev &&
         prev.text.trim().length > 0 &&
@@ -182,9 +228,10 @@ function extractBackgroundVocals(lines: LyricLine[], options: ExtractOptions): L
         !isLinked(prev) &&
         !isLinked(line)
       ) {
-        const merged = mergeStandaloneInto(prev, line, classified.bgText);
+        const merged = mergeStandaloneInto(prev, line, classified.bgText, freshExtractionIndices.has(prevIndex));
         if (merged) {
-          result[result.length - 1] = merged;
+          result[prevIndex] = merged;
+          if (merged.backgroundTextSource === "extraction") freshExtractionIndices.add(prevIndex);
           continue;
         }
       }
