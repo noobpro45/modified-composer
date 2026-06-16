@@ -1,4 +1,7 @@
 import { useAudioStore } from "@/stores/audio";
+import { useSettingsStore } from "@/stores/settings";
+import { cn } from "@/utils/cn";
+import { snapTimeToOnset } from "@/views/timeline/snap-marker-math";
 import { useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
 import WavesurferPlayer from "@wavesurfer/react";
 import { useCallback, useEffect, useState } from "react";
@@ -13,6 +16,7 @@ const TimelineWaveform: React.FC = () => {
   const seekTo = useAudioStore((s) => s.seekTo);
 
   const zoom = useTimelineStore((s) => s.zoom);
+  const markerMode = useTimelineStore((s) => s.markerMode);
 
   const [ws, setWs] = useState<WaveSurfer | null>(null);
 
@@ -33,17 +37,45 @@ const TimelineWaveform: React.FC = () => {
     ws.zoom(zoom);
   }, [ws, zoom]);
 
-  // Handle click to seek
-  const seekToClickedPosition = useCallback(
+  const timeFromClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      return (x / totalWidth) * duration;
+    },
+    [duration, totalWidth],
+  );
+
+  const addSnappedPoint = useCallback((time: number) => {
+    const { zoom: currentZoom, vocalOnsetSnapPoints, addCustomSnapPoint } = useTimelineStore.getState();
+    const { vocalOnsetSnap, timelineSnapThreshold } = useSettingsStore.getState();
+    const onsets = vocalOnsetSnap ? vocalOnsetSnapPoints : [];
+    addCustomSnapPoint(snapTimeToOnset(time, onsets, currentZoom, timelineSnapThreshold));
+  }, []);
+
+  const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       e.stopPropagation();
       if (!duration || totalWidth <= 0) return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const time = (x / totalWidth) * duration;
+      const time = timeFromClick(e);
+      if (useTimelineStore.getState().markerMode) {
+        if (e.detail > 1) return;
+        addSnappedPoint(time);
+        return;
+      }
       seekTo(time);
     },
-    [duration, totalWidth, seekTo],
+    [duration, totalWidth, seekTo, timeFromClick, addSnappedPoint],
+  );
+
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      e.stopPropagation();
+      if (!duration || totalWidth <= 0) return;
+      if (useTimelineStore.getState().markerMode) return;
+      addSnappedPoint(timeFromClick(e));
+    },
+    [duration, totalWidth, timeFromClick, addSnappedPoint],
   );
 
   const onDestroy = useCallback(() => setWs(null), []);
@@ -95,14 +127,18 @@ const TimelineWaveform: React.FC = () => {
       <div
         role="button"
         tabIndex={-1}
-        aria-label="Seek to position"
-        className="absolute top-0 left-0 z-10 cursor-pointer"
+        aria-label={markerMode ? "Place snap point" : "Seek to position"}
+        className={cn(
+          "absolute top-0 left-0 z-10 transition-shadow duration-200 ease-out",
+          markerMode ? "waveform-armed" : "cursor-pointer",
+        )}
         key="waveform-click-layer"
         style={{
           width: totalWidth,
           height: WAVEFORM_HEIGHT,
         }}
-        onClick={seekToClickedPosition}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         onKeyDown={() => {}}
       />
     </div>
