@@ -303,6 +303,36 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     description: "Toggle marker mode",
     defaultBinding: { key: "i" },
   },
+  {
+    id: "timeline.dropSnapMarkerAtPlayhead",
+    scope: "timeline",
+    description: "Drop snap marker at playhead",
+    defaultBinding: { key: "i", shift: true },
+  },
+  {
+    id: "timeline.jumpPrevSnapPoint",
+    scope: "timeline",
+    description: "Jump to previous snap point",
+    defaultBinding: { key: "ArrowLeft", shift: true },
+  },
+  {
+    id: "timeline.jumpNextSnapPoint",
+    scope: "timeline",
+    description: "Jump to next snap point",
+    defaultBinding: { key: "ArrowRight", shift: true },
+  },
+  {
+    id: "timeline.jumpPrevSnapPointFine",
+    scope: "timeline",
+    description: "Jump to previous snap point or onset",
+    defaultBinding: { key: "ArrowLeft", shift: true, alt: true },
+  },
+  {
+    id: "timeline.jumpNextSnapPointFine",
+    scope: "timeline",
+    description: "Jump to next snap point or onset",
+    defaultBinding: { key: "ArrowRight", shift: true, alt: true },
+  },
 ];
 
 // -- Exports ------------------------------------------------------------------

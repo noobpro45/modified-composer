@@ -2,6 +2,7 @@ import type { Agent } from "@/domain/agent/model";
 import type { LineTemplate, LinkGroup } from "@/domain/group/template";
 import type { LyricLine } from "@/domain/line/model";
 import type { ProjectMetadata } from "@/domain/project/metadata";
+import type { SnapPoint } from "@/domain/snap-point/model";
 import type { WordTiming } from "@/domain/word/timing";
 
 // -- Store-local Types --------------------------------------------------------
@@ -23,6 +24,7 @@ const DEFAULT_SYLLABLE_SPLIT_DEFAULTS: SyllableSplitDefaults = {
 interface HistoryEntry {
   lines: LyricLine[];
   groups: LinkGroup[];
+  customSnapPoints: SnapPoint[];
   timestamp: number;
 }
 
@@ -55,6 +57,10 @@ interface UiState {
 interface DismissalsState {
   dismissedSuggestions: string[];
   dismissedExplicitSuggestions: string[];
+}
+
+interface SnapPointsState {
+  customSnapPoints: SnapPoint[];
 }
 
 interface HistoryState {
@@ -97,6 +103,15 @@ interface DismissalActions {
   dismissExplicitSuggestion: (fingerprint: string) => void;
   setDismissedExplicitSuggestions: (fingerprints: string[]) => void;
   clearDismissedExplicitSuggestions: () => void;
+}
+
+interface SnapPointActions {
+  setCustomSnapPoints: (points: (SnapPoint | number)[]) => void;
+  addCustomSnapPoint: (time: number) => void;
+  removeCustomSnapPoint: (id: string) => void;
+  moveCustomSnapPoint: (id: string, time: number) => void;
+  commitSnapPointDrag: (baseline: SnapPoint[]) => void;
+  clearCustomSnapPoints: () => void;
 }
 
 interface HistoryActions {
@@ -161,12 +176,20 @@ interface GroupActions {
 
 // -- Composed Store -----------------------------------------------------------
 
-type ProjectState = MetadataState & AgentsState & LinesState & GroupsState & UiState & DismissalsState & HistoryState;
+type ProjectState = MetadataState &
+  AgentsState &
+  LinesState &
+  GroupsState &
+  UiState &
+  DismissalsState &
+  SnapPointsState &
+  HistoryState;
 
 type ProjectActions = MetadataActions &
   AgentActions &
   UiActions &
   DismissalActions &
+  SnapPointActions &
   HistoryActions &
   LineActions &
   GroupActions;
@@ -185,11 +208,13 @@ export type {
   GroupsState,
   UiState,
   DismissalsState,
+  SnapPointsState,
   HistoryState,
   MetadataActions,
   AgentActions,
   UiActions,
   DismissalActions,
+  SnapPointActions,
   HistoryActions,
   LineActions,
   GroupActions,

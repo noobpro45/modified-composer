@@ -31,6 +31,35 @@ describe("SHORTCUT_DEFINITIONS", () => {
     expect(markerMode?.defaultBinding.mod).toBeUndefined();
   });
 
+  it("registers the drop-marker-at-playhead shortcut with default Shift+I in the timeline scope", () => {
+    const dropMarker = SHORTCUT_DEFINITIONS.find((d) => d.id === "timeline.dropSnapMarkerAtPlayhead");
+
+    expect(dropMarker).toBeDefined();
+    expect(dropMarker?.scope).toBe("timeline");
+    expect(dropMarker?.defaultBinding.key).toBe("i");
+    expect(dropMarker?.defaultBinding.shift).toBe(true);
+    expect(dropMarker?.defaultBinding.alt).toBeUndefined();
+    expect(dropMarker?.defaultBinding.ctrl).toBeUndefined();
+    expect(dropMarker?.defaultBinding.meta).toBeUndefined();
+    expect(dropMarker?.defaultBinding.mod).toBeUndefined();
+  });
+
+  it("registers the four snap-point jump shortcuts with their exact default bindings in the timeline scope", () => {
+    const expectedBindings: Record<string, ShortcutBinding> = {
+      "timeline.jumpPrevSnapPoint": { key: "ArrowLeft", shift: true },
+      "timeline.jumpNextSnapPoint": { key: "ArrowRight", shift: true },
+      "timeline.jumpPrevSnapPointFine": { key: "ArrowLeft", shift: true, alt: true },
+      "timeline.jumpNextSnapPointFine": { key: "ArrowRight", shift: true, alt: true },
+    };
+
+    for (const [id, binding] of Object.entries(expectedBindings)) {
+      const definition = SHORTCUT_DEFINITIONS.find((d) => d.id === id);
+      expect(definition, `missing definition for ${id}`).toBeDefined();
+      expect(definition?.scope).toBe("timeline");
+      expect(definition?.defaultBinding).toEqual(binding);
+    }
+  });
+
   describe("invariants", () => {
     it("has a unique id for every definition", () => {
       const ids = SHORTCUT_DEFINITIONS.map((d) => d.id);

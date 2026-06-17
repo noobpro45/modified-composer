@@ -41,6 +41,7 @@ interface TimelineState {
   editingWord: EditingWord | null;
   rollingEditMode: boolean;
   markerMode: boolean;
+  hoveredSnapPointId: string | null;
   collapsedInstances: Record<string, boolean>;
   pingingGroupId: string | null;
   renamingGroupId: string | null;
@@ -52,7 +53,6 @@ interface TimelineState {
   vocalOnsetSnapPoints: number[];
   vocalOnsetDetectionStatus: "idle" | "processing" | "error";
   vocalOnsetDetectionError: string | null;
-  customSnapPoints: number[];
 }
 
 interface TimelineActions {
@@ -77,6 +77,7 @@ interface TimelineActions {
   clearEditingWord: () => void;
   toggleRollingEditMode: () => void;
   toggleMarkerMode: () => void;
+  setHoveredSnapPointId: (id: string | null) => void;
   setInstanceCollapsed: (key: string, isCollapsed: boolean) => void;
   toggleInstanceCollapsed: (key: string) => void;
   setPingingGroupId: (groupId: string | null) => void;
@@ -87,11 +88,6 @@ interface TimelineActions {
   setSnappedAnchorTime: (t: number | null) => void;
   setVocalOnsetSnapPoints: (points: number[]) => void;
   setVocalOnsetDetectionStatus: (status: "idle" | "processing" | "error", error?: string | null) => void;
-  setCustomSnapPoints: (points: number[]) => void;
-  addCustomSnapPoint: (time: number) => void;
-  removeCustomSnapPoint: (index: number) => void;
-  moveCustomSnapPoint: (index: number, time: number) => void;
-  clearCustomSnapPoints: () => void;
 }
 
 // -- Constants -----------------------------------------------------------------
@@ -126,6 +122,7 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     editingWord: null,
     rollingEditMode: settings.defaultRollingEdit,
     markerMode: false,
+    hoveredSnapPointId: null,
     collapsedInstances: {},
     pingingGroupId: null,
     renamingGroupId: null,
@@ -137,7 +134,6 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     vocalOnsetSnapPoints: [],
     vocalOnsetDetectionStatus: "idle",
     vocalOnsetDetectionError: null,
-    customSnapPoints: [],
 
     setZoom: (zoom) => set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
     zoomIn: () => set((s) => ({ zoom: Math.min(MAX_ZOOM, s.zoom + ZOOM_STEP) })),
@@ -166,6 +162,7 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     clearEditingWord: () => set({ editingWord: null }),
     toggleRollingEditMode: () => set((s) => ({ rollingEditMode: !s.rollingEditMode })),
     toggleMarkerMode: () => set((s) => ({ markerMode: !s.markerMode })),
+    setHoveredSnapPointId: (hoveredSnapPointId) => set({ hoveredSnapPointId }),
     setInstanceCollapsed: (key, isCollapsed) =>
       set((s) => ({ collapsedInstances: { ...s.collapsedInstances, [key]: isCollapsed } })),
     toggleInstanceCollapsed: (key) =>
@@ -183,19 +180,6 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
       }),
     setVocalOnsetDetectionStatus: (vocalOnsetDetectionStatus, error = null) =>
       set({ vocalOnsetDetectionStatus, vocalOnsetDetectionError: error }),
-    setCustomSnapPoints: (points) =>
-      set({
-        customSnapPoints: points.filter((point) => Number.isFinite(point) && point >= 0).toSorted((a, b) => a - b),
-      }),
-    addCustomSnapPoint: (time) => get().setCustomSnapPoints([...get().customSnapPoints, time]),
-    removeCustomSnapPoint: (index) =>
-      get().setCustomSnapPoints(get().customSnapPoints.filter((_, idx) => idx !== index)),
-    moveCustomSnapPoint: (index, time) => {
-      const points = get().customSnapPoints;
-      if (index < 0 || index >= points.length) return;
-      get().setCustomSnapPoints(points.map((point, idx) => (idx === index ? time : point)));
-    },
-    clearCustomSnapPoints: () => get().setCustomSnapPoints([]),
   };
 });
 

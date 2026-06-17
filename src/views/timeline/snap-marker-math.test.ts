@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  adjacentSnapPoint,
   computeCoveredOnsets,
-  findInsertedValue,
   isTimeOnOnset,
   snapTimeToOnset,
 } from "@/views/timeline/snap-marker-math";
@@ -119,58 +119,88 @@ describe("computeCoveredOnsets", () => {
   });
 });
 
-describe("findInsertedValue", () => {
-  it("returns the appended value", () => {
-    expect(findInsertedValue([1, 3], [1, 3, 5])).toBe(5);
+describe("adjacentSnapPoint", () => {
+  it("returns the smallest point strictly greater than current when going next", () => {
+    expect(adjacentSnapPoint([1, 5, 12], 5, 1)).toBe(12);
   });
 
-  it("returns the middle-inserted value", () => {
-    expect(findInsertedValue([1, 3], [1, 2, 3])).toBe(2);
+  it("returns the largest point strictly less than current when going prev", () => {
+    expect(adjacentSnapPoint([1, 5, 12], 5, -1)).toBe(1);
   });
 
-  it("returns the prepended value", () => {
-    expect(findInsertedValue([2, 3], [1, 2, 3])).toBe(1);
+  it("finds the next point from a time between two points", () => {
+    expect(adjacentSnapPoint([1, 5, 12], 4, 1)).toBe(5);
   });
 
-  it("returns null on a move (same length, one value changed)", () => {
-    expect(findInsertedValue([2, 4], [4, 6])).toBeNull();
-  });
-
-  it("returns null on a delete (shorter)", () => {
-    expect(findInsertedValue([1, 2, 3], [1, 3])).toBeNull();
-  });
-
-  it("returns null when nothing changed", () => {
-    expect(findInsertedValue([1, 2, 3], [1, 2, 3])).toBeNull();
+  it("finds the prev point from a time between two points", () => {
+    expect(adjacentSnapPoint([1, 5, 12], 6, -1)).toBe(5);
   });
 
   describe("edge cases", () => {
-    it("returns null for empty to empty", () => {
-      expect(findInsertedValue([], [])).toBeNull();
+    it("returns null when there is no point ahead", () => {
+      expect(adjacentSnapPoint([1, 5, 12], 12, 1)).toBeNull();
     });
 
-    it("returns the only value when adding the first point", () => {
-      expect(findInsertedValue([], [4])).toBe(4);
+    it("returns null when there is no point behind", () => {
+      expect(adjacentSnapPoint([1, 5, 12], 1, -1)).toBeNull();
     });
 
-    it("returns null when the array grows by more than one", () => {
-      expect(findInsertedValue([1], [1, 2, 3])).toBeNull();
+    it("returns null for an empty array going next", () => {
+      expect(adjacentSnapPoint([], 5, 1)).toBeNull();
     });
 
-    it("returns null when count rises by one but no value is genuinely new", () => {
-      // A duplicate of an existing value: next-minus-prev is empty, so no fresh value.
-      expect(findInsertedValue([2, 2], [2, 2, 2])).toBeNull();
+    it("returns null for an empty array going prev", () => {
+      expect(adjacentSnapPoint([], 5, -1)).toBeNull();
     });
 
-    it("returns the inserted value at the timeline origin", () => {
-      expect(findInsertedValue([2], [0, 2])).toBe(0);
+    it("skips a point exactly on current and returns the next distinct point", () => {
+      expect(adjacentSnapPoint([1, 5, 12], 5, 1)).toBe(12);
     });
 
-    it("treats a non-trivial first render (prev seeded to current) as no insertion", () => {
-      // When the prev-ref is initialized to the initial array, the first diff is
-      // identical, so nothing is flagged new on mount.
-      const initial = [1, 4, 7];
-      expect(findInsertedValue(initial, initial)).toBeNull();
+    it("skips a point exactly on current going prev and returns the previous distinct point", () => {
+      expect(adjacentSnapPoint([1, 5, 12], 5, -1)).toBe(1);
+    });
+
+    it("skips a point within epsilon of current going next", () => {
+      expect(adjacentSnapPoint([5, 12], 5.00005, 1)).toBe(12);
+    });
+
+    it("skips a point within epsilon of current going prev", () => {
+      expect(adjacentSnapPoint([1, 5], 4.99995, -1)).toBe(1);
+    });
+
+    it("returns the first point for a current before all points going next", () => {
+      expect(adjacentSnapPoint([1, 5, 12], 0, 1)).toBe(1);
+    });
+
+    it("returns the last point for a current after all points going prev", () => {
+      expect(adjacentSnapPoint([1, 5, 12], 20, -1)).toBe(12);
+    });
+
+    it("returns null for a current after all points going next", () => {
+      expect(adjacentSnapPoint([1, 5, 12], 20, 1)).toBeNull();
+    });
+
+    it("returns null for a current before all points going prev", () => {
+      expect(adjacentSnapPoint([1, 5, 12], 0, -1)).toBeNull();
+    });
+
+    it("handles a single-element array going next", () => {
+      expect(adjacentSnapPoint([5], 4, 1)).toBe(5);
+      expect(adjacentSnapPoint([5], 6, 1)).toBeNull();
+    });
+
+    it("handles a single-element array going prev", () => {
+      expect(adjacentSnapPoint([5], 6, -1)).toBe(5);
+      expect(adjacentSnapPoint([5], 4, -1)).toBeNull();
+    });
+
+    it("returns the first point for a negative current going next", () => {
+      expect(adjacentSnapPoint([0, 3, 8], -2, 1)).toBe(0);
+    });
+
+    it("handles the timeline origin as a target", () => {
+      expect(adjacentSnapPoint([0, 3], -0.5, 1)).toBe(0);
     });
   });
 });

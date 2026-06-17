@@ -91,8 +91,50 @@ describe("TimelineSection", () => {
     expect(screen.container.textContent).toContain("custom snap points");
   });
 
-  it("notes that snap points are session-only", async () => {
+  it("notes that snap points persist with the project", async () => {
     const screen = await render(<TimelineSection />);
-    expect(screen.container.textContent).toContain("clear on reload");
+    expect(screen.container.textContent).toContain("saved with your project");
+  });
+
+  it("documents deleting a hovered pin with the keyboard", async () => {
+    const screen = await render(<TimelineSection />);
+    expect(screen.container.textContent).toContain("press Delete (or Backspace) while hovering");
+  });
+
+  it("documents Alt+click pin placement with marker mode off", async () => {
+    const screen = await render(<TimelineSection />);
+    expect(screen.container.textContent).toContain("place one without arming the mode");
+    expect(screen.container.textContent).toContain("a plain click on the waveform just moves the playhead");
+  });
+
+  it("documents dropping a pin at the playhead", async () => {
+    const screen = await render(<TimelineSection />);
+    expect(screen.container.textContent).toContain("drop a pin at the exact playhead position");
+  });
+
+  it("documents jumping the playhead between snap points", async () => {
+    const screen = await render(<TimelineSection />);
+    expect(screen.container.textContent).toContain("previous or next snap point");
+    expect(screen.container.textContent).toContain("every detected vocal onset");
+  });
+
+  it("documents the snap playhead to points setting", async () => {
+    const screen = await render(<TimelineSection />);
+    expect(screen.container.textContent).toContain('"Snap playhead to points"');
+    expect(screen.container.textContent).toContain("never snapped");
+  });
+
+  it("renders shortcut badges inside the new snap-point list items", async () => {
+    const screen = await render(<TimelineSection />);
+    const items = Array.from(screen.container.querySelectorAll("li"));
+    const jumpItem = items.find((li) => li.textContent?.includes("previous or next snap point"));
+    expect(jumpItem?.querySelector("[data-inline-key-badge]")).not.toBeNull();
+    const dropItem = items.find((li) => li.textContent?.includes("drop a pin at the exact playhead position"));
+    expect(dropItem?.querySelector("[data-inline-key-badge]")).not.toBeNull();
+  });
+
+  it("drops the stale waveform double-click placement copy", async () => {
+    const screen = await render(<TimelineSection />);
+    expect(screen.container.textContent).not.toContain("double-click the waveform");
   });
 });

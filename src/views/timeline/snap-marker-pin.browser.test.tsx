@@ -6,12 +6,11 @@ import { SnapMarkerPin } from "@/views/timeline/snap-marker-pin";
 // -- Helpers -------------------------------------------------------------------
 
 const defaultProps = {
-  index: 0,
+  id: "pin-1",
   time: 2,
   zoom: 100,
   fadeExtent: 220,
   isDragging: false,
-  isNew: false,
   isOnOnset: false,
   onHeadPointerDown: () => {},
   onDelete: () => {},
@@ -64,13 +63,13 @@ describe("SnapMarkerPin", () => {
     expect(headEl?.classList.contains("cursor-grab")).toBe(false);
   });
 
-  it("calls onHeadPointerDown with the index when the head is pressed", async () => {
+  it("calls onHeadPointerDown with the id when the head is pressed", async () => {
     const onHeadPointerDown = vi.fn();
-    const screen = await render(<SnapMarkerPin {...defaultProps} index={3} onHeadPointerDown={onHeadPointerDown} />);
+    const screen = await render(<SnapMarkerPin {...defaultProps} id="pin-3" onHeadPointerDown={onHeadPointerDown} />);
     const headEl = head(screen.container);
     headEl?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
     expect(onHeadPointerDown).toHaveBeenCalledTimes(1);
-    expect(onHeadPointerDown.mock.calls[0][0]).toBe(3);
+    expect(onHeadPointerDown.mock.calls[0][0]).toBe("pin-3");
   });
 
   describe("tooltip", () => {
@@ -93,9 +92,9 @@ describe("SnapMarkerPin", () => {
       await expect.poll(() => tooltip()).toBeNull();
     });
 
-    it("calls onDelete with the index when the delete button is clicked", async () => {
+    it("calls onDelete with the id when the delete button is clicked", async () => {
       const onDelete = vi.fn();
-      const screen = await render(<SnapMarkerPin {...defaultProps} index={2} onDelete={onDelete} />);
+      const screen = await render(<SnapMarkerPin {...defaultProps} id="pin-2" onDelete={onDelete} />);
       const headEl = head(screen.container);
       if (headEl) await userEvent.hover(headEl);
 
@@ -106,12 +105,12 @@ describe("SnapMarkerPin", () => {
       });
       await userEvent.hover(button);
       await userEvent.click(button);
-      expect(onDelete).toHaveBeenCalledWith(2);
+      expect(onDelete).toHaveBeenCalledWith("pin-2");
     });
 
     it("regression: tooltip stays open while moving from the head onto the delete button", async () => {
       const onDelete = vi.fn();
-      const screen = await render(<SnapMarkerPin {...defaultProps} index={4} onDelete={onDelete} />);
+      const screen = await render(<SnapMarkerPin {...defaultProps} id="pin-4" onDelete={onDelete} />);
       const headEl = head(screen.container);
       if (headEl) await userEvent.hover(headEl);
 
@@ -126,7 +125,100 @@ describe("SnapMarkerPin", () => {
       await expect.poll(() => tooltip()).not.toBeNull();
 
       await userEvent.click(button);
-      expect(onDelete).toHaveBeenCalledWith(4);
+      expect(onDelete).toHaveBeenCalledWith("pin-4");
+    });
+
+    it("renders the delete button before the time label in DOM order", async () => {
+      const screen = await render(<SnapMarkerPin {...defaultProps} />);
+      const headEl = head(screen.container);
+      if (headEl) await userEvent.hover(headEl);
+
+      const tooltipEl = await vi.waitFor(() => {
+        const el = tooltip();
+        if (!el) throw new Error("tooltip not yet rendered");
+        return el;
+      });
+
+      const interactiveChildren = tooltipEl.querySelectorAll<HTMLElement>(
+        "[data-snap-marker-delete], [data-snap-marker-time-label]",
+      );
+      expect(interactiveChildren.length).toBe(2);
+      expect(interactiveChildren[0]?.hasAttribute("data-snap-marker-delete")).toBe(true);
+      expect(interactiveChildren[1]?.hasAttribute("data-snap-marker-time-label")).toBe(true);
+
+      const firstButton = tooltipEl.querySelector<HTMLButtonElement>("button");
+      expect(firstButton?.hasAttribute("data-snap-marker-delete")).toBe(true);
+    });
+
+    it("gives the delete button an enlarged hit area anchored to itself", async () => {
+      const screen = await render(<SnapMarkerPin {...defaultProps} />);
+      const headEl = head(screen.container);
+      if (headEl) await userEvent.hover(headEl);
+
+      const button = await vi.waitFor(() => {
+        const el = deleteButton();
+        if (!el) throw new Error("delete button not yet rendered");
+        return el;
+      });
+
+      expect(button.classList.contains("expanded-hit-sm")).toBe(true);
+      expect(button.classList.contains("relative")).toBe(true);
+      expect(button.classList.contains("size-4")).toBe(true);
+      expect(tooltip()?.contains(button)).toBe(true);
+      expect(timeLabel()).not.toBeNull();
+    });
+
+    it("reports hover open and close through onHoverChange", async () => {
+      const onHoverChange = vi.fn();
+      const screen = await render(<SnapMarkerPin {...defaultProps} onHoverChange={onHoverChange} />);
+      const headEl = head(screen.container);
+      if (headEl) await userEvent.hover(headEl);
+      await vi.waitFor(() => expect(onHoverChange).toHaveBeenCalledWith(defaultProps.id, true));
+
+      if (headEl) await userEvent.unhover(headEl);
+      await vi.waitFor(() => expect(onHoverChange).toHaveBeenCalledWith(defaultProps.id, false));
+    });
+
+    it("stays start-aligned with the delete control leading when there is room on the right", async () => {
+      const screen = await render(<SnapMarkerPin {...defaultProps} time={2} zoom={100} />);
+      const headEl = head(screen.container);
+      if (headEl) await userEvent.hover(headEl);
+
+      const tip = await vi.waitFor(() => {
+        const el = tooltip();
+        if (!el) throw new Error("tooltip not yet rendered");
+        return el;
+      });
+      expect(tip.getAttribute("data-snap-marker-tooltip-align")).toBe("start");
+      expect(tip.classList.contains("flex-row-reverse")).toBe(false);
+    });
+
+    it("flips to end alignment near the right edge so the delete control stays under the head", async () => {
+      const screen = await render(<SnapMarkerPin {...defaultProps} />);
+      const headEl = head(screen.container);
+      if (!headEl) throw new Error("head not rendered");
+      const nearRight = window.innerWidth - 12;
+      Object.defineProperty(headEl, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({
+          left: nearRight,
+          right: nearRight + 14,
+          top: 24,
+          bottom: 38,
+          width: 14,
+          height: 14,
+          x: nearRight,
+          y: 24,
+          toJSON: () => "",
+        }),
+      });
+
+      await userEvent.hover(headEl);
+
+      await expect.poll(() => tooltip()?.getAttribute("data-snap-marker-tooltip-align")).toBe("end");
+      expect(tooltip()?.classList.contains("flex-row-reverse")).toBe(true);
+      const firstButton = tooltip()?.querySelector("button");
+      expect(firstButton?.hasAttribute("data-snap-marker-delete")).toBe(true);
     });
   });
 
@@ -138,16 +230,16 @@ describe("SnapMarkerPin", () => {
       expect(wrapper?.getAttribute("data-snap-marker")).toBe("custom");
     });
 
-    it("flags the drop-in only when the pin is newly placed", async () => {
-      const screen = await render(<SnapMarkerPin {...defaultProps} isNew />);
-      const wrapper = screen.container.querySelector<HTMLElement>("[data-snap-marker-drop-in]");
-      expect(wrapper?.hasAttribute("data-snap-marker-new")).toBe(true);
-    });
+    it("keeps the same drop-in wrapper node across a time change (no self-remount)", async () => {
+      // The pin no longer carries a freshness key, so AnimatePresence owns enter/exit
+      // and an in-place time change reuses the same DOM node.
+      const screen = await render(<SnapMarkerPin {...defaultProps} time={2} />);
+      const before = screen.container.querySelector("[data-snap-marker-drop-in]");
 
-    it("does not flag the drop-in for an existing pin", async () => {
-      const screen = await render(<SnapMarkerPin {...defaultProps} isNew={false} />);
-      const wrapper = screen.container.querySelector<HTMLElement>("[data-snap-marker-drop-in]");
-      expect(wrapper?.hasAttribute("data-snap-marker-new")).toBe(false);
+      await screen.rerender(<SnapMarkerPin {...defaultProps} time={2.5} />);
+      const after = screen.container.querySelector("[data-snap-marker-drop-in]");
+
+      expect(after).toBe(before);
     });
 
     it("renders no flash when the pin is not on an onset", async () => {

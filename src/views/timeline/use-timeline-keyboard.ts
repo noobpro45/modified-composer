@@ -14,6 +14,8 @@ import { resolveExplicitSelectionToggle } from "@/views/timeline/explicit-select
 import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
 import { createGroupFromSelection, fillSelectionGaps, instanceToTemplate } from "@/views/timeline/group-ops";
 import { scrollToInstanceHeader } from "@/views/timeline/scroll-helpers";
+import { adjacentSnapPoint } from "@/views/timeline/snap-marker-math";
+import { normalizeTimes, snapPointTimes } from "@/domain/snap-point/model";
 import { splitLinesIntoWords } from "@/views/timeline/split-lines-into-words";
 import { mergeWordText } from "@/utils/word-merge";
 import type { WordSelection } from "@/domain/selection/model";
@@ -25,6 +27,7 @@ import { linesOfInstance } from "@/domain/instance/enumerate";
 import { isLinked } from "@/domain/instance/predicates";
 import { manualBackgroundWordEdit } from "@/domain/line/background";
 import { contiguousSelectionRun } from "@/domain/selection/contiguous";
+import { centerTimeScrollLeft, revealTimeScrollLeft } from "@/views/timeline/coords";
 import { effectiveBounds } from "@/domain/line/bounds";
 import {
   computeRowLayout,
@@ -231,7 +234,13 @@ function useTimelineKeyboard(
       }
 
       if (e.key === "Delete" || e.key === "Backspace") {
-        const { selectedWords } = useTimelineStore.getState();
+        const { hoveredSnapPointId, selectedWords } = useTimelineStore.getState();
+        if (hoveredSnapPointId !== null) {
+          e.preventDefault();
+          useProjectStore.getState().removeCustomSnapPoint(hoveredSnapPointId);
+          useTimelineStore.getState().setHoveredSnapPointId(null);
+          return;
+        }
         if (selectedWords.length > 0) {
           e.preventDefault();
           handleDelete();
@@ -275,8 +284,7 @@ function useTimelineKeyboard(
           const currentTime = audioEl?.currentTime ?? useAudioStore.getState().currentTime;
           const { zoom, rowHeights, defaultRowHeight } = useTimelineStore.getState();
 
-          const viewportWidth = scrollContainer.clientWidth;
-          scrollContainer.scrollLeft = Math.max(0, currentTime * zoom - viewportWidth / 2 + GUTTER_WIDTH);
+          scrollContainer.scrollLeft = centerTimeScrollLeft(currentTime, zoom, scrollContainer.clientWidth);
 
           let activeLineIndex = -1;
           for (let i = 0; i < lines.length; i++) {
@@ -348,6 +356,13 @@ function useTimelineKeyboard(
           e.preventDefault();
           useTimelineStore.getState().toggleMarkerMode();
           break;
+        case "timeline.dropSnapMarkerAtPlayhead": {
+          e.preventDefault();
+          const audioEl = useAudioStore.getState().audioElement;
+          const playheadTime = audioEl?.currentTime ?? useAudioStore.getState().currentTime;
+          useProjectStore.getState().addCustomSnapPoint(playheadTime);
+          break;
+        }
         case "timeline.setWordBegin":
           e.preventDefault();
           handleSetWordTiming("begin");
@@ -682,6 +697,36 @@ function useTimelineKeyboard(
           if (Math.abs(delta) < 0.001) break;
           e.preventDefault();
           useProjectStore.getState().shiftInstance(inst.groupId, inst.instanceIdx, delta);
+          break;
+        }
+        case "timeline.jumpPrevSnapPoint":
+        case "timeline.jumpNextSnapPoint":
+        case "timeline.jumpPrevSnapPointFine":
+        case "timeline.jumpNextSnapPointFine": {
+          e.preventDefault();
+          const dir: 1 | -1 = matched.includes("Next") ? 1 : -1;
+          const fine = matched.includes("Fine");
+          const audioEl = useAudioStore.getState().audioElement;
+          const current = audioEl?.currentTime ?? useAudioStore.getState().currentTime;
+          const pins = useProjectStore.getState().customSnapPoints;
+          const onsets = fine ? useTimelineStore.getState().vocalOnsetSnapPoints : [];
+          const points = normalizeTimes([...snapPointTimes(pins), ...onsets]);
+          const target = adjacentSnapPoint(points, current, dir);
+          if (target === null) {
+            toast(fine ? "No snap point or onset that way" : "No snap point that way");
+            break;
+          }
+          useAudioStore.getState().seekTo(target);
+          const jumpScrollContainer = scrollContainerRef.current;
+          if (jumpScrollContainer) {
+            const nextScrollLeft = revealTimeScrollLeft(
+              target,
+              useTimelineStore.getState().zoom,
+              jumpScrollContainer.scrollLeft,
+              jumpScrollContainer.clientWidth,
+            );
+            if (nextScrollLeft !== null) jumpScrollContainer.scrollLeft = nextScrollLeft;
+          }
           break;
         }
       }

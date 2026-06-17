@@ -1,8 +1,10 @@
 import { useAudioStore } from "@/stores/audio";
+import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
 import { cn } from "@/utils/cn";
 import { readToken } from "@/utils/theme/read-token";
+import { snapPlayheadTime } from "@/views/timeline/playhead-snap";
 import { snapTimeToOnset } from "@/views/timeline/snap-marker-math";
 import { WAVEFORM_HEIGHT, useTimelineStore } from "@/views/timeline/timeline-store";
 import WavesurferPlayer from "@wavesurfer/react";
@@ -22,6 +24,7 @@ const TimelineWaveform: React.FC = () => {
   const markerMode = useTimelineStore((s) => s.markerMode);
 
   const [ws, setWs] = useState<WaveSurfer | null>(null);
+  const [altHeld, setAltHeld] = useState(false);
 
   const totalWidth = duration > 0 ? duration * zoom : 0;
   const waveformKey = audioElement?.src ?? "no-audio";
@@ -61,10 +64,10 @@ const TimelineWaveform: React.FC = () => {
   );
 
   const addSnappedPoint = useCallback((time: number) => {
-    const { zoom: currentZoom, vocalOnsetSnapPoints, addCustomSnapPoint } = useTimelineStore.getState();
+    const { zoom: currentZoom, vocalOnsetSnapPoints } = useTimelineStore.getState();
     const { vocalOnsetSnap, timelineSnapThreshold } = useSettingsStore.getState();
     const onsets = vocalOnsetSnap ? vocalOnsetSnapPoints : [];
-    addCustomSnapPoint(snapTimeToOnset(time, onsets, currentZoom, timelineSnapThreshold));
+    useProjectStore.getState().addCustomSnapPoint(snapTimeToOnset(time, onsets, currentZoom, timelineSnapThreshold));
   }, []);
 
   const handleClick = useCallback(
@@ -73,23 +76,16 @@ const TimelineWaveform: React.FC = () => {
       if (!duration || totalWidth <= 0) return;
       const time = timeFromClick(e);
       if (useTimelineStore.getState().markerMode) {
-        if (e.detail > 1) return;
+        if (e.detail <= 1) addSnappedPoint(time);
+        return;
+      }
+      if (e.altKey) {
         addSnappedPoint(time);
         return;
       }
-      seekTo(time);
+      seekTo(snapPlayheadTime(time, e.metaKey));
     },
-    [duration, totalWidth, seekTo, timeFromClick, addSnappedPoint],
-  );
-
-  const handleDoubleClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      e.stopPropagation();
-      if (!duration || totalWidth <= 0) return;
-      if (useTimelineStore.getState().markerMode) return;
-      addSnappedPoint(timeFromClick(e));
-    },
-    [duration, totalWidth, timeFromClick, addSnappedPoint],
+    [duration, totalWidth, timeFromClick, addSnappedPoint, seekTo],
   );
 
   const onDestroy = useCallback(() => setWs(null), []);
@@ -104,6 +100,7 @@ const TimelineWaveform: React.FC = () => {
 
   if (!source) return null;
 
+  // A bunch of heights here are -1 to account for the 1px border at the bottom of the waveform container.
   return (
     <div className="sticky ml-12 top-0 z-40 bg-composer-bg w-max">
       <div
@@ -115,7 +112,7 @@ const TimelineWaveform: React.FC = () => {
         data-waveform-loading-dots
         aria-hidden="true"
         className="absolute top-0 left-0 waveform-loading-dots pointer-events-none transition-opacity duration-200 ease-out"
-        style={{ width: totalWidth, height: WAVEFORM_HEIGHT, opacity: ws ? 0 : 1 }}
+        style={{ width: totalWidth, height: WAVEFORM_HEIGHT - 1, opacity: ws ? 0 : 1 }}
       />
       {audioElement && (
         <div data-waveform-fade className="transition-opacity duration-150 ease-in" style={{ opacity: ws ? 1 : 0 }}>
@@ -144,15 +141,15 @@ const TimelineWaveform: React.FC = () => {
         aria-label={markerMode ? "Place snap point" : "Seek to position"}
         className={cn(
           "absolute top-0 left-0 z-10 transition-shadow duration-200 ease-out",
-          markerMode ? "waveform-armed" : "cursor-pointer",
+          markerMode ? "waveform-armed" : altHeld ? "cursor-crosshair" : "cursor-pointer",
         )}
         key="waveform-click-layer"
         style={{
           width: totalWidth,
-          height: WAVEFORM_HEIGHT,
+          height: WAVEFORM_HEIGHT - 1,
         }}
         onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
+        onPointerMove={(e) => setAltHeld(e.altKey)}
         onKeyDown={() => {}}
       />
     </div>

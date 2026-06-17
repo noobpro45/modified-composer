@@ -6,6 +6,7 @@ import type { LinkGroup } from "@/domain/group/template";
 import type { LyricLine } from "@/domain/line/model";
 import { PROJECT_STORE_NAME, deleteFromStore, getFromStore, setInStore } from "@/lib/persistence-idb";
 import type { ProjectMetadata } from "@/domain/project/metadata";
+import type { SnapPoint } from "@/domain/snap-point/model";
 
 // -- Types --------------------------------------------------------------------
 
@@ -26,6 +27,7 @@ interface SavedProject {
   dismissedExplicitSuggestions?: string[];
   currentStem?: Stem;
   primingStripped?: boolean;
+  customSnapPoints?: (SnapPoint | number)[];
 }
 
 // -- Constants ----------------------------------------------------------------
@@ -47,6 +49,7 @@ async function saveCurrentProject(
   dismissedExplicitSuggestions: string[],
   currentStem: Stem,
   primingStripped: boolean,
+  customSnapPoints: SnapPoint[],
 ): Promise<void> {
   const audioFileName = audioSource?.kind === "file" ? audioSource.name : undefined;
   const project: SavedProject = {
@@ -64,6 +67,7 @@ async function saveCurrentProject(
     dismissedExplicitSuggestions,
     currentStem,
     primingStripped,
+    customSnapPoints,
   };
   await setInStore(PROJECT_STORE_NAME, CURRENT_PROJECT_KEY, project);
 }
@@ -117,6 +121,7 @@ function exportProjectToFile(
   syllableSplitDefaults: SyllableSplitDefaults,
   dismissedSuggestions: string[],
   dismissedExplicitSuggestions: string[],
+  customSnapPoints: SnapPoint[],
   audioFileName?: string,
 ): void {
   const project: SavedProject = {
@@ -131,6 +136,7 @@ function exportProjectToFile(
     audioFileName,
     dismissedSuggestions,
     dismissedExplicitSuggestions,
+    customSnapPoints,
   };
 
   const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });

@@ -1,3 +1,4 @@
+import { snapPointTimes } from "@/domain/snap-point/model";
 import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
@@ -49,7 +50,10 @@ function useTimelineSnap(): UseTimelineSnap {
   useTimelineStore((s) => s.zoom);
   useTimelineStore((s) => s.isBypassing);
   useTimelineStore((s) => s.vocalOnsetSnapPoints);
-  useTimelineStore((s) => s.customSnapPoints);
+  // Deliberately NOT subscribing to customSnapPoints. This hook runs in every
+  // word-track, and customSnapPoints changes on every frame of a snap-marker
+  // drag, so a reactive subscription here would re-render every word block 60+
+  // times a second. The gesture reads it via getState() in beginGesture.
 
   const ctxRef = useRef<SnapCtx>({
     anchors: [],
@@ -60,6 +64,7 @@ function useTimelineSnap(): UseTimelineSnap {
 
   const beginGesture = useCallback((args: BeginGestureArgs) => {
     const lines = useProjectStore.getState().lines;
+    const projectSnapPoints = useProjectStore.getState().customSnapPoints;
     const audio = useAudioStore.getState();
     const settings = useSettingsStore.getState();
     const timeline = useTimelineStore.getState();
@@ -71,7 +76,7 @@ function useTimelineSnap(): UseTimelineSnap {
       playhead,
       vocalOnsets,
       settings.timelineSnap,
-      timeline.customSnapPoints,
+      snapPointTimes(projectSnapPoints),
     );
     ctxRef.current.selfIds = args.selfIds;
     ctxRef.current.leaderKey = args.leaderKey;
@@ -93,7 +98,7 @@ function useTimelineSnap(): UseTimelineSnap {
     const enabled =
       settings.timelineSnap ||
       (settings.vocalOnsetSnap && timeline.vocalOnsetSnapPoints.length > 0) ||
-      timeline.customSnapPoints.length > 0;
+      useProjectStore.getState().customSnapPoints.length > 0;
     const threshold = useSettingsStore.getState().timelineSnapThreshold;
     const bypassing = useTimelineStore.getState().isBypassing;
     const zoom = timeline.zoom;

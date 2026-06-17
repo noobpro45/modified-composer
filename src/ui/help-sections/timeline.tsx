@@ -125,22 +125,20 @@ const TimelineSection: React.FC = () => (
     <div>
       <h4 className={HEADING}>Moving words across lines and tracks</h4>
       <p className={PROSE}>
-        Grab a word block and drop it on a different line, or on the background track of the same line, to relocate it.
-        Multi-select moves them as a group: every selected word follows the dragged one, keeping its relative offset.
-        Linked syllables stay together.
+        Drag any word block onto another line to move it there. It can land on a different line's main track, on a
+        background track, or on the background track of its own line. Multi-select moves the whole selection at once:
+        each word keeps its offset from the one you grabbed, and linked syllables stay joined.
       </p>
       <ul className={`${PROSE} list-disc pl-4 mt-1.5 space-y-1`}>
+        <li>Keep the word on its own line and the same drag reorders it within that row instead.</li>
         <li>
-          The drop falls back to a "reorder within the same row" when you keep it on the source line, so the same drag
-          handles both cases.
-        </li>
-        <li>
-          A drop is refused if it would overlap an existing word on the target track, if the target is line-synced (it
-          has no word slots to land in), or if it would break a linked-group instance. The toast tells you which.
-        </li>
-        <li>
-          Moves into the background track convert the word's role; the destination line picks up <strong>x-bg</strong>{" "}
+          Dropping a word onto a background track converts its role, and the destination line gets <strong>x-bg</strong>{" "}
           markup at export.
+        </li>
+        <li>
+          Two drops are refused, each with a short toast: moving a word out of a linked group (detach the line first),
+          and dropping onto a line that is still line-synced instead of split into words. A drop that would land on top
+          of an existing word just stays put.
         </li>
       </ul>
     </div>
@@ -205,15 +203,40 @@ const TimelineSection: React.FC = () => (
           <InlineKeyBadge keys={getEffectiveKeysArray("timeline.toggleMarkerMode")} /> to enter marker mode. The
           waveform cursor turns into a pin, and a single click drops a custom point where you click.
         </li>
-        <li>With marker mode off, double-click the waveform to drop a point without arming anything.</li>
+        <li>
+          With marker mode off, a plain click on the waveform just moves the playhead. Hold {ALT_KEY} and the cursor
+          turns into the same pin you get in marker mode, so you can tell a click will drop a point; click while it is
+          held to place one without arming the mode.
+        </li>
+        <li>
+          Press <InlineKeyBadge keys={getEffectiveKeysArray("timeline.dropSnapMarkerAtPlayhead")} /> to drop a pin at
+          the exact playhead position.
+        </li>
+        <li>
+          Press <InlineKeyBadge keys={getEffectiveKeysArray("timeline.jumpPrevSnapPoint")} /> /{" "}
+          <InlineKeyBadge keys={getEffectiveKeysArray("timeline.jumpNextSnapPoint")} /> to jump the playhead to the
+          previous or next snap point. These stop on your custom pins. Hold {ALT_KEY} for the finer pair{" "}
+          <InlineKeyBadge keys={getEffectiveKeysArray("timeline.jumpPrevSnapPointFine")} /> /{" "}
+          <InlineKeyBadge keys={getEffectiveKeysArray("timeline.jumpNextSnapPointFine")} />, which also stop on every
+          detected vocal onset.
+        </li>
         <li>
           Drag a pin's head to move it. With onset snapping on, releasing near a vocal onset lands the pin right on it,
           and the onset tucks behind the pin so you do not see two markers stacked.
         </li>
-        <li>Hover a pin to see its time, with an x button to delete it.</li>
         <li>
-          Snap points live in the current session. They clear on reload and are not part of the export, so treat them as
-          scratch guides while you work rather than something you save.
+          Hover a pin to see its time. The trash icon to delete it sits under the head, or press Delete (or Backspace)
+          while hovering to remove it.
+        </li>
+        <li>
+          Turn on "Snap playhead to points" in Settings, under Timeline (on by default), and clicking or dragging the
+          playhead snaps it to nearby custom pins and vocal onsets. Hold {MOD_KEY} to bypass it for one gesture.
+          Scroll-wheel scrubbing over the waveform stays smooth and is never snapped.
+        </li>
+        <li>
+          Snap points are saved with your project and come back when you reopen it. Undo and redo treat placing, moving,
+          or deleting a point like any other edit. They stay out of the exported TTML, so they never end up in the file
+          you share.
         </li>
       </ul>
     </div>
