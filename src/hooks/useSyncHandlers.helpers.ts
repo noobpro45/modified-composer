@@ -96,4 +96,3 @@ export {
   prevSyncableLine,
   triggerPulse,
 };
-export type { PreparedSyncWord, SetSyncState };
