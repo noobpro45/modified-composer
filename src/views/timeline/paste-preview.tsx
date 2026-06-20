@@ -4,6 +4,7 @@ import { useModalStackStore } from "@/stores/modal-stack";
 import { useProjectStore } from "@/stores/project";
 import type { LineTemplate } from "@/domain/group/template";
 import type { LyricLine } from "@/domain/line/model";
+import { bgWords, mainWords } from "@/domain/line/voices";
 import { boundsOverlap } from "@/domain/word/overlap";
 import { cn } from "@/utils/cn";
 import { applyPasteToLines } from "@/views/timeline/apply-paste-to-lines";
@@ -286,7 +287,7 @@ function checkOverlaps(
     if (newEnd <= newBegin) return true;
 
     const line = lines[lineIdx];
-    const wordsArray = entry.trackType === "word" ? line.words : line.backgroundWords;
+    const wordsArray = entry.trackType === "word" ? mainWords(line) : bgWords(line);
     if (!wordsArray) continue;
 
     for (const existing of wordsArray) {
@@ -328,7 +329,7 @@ function computeGhosts(
 
     let overlaps = outOfBounds;
     if (targetLine && !outOfBounds) {
-      const wordsArray = isBg ? targetLine.backgroundWords : targetLine.words;
+      const wordsArray = isBg ? bgWords(targetLine) : mainWords(targetLine);
       if (wordsArray) {
         for (const existing of wordsArray) {
           if (boundsOverlap({ begin: newBegin, end: newEnd }, existing)) {
@@ -346,7 +347,8 @@ function computeGhosts(
       trackTop = layoutEnd;
       trackHeight = defaultRowHeight;
     } else {
-      const hasBg = !!(targetLine.backgroundWords && targetLine.backgroundWords.length > 0);
+      const targetBgWords = bgWords(targetLine);
+      const hasBg = !!(targetBgWords && targetBgWords.length > 0);
       const bgHeight = hasBg ? (targetPos.height - 1) / 2 : BG_DROP_ZONE_HEIGHT;
       const mainHeight = targetPos.height - 1 - bgHeight;
       if (isBg) {
