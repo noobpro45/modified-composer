@@ -72,12 +72,21 @@ const TimelineSyllableSplitter: React.FC = () => {
   const trimmedText = target.word.text.trimEnd();
   const title = target.mode === "word" ? `Split "${trimmedText}" into words` : `Split "${trimmedText}"`;
 
+  const handleAutoSplit = useCallback(() => {
+    if (!target) return;
+    import("@/utils/auto-segment").then(({ getAutoSplitPoints }) => {
+      const points = getAutoSplitPoints(target.word.text.trimEnd());
+      setSplitPoints(points);
+    });
+  }, [target]);
+
   return (
     <Modal isOpen={isOpen} onClose={closeModal} title={title}>
       <SplitModeContent
         text={trimmedText}
         splitPoints={splitPoints}
         onToggleSplit={handleToggleSplit}
+        onAutoSplit={handleAutoSplit}
         onConfirm={confirmSplit}
         onCancel={closeModal}
         applyToAll={applyToAll}

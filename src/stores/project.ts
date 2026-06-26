@@ -8,6 +8,8 @@ import { createSnapPointsSlice } from "@/stores/project/snap-points-slice";
 import type { ProjectState, ProjectStore } from "@/stores/project/types";
 import { createUiSlice } from "@/stores/project/ui-slice";
 import { create } from "zustand";
+import type { SavedProject } from "@/lib/persistence";
+import { DEFAULT_SYLLABLE_SPLIT_DEFAULTS } from "@/stores/project/types";
 
 // -- Initial State ------------------------------------------------------------
 
@@ -31,5 +33,22 @@ const useProjectStore = create<ProjectStore>((set, get, api) => ({
 }));
 
 export { useProjectStore, INITIAL_STATE };
+
+export function loadSavedProjectToStore(project: SavedProject, path?: string) {
+  const store = useProjectStore.getState();
+  store.setMetadata(project.metadata);
+  store.setLines(project.lines);
+  store.setGroups(project.groups ?? []);
+  store.setDismissedSuggestions(project.dismissedSuggestions ?? []);
+  store.setDismissedExplicitSuggestions(project.dismissedExplicitSuggestions ?? []);
+  store.setGranularity(project.granularity);
+  store.setSyllableSplitDefaults(project.syllableSplitDefaults ?? DEFAULT_SYLLABLE_SPLIT_DEFAULTS);
+  store.setAgents(project.agents);
+  store.setCustomSnapPoints(project.customSnapPoints ?? []);
+  if (path) {
+    store.setCurrentFilePath(path);
+  }
+  store.markClean();
+}
 
 export type { GranularityMode, SimpleTab } from "@/stores/project/types";

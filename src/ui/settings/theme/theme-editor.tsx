@@ -1,4 +1,4 @@
-import { Activity, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { contrastRatio } from "@/domain/theme/color";
 import { deriveTheme } from "@/domain/theme/derive";
 import type { Scheme, Theme, TokenKey } from "@/domain/theme/model";
@@ -162,12 +162,12 @@ const ThemeEditor: React.FC<ThemeEditorProps> = ({ target, onClose }) => {
         </div>
       )}
 
-      <Activity mode={tab === "quick" ? "visible" : "hidden"}>
+      <div style={{ display: tab === "quick" ? undefined : "none" }}>
         <ThemeEditorQuick draft={draft} onTokenChange={handleTokenChange} />
-      </Activity>
-      <Activity mode={tab === "advanced" ? "visible" : "hidden"}>
+      </div>
+      <div style={{ display: tab === "advanced" ? undefined : "none" }}>
         <ThemeEditorAdvanced draft={draft} onTokenChange={handleTokenChange} />
-      </Activity>
+      </div>
 
       <div className="border-t border-composer-border pt-4">
         <ThemeShareBox draft={draft} />

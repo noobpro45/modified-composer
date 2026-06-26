@@ -25,7 +25,7 @@ import { SnapMarkersOverlay } from "@/views/timeline/snap-markers-overlay";
 import { TimelinePlayhead } from "@/views/timeline/timeline-playhead";
 import { TimelinePreviewSidebar } from "@/views/timeline/timeline-preview-sidebar";
 import { TimelineRows } from "@/views/timeline/timeline-rows";
-import { useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
+import { useTimelineStore, useVisualizerHeight } from "@/views/timeline/timeline-store";
 import { TimelineWaveform } from "@/views/timeline/timeline-waveform";
 import { useMarquee } from "@/views/timeline/use-marquee";
 import {
@@ -45,7 +45,7 @@ import { IconMusic } from "@tabler/icons-react";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useOverlayScrollbars } from "overlayscrollbars-react";
 import "overlayscrollbars/overlayscrollbars.css";
-import { Activity, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // -- Components ----------------------------------------------------------------
 
@@ -122,6 +122,7 @@ function makeDragOverlapCheck(
 const TimelinePanel: React.FC = () => {
   const source = useAudioStore((s) => s.source);
   const duration = useAudioStore((s) => s.duration);
+  const visualizerHeight = useVisualizerHeight();
   const lines = useProjectStore((s) => s.lines);
   const setLines = useProjectStore((s) => s.setLines);
   const zoom = useTimelineStore((s) => s.zoom);
@@ -173,7 +174,18 @@ const TimelinePanel: React.FC = () => {
   }, [activeDrag]);
 
   const { marqueeRect, handleMarqueeMouseDown } = useMarquee(scrollContainerRef);
-  const openLyricsModal = useCallback(() => openImportModal(), [openImportModal]);
+  const projectMetadata = useProjectStore((s) => s.metadata);
+  const openLyricsModal = useCallback(() => {
+    openImportModal({
+      prefill: {
+        track: projectMetadata?.title,
+        artist: projectMetadata?.artist,
+        album: projectMetadata?.album,
+        videoId: source?.type === "youtube" ? source.videoId : undefined,
+        durationSec: duration,
+      },
+    });
+  }, [openImportModal, projectMetadata, source, duration]);
   useTimelineKeyboard(scrollContainerRef, effectiveLines, duration, openLyricsModal);
   useTimelineWheel(scrollContainerRef, !!source && lines.length > 0);
 
@@ -216,9 +228,16 @@ const TimelinePanel: React.FC = () => {
     return () => observer.disconnect();
   }, []);
 
+  const handleScrollRef = useRef<NodeJS.Timeout | null>(null);
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
-      setScrollLeft(e.currentTarget.scrollLeft);
+      const scrollLeft = e.currentTarget.scrollLeft;
+      if (!handleScrollRef.current) {
+        handleScrollRef.current = setTimeout(() => {
+          setScrollLeft(scrollLeft);
+          handleScrollRef.current = null;
+        }, 50);
+      }
     },
     [setScrollLeft],
   );
@@ -253,7 +272,7 @@ const TimelinePanel: React.FC = () => {
       rowHeights,
       defaultRowHeight,
       collapsedInstances,
-      waveformHeight: WAVEFORM_HEIGHT,
+      waveformHeight: visualizerHeight,
       bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
       groupHeaderHeight: GROUP_HEADER_HEIGHT,
     });
@@ -458,7 +477,10 @@ const TimelinePanel: React.FC = () => {
                   }
                 }}
               >
-                <div className="absolute grid place-items-center text-xs text-composer-text-muted top-0 left-0 z-100 w-12 h-20 border-b border-r-2 border-composer-border bg-composer-bg shadow-lg">
+                <div 
+                  className="absolute grid place-items-center text-xs text-composer-text-muted top-0 left-0 z-100 w-12 border-b border-r-2 border-composer-border bg-composer-bg shadow-lg"
+                  style={{ height: visualizerHeight }}
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" className="size-4" viewBox="0 0 24 24">
                     <title>Music Icon</title>
                     <path
@@ -497,9 +519,9 @@ const TimelinePanel: React.FC = () => {
             <TimelineInfoPanel />
           </div>
 
-          <Activity mode={previewSidebarOpen ? "visible" : "hidden"}>
+          <div className="flex flex-col flex-shrink-0 h-full" style={{ display: previewSidebarOpen ? undefined : "none" }}>
             <TimelinePreviewSidebar />
-          </Activity>
+          </div>
         </div>
       </div>
 

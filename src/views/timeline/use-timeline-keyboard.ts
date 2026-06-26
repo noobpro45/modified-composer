@@ -19,7 +19,7 @@ import { normalizeTimes, snapPointTimes } from "@/domain/snap-point/model";
 import { splitLinesIntoWords } from "@/views/timeline/split-lines-into-words";
 import { mergeWordText } from "@/utils/word-merge";
 import type { WordSelection } from "@/domain/selection/model";
-import { GUTTER_WIDTH, useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
+import { GUTTER_WIDTH, useTimelineStore, getVisualizerHeight } from "@/views/timeline/timeline-store";
 import { useTimelineClipboard } from "@/views/timeline/use-timeline-clipboard";
 import { findWordsAtTime, pickNextWordAtPlayhead } from "@/views/timeline/word-at-playhead";
 import { instanceBounds } from "@/domain/instance/bounds";
@@ -116,7 +116,7 @@ function useTimelineKeyboard(
           rowHeights,
           defaultRowHeight,
           collapsedInstances,
-          waveformHeight: WAVEFORM_HEIGHT,
+          waveformHeight: getVisualizerHeight(),
           bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
           groupHeaderHeight: GROUP_HEADER_HEIGHT,
         });
@@ -128,7 +128,7 @@ function useTimelineKeyboard(
           const isRowVisible = pos.top >= visibleTop && rowBottom <= visibleBottom;
 
           if (!isRowVisible) {
-            scrollContainer.scrollTo({ top: pos.top - WAVEFORM_HEIGHT, behavior: "instant" });
+            scrollContainer.scrollTo({ top: pos.top - getVisualizerHeight(), behavior: "instant" });
           }
         }
 
@@ -303,7 +303,7 @@ function useTimelineKeyboard(
               rowHeights,
               defaultRowHeight,
               collapsedInstances,
-              waveformHeight: WAVEFORM_HEIGHT,
+              waveformHeight: getVisualizerHeight(),
               bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
               groupHeaderHeight: GROUP_HEADER_HEIGHT,
             });
@@ -315,10 +315,12 @@ function useTimelineKeyboard(
 
             if (pos) {
               const viewportHeight = scrollContainer.clientHeight;
+              const visualizerHeight = getVisualizerHeight();
+              const targetScreenY = visualizerHeight + 60;
               const rowCenter = pos.top + pos.height / 2;
               const targetTop = Math.max(
                 0,
-                Math.min(scrollContainer.scrollHeight - viewportHeight, rowCenter - viewportHeight / 2),
+                Math.min(scrollContainer.scrollHeight - viewportHeight, rowCenter - targetScreenY),
               );
               scrollContainer.scrollTo({ top: targetTop, behavior: "instant" });
             }
@@ -679,6 +681,12 @@ function useTimelineKeyboard(
           const { targets, value } = resolveExplicitSelectionToggle(useProjectStore.getState().lines, explicitSel);
           if (targets.length === 0) break;
           useProjectStore.getState().markWordsExplicit(targets, value);
+          break;
+        }
+        case "timeline.toggleRomaji": {
+          e.preventDefault();
+          const { showRomaji, setShowRomaji } = useTimelineStore.getState();
+          setShowRomaji(!showRomaji);
           break;
         }
         case "timeline.shiftInstanceToPlayhead": {

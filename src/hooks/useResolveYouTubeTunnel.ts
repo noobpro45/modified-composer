@@ -3,18 +3,9 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { flushPendingSave } from "@/lib/persistence-debounce";
 import { getPersistenceSettled } from "@/lib/persistence-settled";
-import { useEnsureAuth } from "@/hooks/useEnsureAuth";
 import { type AudioSource, useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
-import {
-  DEFAULT_COBALT_INSTANCE_ID,
-  getActiveCobaltInstance,
-  isUsingDefaultCobaltInstance,
-  useSettingsStore,
-} from "@/stores/settings";
-import { useUIStore } from "@/stores/ui";
-import { shouldShowBridgeCta } from "@/utils/bridge-cta";
-import { CobaltApiError, formatCobaltErrorForToast, getAudio, getAudioFromStandardCobalt } from "@/utils/cobalt-api";
+import { useSettingsStore } from "@/stores/settings";
 import {
   BridgeError,
   buildBridgeAudioFile,
@@ -24,8 +15,6 @@ import {
 
 // -- Constants ----------------------------------------------------------------
 
-const LOG_PREFIX = "[YouTubeTunnel]";
-const AUDIO_MIME = "audio/ogg";
 const BRIDGE_INSTANCE_ID = "__composer_bridge__";
 const BRIDGE_INSTANCE_LABEL = "Composer Bridge";
 
@@ -58,10 +47,7 @@ class TunnelError extends Error {
 
 // -- Helpers ------------------------------------------------------------------
 
-function buildAudioFile(buffer: ArrayBuffer, filename: string | undefined, videoId: string): File {
-  const safeName = (filename ?? videoId).replace(/[\\/:*?"<>|]/g, "").trim() || videoId;
-  return new File([buffer], `${safeName}.opus`, { type: AUDIO_MIME });
-}
+// -- Helpers ------------------------------------------------------------------
 
 async function fetchViaBridge(videoId: string, signal: AbortSignal): Promise<TunnelResult> {
   const baseUrl = useSettingsStore.getState().composerBridgeUrl;
@@ -85,59 +71,13 @@ async function fetchViaBridge(videoId: string, signal: AbortSignal): Promise<Tun
   }
 }
 
-async function fetchViaCobalt(
-  videoId: string,
-  signal: AbortSignal,
-  ensureAuth: () => Promise<string>,
-): Promise<TunnelResult> {
-  const instanceAtStart = getActiveCobaltInstance();
-  const wasDefault = isUsingDefaultCobaltInstance();
-
-  try {
-    let tunnelUrl: string;
-    let filename: string | undefined;
-    if (wasDefault) {
-      const jwt = await ensureAuth();
-      if (signal.aborted) throw new DOMException("aborted", "AbortError");
-      ({ tunnelUrl, filename } = await getAudio(videoId, jwt));
-    } else {
-      ({ tunnelUrl, filename } = await getAudioFromStandardCobalt(videoId));
-    }
-    if (signal.aborted) throw new DOMException("aborted", "AbortError");
-
-    const res = await fetch(tunnelUrl, { signal });
-    if (!res.ok) throw new CobaltApiError("cobalt_failed", res.status);
-    const buffer = await res.arrayBuffer();
-    if (signal.aborted) throw new DOMException("aborted", "AbortError");
-    if (buffer.byteLength === 0) throw new CobaltApiError("empty_audio", res.status);
-
-    return {
-      file: buildAudioFile(buffer, filename, videoId),
-      filename,
-      instanceLabel: instanceAtStart.label,
-      instanceId: instanceAtStart.id,
-      wasDefault,
-    };
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") throw err;
-    throw new TunnelError(err, instanceAtStart.id, instanceAtStart.label, wasDefault);
-  }
-}
-
-function fetchTunnel(videoId: string, signal: AbortSignal, ensureAuth: () => Promise<string>): Promise<TunnelResult> {
-  if (useSettingsStore.getState().experiments.youtubeBridge) {
-    return fetchViaBridge(videoId, signal);
-  }
-  return fetchViaCobalt(videoId, signal, ensureAuth);
+function fetchTunnel(videoId: string, signal: AbortSignal): Promise<TunnelResult> {
+  return fetchViaBridge(videoId, signal);
 }
 
 // -- Hook ---------------------------------------------------------------------
 
 function useResolveYouTubeTunnel(): void {
-  const ensureAuth = useEnsureAuth();
-  const ensureRef = useRef(ensureAuth);
-  ensureRef.current = ensureAuth;
-
   const source = useAudioStore((s) => s.source);
   const previousSourceRef = useRef<AudioSource>(null);
   useEffect(() => {
@@ -146,16 +86,15 @@ function useResolveYouTubeTunnel(): void {
     };
   }, [source]);
 
-  const bridgeEnabled = useSettingsStore((s) => s.experiments.youtubeBridge);
   const bridgeUrl = useSettingsStore((s) => s.composerBridgeUrl);
   const videoId = source?.type === "youtube" && !source.file ? source.videoId : null;
 
   const query = useQuery<TunnelResult>({
-    queryKey: ["youtube-tunnel", videoId, bridgeEnabled, bridgeUrl],
+    queryKey: ["youtube-tunnel", videoId, bridgeUrl],
     enabled: videoId !== null,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
-    queryFn: ({ signal }) => fetchTunnel(videoId as string, signal, () => ensureRef.current()),
+    queryFn: ({ signal }) => fetchTunnel(videoId as string, signal),
   });
 
   useEffect(() => {
@@ -186,13 +125,6 @@ function useResolveYouTubeTunnel(): void {
         project.setMetadata(metadataPatch);
         flushPendingSave();
       }
-      if (
-        data.instanceId !== BRIDGE_INSTANCE_ID &&
-        !data.wasDefault &&
-        data.instanceId !== DEFAULT_COBALT_INSTANCE_ID
-      ) {
-        useSettingsStore.getState().recordCobaltInstanceResult(data.instanceId, "success");
-      }
     });
     return () => {
       cancelled = true;
@@ -202,30 +134,18 @@ function useResolveYouTubeTunnel(): void {
   useEffect(() => {
     const err = query.error;
     if (!err || !videoId) return;
-    if (err instanceof DOMException && err.name === "AbortError") return;
-    console.error(LOG_PREFIX, "tunnel fetch failed", err);
+
     const tunnelErr = err instanceof TunnelError ? err : null;
     const cause = tunnelErr?.cause ?? err;
-    const instanceId = tunnelErr?.instanceId ?? getActiveCobaltInstance().id;
-    const instanceLabel = tunnelErr?.instanceLabel ?? getActiveCobaltInstance().label;
-    const wasDefault = tunnelErr?.wasDefault ?? isUsingDefaultCobaltInstance();
     const message =
       cause instanceof BridgeError
         ? formatBridgeErrorForToast(cause)
-        : formatCobaltErrorForToast(cause, { isDefault: wasDefault, instanceLabel });
-    if (shouldShowBridgeCta(cause)) {
-      toast.error(message, {
-        action: {
-          label: "Try Bridge",
-          onClick: () => useUIStore.getState().openSettings("bridge-section"),
-        },
-      });
-    } else {
-      toast.error(message);
-    }
-    if (instanceId !== BRIDGE_INSTANCE_ID && !wasDefault && instanceId !== DEFAULT_COBALT_INSTANCE_ID) {
-      useSettingsStore.getState().recordCobaltInstanceResult(instanceId, "error", message);
-    }
+        : cause instanceof Error
+          ? cause.message
+          : "Unknown error downloading from YouTube";
+
+    toast.error(message);
+
     const current = useAudioStore.getState().source;
     if (current?.type === "youtube" && current.videoId === videoId) {
       useAudioStore.getState().setSource(previousSourceRef.current);

@@ -2,6 +2,7 @@
 
 interface WordTiming {
   text: string;
+  romaji?: string;
   begin: number;
   end: number;
   explicit?: true;

@@ -6,7 +6,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { SnapMarkerPin } from "@/views/timeline/snap-marker-pin";
 import { computeCoveredOnsets, isTimeOnOnset } from "@/views/timeline/snap-marker-math";
 import { useSnapMarkerDrag } from "@/views/timeline/use-snap-marker-drag";
-import { GUTTER_WIDTH, useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
+import { GUTTER_WIDTH, useTimelineStore, useVisualizerHeight } from "@/views/timeline/timeline-store";
 
 // -- Types ---------------------------------------------------------------------
 
@@ -40,6 +40,7 @@ const SnapMarkersOverlay: React.FC<SnapMarkersOverlayProps> = ({ scrollContainer
   const markerMode = useTimelineStore((s) => s.markerMode);
   const showOnsets = useSettingsStore((s) => s.vocalOnsetSnap);
   const thresholdPx = useSettingsStore((s) => s.timelineSnapThreshold);
+  const visualizerHeight = useVisualizerHeight();
 
   const { draggingId, draggingTime, onHeadPointerDown } = useSnapMarkerDrag({ scrollContainerRef });
 
@@ -76,7 +77,7 @@ const SnapMarkersOverlay: React.FC<SnapMarkersOverlayProps> = ({ scrollContainer
     <div
       data-snap-markers-overlay
       className="absolute inset-0 pointer-events-none overflow-hidden select-none z-40"
-      style={{ clipPath: `inset(0 0 calc(100% - ${WAVEFORM_HEIGHT - 1}px) ${GUTTER_WIDTH}px)` }}
+      style={{ clipPath: `inset(0 0 calc(100% - ${visualizerHeight - 1}px) ${GUTTER_WIDTH}px)` }}
     >
       <div
         ref={layerRef}
@@ -97,7 +98,7 @@ const SnapMarkersOverlay: React.FC<SnapMarkersOverlayProps> = ({ scrollContainer
                 }`}
                 style={{
                   left: time * zoom,
-                  height: WAVEFORM_HEIGHT,
+                  height: visualizerHeight,
                   animationDelay: `${Math.min(index * ONSET_STAGGER_STEP_MS, ONSET_STAGGER_CAP_MS)}ms`,
                 }}
               />
@@ -112,7 +113,7 @@ const SnapMarkersOverlay: React.FC<SnapMarkersOverlayProps> = ({ scrollContainer
                 id={point.id}
                 time={point.time}
                 zoom={zoom}
-                fadeExtent={WAVEFORM_HEIGHT}
+                fadeExtent={visualizerHeight}
                 isDragging={draggingId === point.id}
                 isOnOnset={showOnsets && isTimeOnOnset(point.time, vocalOnsetSnapPoints, zoom, thresholdPx)}
                 onHeadPointerDown={onHeadPointerDown}

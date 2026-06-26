@@ -61,20 +61,31 @@ const ExportPanel: React.FC = () => {
   const displayContent = editedContent ?? generatedTtml;
   const exportContent = editedContent ?? minifiedTtml;
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     if (!exportContent) return;
 
-    const blob = new Blob([exportContent], {
-      type: "application/ttml+xml;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${metadata.title || "lyrics"}.ttml`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    if (typeof (window as any).go !== "undefined" && (window as any).go.app?.App) {
+      const suggestedName = `${metadata.title || "lyrics"}.ttml`;
+      const defaultDir = await (window as any).go.app.App.DownloadDir();
+      const targetPath = await (window as any).go.app.App.ShowTTMLSaveFileDialog(suggestedName, defaultDir);
+      
+      if (targetPath) {
+        await (window as any).go.app.App.WriteProjectFile(targetPath, exportContent);
+      }
+    } else {
+      // Fallback for web mode
+      const blob = new Blob([exportContent], {
+        type: "application/ttml+xml;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${metadata.title || "lyrics"}.ttml`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   }, [exportContent, metadata.title]);
 
   const handleCopy = useCallback(async () => {
@@ -93,12 +104,10 @@ const ExportPanel: React.FC = () => {
     setEditState(null);
   }, []);
 
-  const handleExportProject = useCallback(() => {
+  const handleExportProject = useCallback(async () => {
     const audioSource = useAudioStore.getState().source;
-    const audioFileName = audioSource?.type === "file" ? audioSource.file.name : undefined;
-    const { dismissedSuggestions, dismissedExplicitSuggestions, syllableSplitDefaults, customSnapPoints } =
-      useProjectStore.getState();
-    exportProjectToFile(
+    
+    const {
       metadata,
       agents,
       lines,
@@ -108,9 +117,35 @@ const ExportPanel: React.FC = () => {
       dismissedSuggestions,
       dismissedExplicitSuggestions,
       customSnapPoints,
-      audioFileName,
+      currentFilePath,
+    } = useProjectStore.getState();
+
+    let savedAudioSource: { kind: "file"; name: string } | { kind: "youtube"; videoId: string } | undefined;
+    if (audioSource?.type === "file") {
+      savedAudioSource = { kind: "file", name: audioSource.file.name };
+    } else if (audioSource?.type === "youtube") {
+      savedAudioSource = { kind: "youtube", videoId: audioSource.videoId };
+    }
+    
+    const path = await exportProjectToFile(
+      metadata,
+      agents,
+      lines,
+      groups,
+      granularity,
+      syllableSplitDefaults,
+      dismissedSuggestions,
+      dismissedExplicitSuggestions,
+      customSnapPoints,
+      savedAudioSource,
+      currentFilePath,
     );
-  }, [metadata, agents, lines, groups, granularity]);
+
+    if (path) {
+      useProjectStore.getState().setCurrentFilePath(path);
+      useProjectStore.getState().markClean();
+    }
+  }, []);
 
   const handleImportProject = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -230,7 +265,7 @@ const ExportPanel: React.FC = () => {
           </Button>
           <Button hasIcon variant="primary" onClick={handleDownload}>
             <IconDownload className="size-4" />
-            Download TTML
+            Save TTML
           </Button>
         </div>
       </div>

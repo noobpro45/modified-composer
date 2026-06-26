@@ -1,5 +1,5 @@
 import { useSettingsStore } from "@/stores/settings";
-import { SliderSetting, ToggleSetting } from "@/ui/settings/setting-controls";
+import { SliderSetting, ToggleSetting, SelectSetting } from "@/ui/settings/setting-controls";
 import { MOD_KEY } from "@/utils/platform";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 
@@ -7,9 +7,41 @@ import { useTimelineStore } from "@/views/timeline/timeline-store";
 
 const TimelineSection: React.FC = () => {
   const set = useSettingsStore((s) => s.set);
+  const visualizerMode = useSettingsStore((s) => s.visualizerMode);
 
   return (
     <div className="divide-y divide-composer-border">
+      <SelectSetting
+        label="Visualizer Mode"
+        description="Choose whether to show the traditional waveform or the new spectrogram."
+        settingKey="visualizerMode"
+        options={[
+          { value: "waveform", label: "Waveform" },
+          { value: "spectrogram", label: "Spectrogram" },
+        ]}
+      />
+      {visualizerMode === "spectrogram" && (
+        <>
+          <SliderSetting
+            label="Spectrogram height"
+            description="Height of the spectrogram track in pixels."
+            settingKey="spectrogramHeight"
+            min={40}
+            max={300}
+            step={10}
+            format={(v) => `${v}px`}
+          />
+          <SliderSetting
+            label="Spectrogram gain"
+            description="Contrast multiplier for the spectrogram display."
+            settingKey="spectrogramGain"
+            min={0.5}
+            max={8.0}
+            step={0.1}
+            format={(v) => `${v}x`}
+          />
+        </>
+      )}
       <SliderSetting
         label="Default zoom"
         description="Initial zoom level (px/sec) when opening the timeline."

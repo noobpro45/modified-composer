@@ -66,6 +66,16 @@ function decodeHeader(value: string | null): string | undefined {
 }
 
 async function checkBridgeHealth(baseUrl: string, signal?: AbortSignal): Promise<BridgeHealth> {
+  // If running inside Wails desktop app, we are the bridge.
+  if (typeof (window as any).go !== "undefined" && (window as any).go.app?.App) {
+    try {
+      const version = await (window as any).go.app.App.BridgeVersion();
+      return { bridge: version, ytdlp: "native", status: "ok" };
+    } catch {
+      return { bridge: "native", ytdlp: "native", status: "ok" };
+    }
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
   const composed = composeAbortSignals(signal, controller.signal);
@@ -89,7 +99,13 @@ async function getAudioFromBridge(baseUrl: string, videoId: string, signal?: Abo
   const timeoutId = setTimeout(() => controller.abort(), AUDIO_TIMEOUT_MS);
   const composed = composeAbortSignals(signal, controller.signal);
   try {
-    const res = await fetch(`${normalizeBaseUrl(baseUrl)}/audio/${encodeURIComponent(videoId)}`, {
+    // If inside Wails, use the Wails AssetServer directly instead of localhost
+    const isWails = typeof (window as any).go !== "undefined";
+    const targetUrl = isWails 
+      ? `/audio/${encodeURIComponent(videoId)}` 
+      : `${normalizeBaseUrl(baseUrl)}/audio/${encodeURIComponent(videoId)}`;
+
+    const res = await fetch(targetUrl, {
       signal: composed,
     });
     if (!res.ok) throw new BridgeError("http", `bridge audio: ${res.status}`, res.status);
@@ -118,7 +134,12 @@ async function getThumbFromBridge(baseUrl: string, videoId: string, signal?: Abo
   const timeoutId = setTimeout(() => controller.abort(), THUMB_TIMEOUT_MS);
   const composed = composeAbortSignals(signal, controller.signal);
   try {
-    const res = await fetch(`${normalizeBaseUrl(baseUrl)}/thumb/${encodeURIComponent(videoId)}`, { signal: composed });
+    const isWails = typeof (window as any).go !== "undefined";
+    const targetUrl = isWails 
+      ? `/thumb/${encodeURIComponent(videoId)}` 
+      : `${normalizeBaseUrl(baseUrl)}/thumb/${encodeURIComponent(videoId)}`;
+
+    const res = await fetch(targetUrl, { signal: composed });
     if (!res.ok) return undefined;
     const blob = await res.blob();
     return await new Promise<string>((resolve, reject) => {

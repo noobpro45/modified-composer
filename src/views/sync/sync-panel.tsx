@@ -25,12 +25,14 @@ import {
   getTotalWords,
   hasLineTiming,
 } from "@/utils/sync-helpers";
+import { Scroll } from "@/ui/scroll";
 import { ScrollableLine } from "@/views/sync/scrollable-line";
 import { type RippleTarget, SyncCarousel } from "@/views/sync/sync-carousel";
 import { TimingDisplay } from "@/views/sync/timing-display";
-import { IconLock, IconLockOpen, IconPlayerPlayFilled, IconRefresh } from "@tabler/icons-react";
+import { IconLock, IconLockOpen, IconPlayerPlayFilled, IconRefresh, IconWand } from "@tabler/icons-react";
 import { m } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Virtuoso } from "react-virtuoso";
 
 // -- Components ---------------------------------------------------------------
 
@@ -65,6 +67,8 @@ const SyncPanel: React.FC = () => {
     return counts;
   }, [lines]);
 
+  const groupsById = useMemo(() => new Map((groups ?? []).map((g) => [g.id, g])), [groups]);
+
   const [syncState, setSyncState] = useState<SyncState>({
     position: { lineIndex: 0, wordIndex: 0 },
     isActive: false,
@@ -74,6 +78,15 @@ const SyncPanel: React.FC = () => {
   const [isHolding, setIsHolding] = useState(false);
   const [rippleTarget, setRippleTarget] = useState<RippleTarget | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement | null>(null);
+  const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (scrollViewportRef.current && scrollViewportRef.current !== scrollParent) {
+      setScrollParent(scrollViewportRef.current);
+    }
+  });
+
   const rafRef = useRef<number | null>(null);
   const heldKeyCodeRef = useRef<string | null>(null);
 
@@ -154,7 +167,8 @@ const SyncPanel: React.FC = () => {
     }
 
     const update = () => {
-      const container = scrollContainerRef.current;
+      // The DOM nodes we need are inside the viewport container
+      const container = scrollViewportRef.current;
       if (!container) {
         rafRef.current = requestAnimationFrame(update);
         return;
@@ -211,6 +225,37 @@ const SyncPanel: React.FC = () => {
     },
     [granularity, lines, setLinesWithHistory, setGranularity],
   );
+
+  const handleBulkAutoSegment = useCallback(() => {
+    import("@/utils/auto-segment").then(({ getAutoSplitPoints }) => {
+      import("@/utils/word-split").then(({ splitWordIntoWords }) => {
+        let hasChanges = false;
+        const newLines = lines.map((line) => {
+          if (!line.words || line.words.length === 0) return line;
+
+          const newWords: typeof line.words = [];
+          for (const word of line.words) {
+            const splitPoints = getAutoSplitPoints(word.text.trimEnd());
+            if (splitPoints.length > 0) {
+              hasChanges = true;
+              newWords.push(...splitWordIntoWords(word, splitPoints));
+            } else {
+              newWords.push(word);
+            }
+          }
+
+          if (newWords.length !== line.words.length) {
+            return { ...line, words: newWords };
+          }
+          return line;
+        });
+
+        if (hasChanges) {
+          setLinesWithHistory(newLines);
+        }
+      });
+    });
+  }, [lines, setLinesWithHistory]);
 
   const playingLineIndex = useMemo(() => {
     for (let i = 0; i < lines.length; i++) {
@@ -384,7 +429,17 @@ const SyncPanel: React.FC = () => {
           <span className="font-mono text-sm text-composer-text-muted tabular-nums">{progressText}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex h-8 rounded-lg bg-composer-bg-elevated p-0.5">
+          <Button
+            hasIcon
+            variant="secondary"
+            onClick={handleBulkAutoSegment}
+            title="Auto-split all unsegmented Japanese/Korean/Chinese characters in the project"
+            className="text-composer-accent"
+          >
+            <IconWand className="size-4" />
+            Auto Split CJK
+          </Button>
+          <div className="flex h-8 rounded-lg bg-composer-bg-elevated p-0.5 ml-2">
             <button
               type="button"
               onClick={() => handleGranularityChange("line")}
@@ -434,11 +489,18 @@ const SyncPanel: React.FC = () => {
 
       {/* Main sync area */}
       {showScrollableView ? (
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-          <div className="py-2">
-            {lines.map((line, index) => {
+        <Scroll viewportRef={scrollViewportRef} className="flex-1 bg-composer-bg-dark">
+          <div ref={scrollContainerRef} className="h-full">
+            <Virtuoso
+              data={lines}
+              className="py-2"
+              style={{ height: "100%", width: "100%" }}
+              customScrollParent={scrollParent ?? undefined}
+              overscan={200}
+            computeItemKey={(_, line) => line.id}
+            itemContent={(index, line) => {
               const timing = effectiveBounds(line);
-              const linkedGroup = line.groupId ? groups.find((g) => g.id === line.groupId) : undefined;
+              const linkedGroup = line.groupId ? groupsById.get(line.groupId) : undefined;
               const totalInstances = linkedGroup ? (instanceCountByGroup.get(linkedGroup.id) ?? 0) : 0;
               const linkInfo =
                 linkedGroup && line.instanceIdx !== undefined
@@ -451,7 +513,6 @@ const SyncPanel: React.FC = () => {
                   : undefined;
               return (
                 <ScrollableLine
-                  key={line.id}
                   lineId={line.id}
                   lineNumber={index + 1}
                   text={line.text}
@@ -480,9 +541,10 @@ const SyncPanel: React.FC = () => {
                   onSetBgWordEndTime={(wordIdx, newEnd) => handleSetBgWordEndTime(index, wordIdx, newEnd)}
                 />
               );
-            })}
+            }}
+          />
           </div>
-        </div>
+        </Scroll>
       ) : (
         <div className="flex flex-col items-center justify-center flex-1 px-8 py-12">
           {isComplete ? (

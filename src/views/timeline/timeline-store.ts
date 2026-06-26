@@ -53,6 +53,7 @@ interface TimelineState {
   vocalOnsetSnapPoints: number[];
   vocalOnsetDetectionStatus: "idle" | "processing" | "error";
   vocalOnsetDetectionError: string | null;
+  showRomaji: boolean;
 }
 
 interface TimelineActions {
@@ -88,6 +89,7 @@ interface TimelineActions {
   setSnappedAnchorTime: (t: number | null) => void;
   setVocalOnsetSnapPoints: (points: number[]) => void;
   setVocalOnsetDetectionStatus: (status: "idle" | "processing" | "error", error?: string | null) => void;
+  setShowRomaji: (v: boolean) => void;
 }
 
 // -- Constants -----------------------------------------------------------------
@@ -180,9 +182,23 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
       }),
     setVocalOnsetDetectionStatus: (vocalOnsetDetectionStatus, error = null) =>
       set({ vocalOnsetDetectionStatus, vocalOnsetDetectionError: error }),
+    showRomaji: false,
+    setShowRomaji: (v) => set({ showRomaji: v }),
   };
 });
 
 // -- Exports -------------------------------------------------------------------
+
+export function useVisualizerHeight() {
+  const mode = useSettingsStore((s) => s.visualizerMode);
+  const specHeight = useSettingsStore((s) => s.spectrogramHeight);
+  return mode === "spectrogram" ? specHeight : WAVEFORM_HEIGHT;
+}
+
+export function getVisualizerHeight() {
+  const mode = useSettingsStore.getState().visualizerMode;
+  const specHeight = useSettingsStore.getState().spectrogramHeight;
+  return mode === "spectrogram" ? specHeight : WAVEFORM_HEIGHT;
+}
 
 export { useTimelineStore, GUTTER_WIDTH, WAVEFORM_HEIGHT, MIN_ZOOM, MAX_ZOOM, DEFAULT_ROW_HEIGHT, ZOOM_STEP };

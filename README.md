@@ -28,7 +28,7 @@ For users who want more control, the Timeline view is a full GUI where you can d
 
 ## What it does
 
-Composer turns plain lyrics into precisely timed TTML files. You import audio, paste your lyrics, tap along to sync each word, then export the result. Everything runs in the browser with no server required.
+Composer turns plain lyrics into precisely timed TTML files. You import audio, paste your lyrics, tap along to sync each word, then export the result. It is a lightweight desktop application that natively integrates with your system.
 
 Four-step workflow:
 
@@ -52,7 +52,7 @@ Four-step workflow:
 - **Lyrics import** - Drop .lrc, .srt, .ttml, or .txt files to get started quickly
 - **Project files** - Save and share your work as JSON
 - **Keyboard-driven** - Comprehensive shortcuts for every action
-- **Client-side only** - No uploads, no accounts, your audio never leaves your machine
+- **Local processing** - No uploads, no accounts, your audio and processing never leave your machine
 
 ## Standards
 
@@ -60,30 +60,32 @@ Composer emits **TTML 1** ([W3C Recommendation, Nov 2018](https://www.w3.org/TR/
 
 For the full breakdown, see **Help → TTML & standards** in-app.
 
-## Self-hosting
+## Building from source
 
-Composer is a static site with zero backend dependencies. All processing happens in the browser.
+Composer is a desktop application built with Wails (Go) and a React frontend.
+
+Prerequisites:
+- [Go](https://go.dev/doc/install) 1.21+
+- [Node.js](https://nodejs.org/) 20+
+- [pnpm](https://pnpm.io/installation)
+- [Wails v2](https://wails.io/docs/gettingstarted/installation)
 
 ```bash
+# Install frontend dependencies
 pnpm install
-pnpm build
+
+# Build the desktop executable
+wails build
 ```
 
-Serve the `dist/` folder with any static file server. That's it.
-
-```bash
-# Example with any static server
-npx serve dist
-
-# Or drop dist/ into nginx, Caddy, Vercel, Netlify, GitHub Pages, etc.
-```
+The compiled binary will be placed in the `build/bin/` directory.
 
 ## Development
 
 ```bash
 pnpm install
-pnpm dev               # Start dev server with HMR
-pnpm test              # Run all tests (unit + browser)
+wails dev              # Start dev server with HMR and Go backend
+pnpm test              # Run all frontend tests (unit + browser)
 pnpm test:unit         # Unit tests only (jsdom)
 pnpm test:component    # Component tests only (Chromium via Playwright)
 pnpm lint:fix          # Format and lint

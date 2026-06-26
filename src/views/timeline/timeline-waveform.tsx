@@ -6,14 +6,25 @@ import { cn } from "@/utils/cn";
 import { readToken } from "@/utils/theme/read-token";
 import { snapPlayheadTime } from "@/views/timeline/playhead-snap";
 import { snapTimeToOnset } from "@/views/timeline/snap-marker-math";
-import { WAVEFORM_HEIGHT, useTimelineStore } from "@/views/timeline/timeline-store";
+import { useVisualizerHeight, useTimelineStore } from "@/views/timeline/timeline-store";
 import WavesurferPlayer from "@wavesurfer/react";
 import { useCallback, useEffect, useState } from "react";
 import type WaveSurfer from "wavesurfer.js";
+import { TimelineSpectrogram } from "./timeline-spectrogram";
 
 // -- Component -----------------------------------------------------------------
 
 const TimelineWaveform: React.FC = () => {
+  const visualizerMode = useSettingsStore((s) => s.visualizerMode);
+
+  if (visualizerMode === "spectrogram") {
+    return <TimelineSpectrogram />;
+  }
+
+  return <TimelineWavesurfer />;
+};
+
+const TimelineWavesurfer: React.FC = () => {
   const source = useAudioStore((s) => s.source);
   const duration = useAudioStore((s) => s.duration);
   const audioElement = useAudioStore((s) => s.audioElement);
@@ -25,6 +36,7 @@ const TimelineWaveform: React.FC = () => {
 
   const [ws, setWs] = useState<WaveSurfer | null>(null);
   const [altHeld, setAltHeld] = useState(false);
+  const visualizerHeight = useVisualizerHeight();
 
   const totalWidth = duration > 0 ? duration * zoom : 0;
   const waveformKey = audioElement?.src ?? "no-audio";
@@ -106,19 +118,19 @@ const TimelineWaveform: React.FC = () => {
       <div
         data-waveform-redraw-bg
         className="absolute top-0 left-0 bg-composer-bg border-b border-composer-border shadow-lg pointer-events-none"
-        style={{ width: totalWidth, height: WAVEFORM_HEIGHT }}
+        style={{ width: totalWidth, height: visualizerHeight }}
       />
       <div
         data-waveform-loading-dots
         aria-hidden="true"
         className="absolute top-0 left-0 waveform-loading-dots pointer-events-none transition-opacity duration-200 ease-out"
-        style={{ width: totalWidth, height: WAVEFORM_HEIGHT - 1, opacity: ws ? 0 : 1 }}
+        style={{ width: totalWidth, height: visualizerHeight - 1, opacity: ws ? 0 : 1 }}
       />
       {audioElement && (
         <div data-waveform-fade className="transition-opacity duration-150 ease-in" style={{ opacity: ws ? 1 : 0 }}>
           <WavesurferPlayer
             key={waveformKey}
-            height={WAVEFORM_HEIGHT}
+            height={visualizerHeight}
             waveColor={initialColors.wave}
             progressColor={initialColors.progress}
             cursorColor="transparent"
@@ -146,7 +158,7 @@ const TimelineWaveform: React.FC = () => {
         key="waveform-click-layer"
         style={{
           width: totalWidth,
-          height: WAVEFORM_HEIGHT - 1,
+          height: visualizerHeight - 1,
         }}
         onClick={handleClick}
         onPointerMove={(e) => setAltHeld(e.altKey)}

@@ -25,13 +25,17 @@ import { SettingsModal } from "@/ui/settings-modal";
 import { TabBar } from "@/ui/tab-bar";
 import { EditPanel } from "@/views/edit";
 import { ExportPanel } from "@/views/export";
+import { HomePanel } from "@/views/home/home-panel";
 import { ImportPanel } from "@/views/import";
 import { PreviewPanel } from "@/views/preview";
 import { SyncPanel } from "@/views/sync/sync-panel";
 import { TimelinePanel } from "@/views/timeline/timeline-panel";
+import { importProjectFromText } from "@/lib/persistence";
+import { loadSavedProjectToStore } from "@/stores/project";
+import { useRecentProjectsStore } from "@/stores/recent-projects";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LazyMotion, domAnimation } from "motion/react";
-import { Activity, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
 
 const TABS_WITH_PLAYER = ["import", "edit", "sync", "timeline", "preview"];
@@ -50,11 +54,29 @@ const AppContent: React.FC = () => {
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const openSettings = useUIStore((s) => s.openSettings);
   const closeSettings = useUIStore((s) => s.closeSettings);
-  const { startTour, resumeOrStartTour, shouldShowTour, guideCard, skipGuideCard } = useTour();
+  const { startTour, shouldShowTour, guideCard, skipGuideCard } = useTour();
   const startTourRef = useRef(startTour);
   startTourRef.current = startTour;
 
   const showPlayer = source && TABS_WITH_PLAYER.includes(activeTab);
+
+  const isDirty = useProjectStore((s) => s.isDirty);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    // Wait for Wails bindings to attach, or fallback after 2.5 seconds (for web dev mode)
+    const startTime = Date.now();
+    const checkWails = () => {
+      const isWailsReady = typeof (window as any).go !== "undefined" && typeof (window as any).runtime !== "undefined";
+      if (isWailsReady || Date.now() - startTime > 2500) {
+        // Add a tiny final delay for React hydration to settle
+        setTimeout(() => setIsMounted(true), 150);
+      } else {
+        setTimeout(checkWails, 50);
+      }
+    };
+    checkWails();
+  }, []);
 
   // Auto-start quick tour on first visit
   useEffect(() => {
@@ -62,6 +84,35 @@ const AppContent: React.FC = () => {
     const timer = setTimeout(() => startTourRef.current(), 500);
     return () => clearTimeout(timer);
   }, [shouldShowTour]);
+
+  // Sync unsaved changes state to Wails backend for close prompt
+  useEffect(() => {
+    if (typeof (window as any).go !== "undefined" && (window as any).go.app?.App?.SetHasUnsavedChanges) {
+      (window as any).go.app.App.SetHasUnsavedChanges(isDirty);
+    }
+  }, [isDirty]);
+
+  // Handle double-clicked .composer files on startup
+  useEffect(() => {
+    if (typeof (window as any).go === "undefined" || !(window as any).go.app?.App) return;
+    
+    (window as any).go.app.App.GetStartupProjectFilePath().then(async (path: string) => {
+      if (path) {
+        try {
+          const content = await (window as any).go.app.App.ReadProjectFile(path);
+          const project = importProjectFromText(content);
+          loadSavedProjectToStore(project, path);
+          useRecentProjectsStore.getState().addProject(
+            path, 
+            project.metadata.title || path.split(/[\/\\]/).pop() || path
+          );
+          setActiveTab("edit");
+        } catch (e) {
+          console.error("Failed to load startup project:", e);
+        }
+      }
+    });
+  }, [setActiveTab]);
 
   usePersistence();
   useImportFromHash();
@@ -90,7 +141,6 @@ const AppContent: React.FC = () => {
       <AppHeader
         onSettingsOpen={() => openSettings()}
         onHelpOpen={() => setHelpOpen(true)}
-        onTourStart={resumeOrStartTour}
       />
       <HelpModal isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
       <SettingsModal
@@ -102,42 +152,47 @@ const AppContent: React.FC = () => {
           localStorage.removeItem("composer-tour-resume");
         }}
       />
-      <TabBar />
+      {activeTab !== "home" && <TabBar />}
       <main className="relative flex-1 overflow-hidden">
-        <Activity mode={activeTab === "import" ? "visible" : "hidden"}>
-          <div className="absolute inset-0 flex flex-col">
-            <ImportPanel />
-          </div>
-        </Activity>
-        <Activity mode={activeTab === "edit" ? "visible" : "hidden"}>
-          <div className="absolute inset-0 flex flex-col">
-            <EditPanel />
-          </div>
-        </Activity>
-        <Activity mode={activeTab === "sync" ? "visible" : "hidden"}>
-          <div className="absolute inset-0 flex flex-col">
-            <SyncPanel />
-          </div>
-        </Activity>
-        <Activity mode={activeTab === "timeline" ? "visible" : "hidden"}>
-          <div className="absolute inset-0 flex flex-col">
-            <TimelinePanel />
-          </div>
-        </Activity>
-        <Activity mode={activeTab === "preview" ? "visible" : "hidden"}>
-          <div className="absolute inset-0 flex flex-col">
-            <PreviewPanel />
-          </div>
-        </Activity>
-        <Activity mode={activeTab === "export" ? "visible" : "hidden"}>
-          <div className="absolute inset-0 flex flex-col">
-            <ExportPanel />
-          </div>
-        </Activity>
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "home" ? undefined : "none" }}>
+          <HomePanel />
+        </div>
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "import" ? undefined : "none" }}>
+          <ImportPanel />
+        </div>
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "edit" ? undefined : "none" }}>
+          <EditPanel />
+        </div>
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "sync" ? undefined : "none" }}>
+          <SyncPanel />
+        </div>
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "timeline" ? undefined : "none" }}>
+          <TimelinePanel />
+        </div>
+        <div 
+          className="absolute inset-0 flex flex-col" 
+          style={{ 
+            opacity: activeTab === "preview" ? 1 : 0,
+            pointerEvents: activeTab === "preview" ? "auto" : "none",
+            zIndex: activeTab === "preview" ? 10 : -1
+          }}
+        >
+          <PreviewPanel />
+        </div>
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "export" ? undefined : "none" }}>
+          <ExportPanel />
+        </div>
       </main>
       {source && <AudioEngine />}
       {showPlayer && <AudioPlayer />}
       <GuideCard state={guideCard} onSkip={skipGuideCard} />
+
+      {!isMounted && (
+        <div className="absolute inset-0 z-[9999] bg-composer-bg flex flex-col items-center justify-center">
+          <img src="/logo.svg" alt="Composer Logo" className="size-24 opacity-80 animate-pulse" />
+          <div className="mt-8 text-lg font-medium text-composer-text animate-pulse">Loading Composer...</div>
+        </div>
+      )}
     </div>
   );
 };

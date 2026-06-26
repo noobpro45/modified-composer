@@ -47,40 +47,21 @@ const ImportSection: React.FC = () => (
         its name reflecting the last attempt, with the actual error in the tooltip if anything went wrong.
       </p>
       <p className={`${PROSE} mt-3`}>
-        <strong>Composer Bridge</strong>
+        <strong>Composer Bridge for YouTube</strong>
         <span className="ml-2 text-[10px] tracking-wide text-composer-accent-text">Experimental</span>
-        <br />A tiny binary you run on your own machine that downloads YouTube audio over your residential IP, so
-        YouTube doesn't block it the way it blocks shared Cobalt hosts. Composer talks to it over localhost; nothing
+        <br />A small local engine built directly into Composer that downloads YouTube audio over your residential IP, so
+        YouTube doesn't block it the way it blocks shared Cobalt hosts. It runs natively alongside the app; nothing
         leaves your machine. Toggle "Composer Bridge for YouTube" on in Settings → Advanced and every YouTube import
         routes through the bridge instead of Cobalt.
       </p>
       <ul className={`${PROSE} list-disc pl-4 mt-1.5 space-y-1`}>
         <li>
-          If the bridge isn't installed yet, an inline guide appears with a one-line install command for macOS and
-          Linux, plus a link to the Windows download.
+          Since the bridge is built-in, no separate installation is required. It just runs out of the box!
         </li>
         <li>
-          Once installed, launch <span className={INLINE_CODE}>Composer Bridge</span> from your Applications folder or
-          run the binary from a terminal. It lives in your menu bar (Mac) or system tray (Windows, Linux). Leave it
-          running.
-        </li>
-        <li>
-          The default URL is <span className={INLINE_CODE}>http://localhost:7777</span>. Change it in the bridge URL
-          field if you're running on a different port, and hit "Reset" to restore the default.
+          If you want to configure settings like preferred audio format or premium cookies, just flip the toggle in settings to see the advanced options.
         </li>
       </ul>
-      <p className={`${PROSE} mt-3`}>
-        Sources, releases, and self-build instructions live on{" "}
-        <a
-          href="https://github.com/better-lyrics/composer-bridge"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-composer-text underline underline-offset-2 hover:text-composer-text-bright"
-        >
-          GitHub
-        </a>
-        . The install script verifies the release checksum before unpacking.
-      </p>
     </div>
 
     <div>

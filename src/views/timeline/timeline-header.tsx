@@ -23,6 +23,7 @@ import {
   IconMinus,
   IconPlus,
   IconTextPlus,
+  IconLanguage,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTimelineZoom } from "@/views/timeline/use-timeline-zoom";
@@ -55,6 +56,8 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
   const showHints = useSettingsStore((s) => s.showShortcutHints);
   const snapEnabled = useSettingsStore((s) => s.timelineSnap);
   const setSetting = useSettingsStore((s) => s.set);
+  const showRomaji = useTimelineStore((s) => s.showRomaji);
+  const setShowRomaji = useTimelineStore((s) => s.setShowRomaji);
   const isBypassing = useTimelineStore((s) => s.isBypassing);
   const toggleSnapKeys = getEffectiveKeysArray("timeline.toggleSnap");
   const toggleMarkerKeys = getEffectiveKeysArray("timeline.toggleMarkerMode");
@@ -182,6 +185,20 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
           <IconEye size={16} />
           <span>Preview</span>
           {showHints && <InlineKeyBadge keys={getEffectiveKeysArray("timeline.togglePreview")} />}
+        </Button>
+
+        {/* Romaji toggle */}
+        <Button
+          variant={showRomaji ? "primary" : "ghost"}
+          size="sm"
+          onClick={() => setShowRomaji(!showRomaji)}
+          hasIcon
+          className={cn(!showRomaji && "opacity-60")}
+          title="Toggle Romaji fields"
+        >
+          <IconLanguage size={16} />
+          <span>Romaji</span>
+          {showHints && <InlineKeyBadge keys={getEffectiveKeysArray("timeline.toggleRomaji")} />}
         </Button>
 
         <Button

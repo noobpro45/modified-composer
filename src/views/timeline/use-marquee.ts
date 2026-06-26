@@ -1,7 +1,7 @@
 import { useProjectStore } from "@/stores/project";
 import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
 import type { WordSelection } from "@/domain/selection/model";
-import { GUTTER_WIDTH, useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
+import { GUTTER_WIDTH, useTimelineStore, getVisualizerHeight } from "@/views/timeline/timeline-store";
 import { getEffectiveLines } from "@/domain/line/effective-words";
 import { mergeWordSelections } from "@/domain/selection/set-ops";
 import { computeRowLayout } from "@/views/timeline/utils";
@@ -64,7 +64,7 @@ function useMarquee(scrollContainerRef: RefObject<HTMLDivElement | null>) {
       rowHeights,
       defaultRowHeight,
       collapsedInstances,
-      waveformHeight: WAVEFORM_HEIGHT,
+      waveformHeight: getVisualizerHeight(),
       bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
       groupHeaderHeight: GROUP_HEADER_HEIGHT,
     });

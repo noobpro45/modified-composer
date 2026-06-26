@@ -13,6 +13,7 @@ import type { LyricLine } from "@/domain/line/model";
 import type { WordTiming } from "@/domain/word/timing";
 import { Button } from "@/ui/button";
 import { Popover } from "@/ui/popover";
+import { Select } from "@/ui/select";
 import { Scroll } from "@/ui/scroll";
 import { classifyLine, extractBackgroundVocals, extractInlineFromLine } from "@/utils/background-vocal-extraction";
 import { type ParseResult, parseLyricsFile } from "@/utils/lyrics-parsers";
@@ -27,8 +28,9 @@ import {
   importParsedLyrics,
   type ImportParsedLyricsContext,
 } from "@/views/lyrics-import-modal/use-import-modal-actions";
-import { IconAlertTriangle, IconFileImport, IconMicrophone, IconX } from "@tabler/icons-react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { IconAlertTriangle, IconFileImport, IconMicrophone, IconX, IconLanguage } from "@tabler/icons-react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 // -- Constants ----------------------------------------------------------------
 
@@ -78,25 +80,11 @@ const ImportSuccessBanner: React.FC<{
   );
 };
 
-const LinePreview: React.FC<{
-  line: ParsedLine;
-  agents: { id: string; name?: string }[];
-  isSelected: boolean;
-  hasMultipleSelected: boolean;
-  groupColor?: string;
-  groupTooltip?: string;
-  onSelect: (lineNumber: number, shiftKey: boolean) => void;
-  onAgentChange: (lineId: string, agentId: string) => void;
-  onBulkAgentChange: (agentId: string) => void;
-  onBackgroundChange: (lineId: string, text: string) => void;
-  onExtractLine: (lineId: string) => void;
-  onGutterMouseDown: (lineNumber: number, e: React.MouseEvent) => void;
-  onGutterMouseEnter: (lineNumber: number, e: React.MouseEvent) => void;
-  didDragRef: React.MutableRefObject<boolean>;
-}> = ({
+const LinePreview = memo(({
   line,
   agents,
   isSelected,
+  isHovered,
   hasMultipleSelected,
   groupColor,
   groupTooltip,
@@ -104,12 +92,33 @@ const LinePreview: React.FC<{
   onAgentChange,
   onBulkAgentChange,
   onBackgroundChange,
+  onRomajiChange,
   onExtractLine,
+  onHoverChange,
   onGutterMouseDown,
   onGutterMouseEnter,
   didDragRef,
+}: {
+  line: ParsedLine;
+  agents: { id: string; name?: string }[];
+  isSelected: boolean;
+  isHovered: boolean;
+  hasMultipleSelected: boolean;
+  groupColor?: string;
+  groupTooltip?: string;
+  onSelect: (lineNumber: number, shiftKey: boolean) => void;
+  onAgentChange: (lineId: string, agentId: string) => void;
+  onBulkAgentChange: (agentId: string) => void;
+  onBackgroundChange: (lineId: string, text: string) => void;
+  onRomajiChange: (lineId: string, text: string) => void;
+  onExtractLine: (lineId: string) => void;
+  onHoverChange: (lineNumber: number | null, clientY?: number) => void;
+  onGutterMouseDown: (lineNumber: number, e: React.MouseEvent) => void;
+  onGutterMouseEnter: (lineNumber: number, e: React.MouseEvent) => void;
+  didDragRef: React.MutableRefObject<boolean>;
 }) => {
   const [bgInput, setBgInput] = useState(line.backgroundText ?? "");
+  const [romajiInput, setRomajiInput] = useState(line.romaji ?? "");
   const agentColor = getAgentColor(line.agentId);
 
   const handleBgBlur = useCallback(() => {
@@ -117,6 +126,12 @@ const LinePreview: React.FC<{
       onBackgroundChange(line.lineId, bgInput);
     }
   }, [line.lineId, bgInput, onBackgroundChange]);
+
+  const handleRomajiBlur = useCallback(() => {
+    if (line.lineId) {
+      onRomajiChange(line.lineId, romajiInput);
+    }
+  }, [line.lineId, romajiInput, onRomajiChange]);
 
   const selectLineForBulkEdit = useCallback(
     (e: React.MouseEvent) => {
@@ -162,10 +177,12 @@ const LinePreview: React.FC<{
       role="button"
       tabIndex={-1}
       className={`relative flex items-center gap-2 px-3 py-0.5 group cursor-pointer ${
-        isSelected ? "bg-composer-accent/15" : line.hasBrackets ? "bg-composer-error/5" : "hover:bg-composer-button/30"
+        isSelected ? "bg-composer-accent/15" : line.hasBrackets ? "bg-composer-error/5" : isHovered ? "bg-composer-button/30" : "hover:bg-composer-button/30"
       }`}
       onMouseDown={handleMouseDown}
       onClick={selectLineForBulkEdit}
+      onMouseEnter={(e) => onHoverChange(line.lineNumber, e.clientY)}
+      onMouseLeave={() => onHoverChange(null)}
       onKeyDown={(e) => {
         if (e.key === "Enter") onSelect(line.lineNumber, e.shiftKey);
       }}
@@ -206,27 +223,32 @@ const LinePreview: React.FC<{
         </span>
       )}
 
+      {line.romaji && (
+        <span data-testid="line-preview-romaji" className="text-xs text-composer-accent opacity-80 ml-2">
+          {line.romaji}
+        </span>
+      )}
+
       <div className="flex items-center gap-1.5 ml-auto transition-opacity opacity-0 group-hover:opacity-100">
         {agents.length > 1 && line.lineId && (
-          <select
+          <Select
             value={line.agentId}
-            onChange={(e) => {
+            onChange={(val) => {
               if (isSelected && hasMultipleSelected) {
-                onBulkAgentChange(e.target.value);
+                onBulkAgentChange(val);
               } else {
-                onAgentChange(line.lineId, e.target.value);
+                onAgentChange(line.lineId!, val);
               }
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            className="h-5 px-1 text-xs border rounded cursor-pointer bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent"
+            className="min-w-0 h-5 px-1 text-xs border rounded bg-composer-input border-composer-border gap-1"
             style={{ borderLeftColor: agentColor, borderLeftWidth: "2px" }}
-          >
-            {agents.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.name || agent.id}
-              </option>
-            ))}
-          </select>
+            options={agents.map((agent) => ({
+              value: agent.id,
+              label: agent.name || agent.id,
+            }))}
+            popoverWidth="w-32"
+          />
         )}
 
         {line.lineId && (
@@ -278,12 +300,67 @@ const LinePreview: React.FC<{
           </Popover>
         )}
 
+        {line.lineId && (
+          <Popover
+            placement="bottom-start"
+            trigger={
+              <button
+                type="button"
+                className="flex items-center gap-1 px-1.5 h-5 text-xs rounded cursor-pointer bg-composer-button hover:bg-composer-button-hover text-composer-text-muted hover:text-composer-text"
+              >
+                <IconLanguage className="size-3" />
+                RMJ
+              </button>
+            }
+          >
+            {(close) => (
+              <div className="p-2 w-48">
+                <p className="mb-1 text-xs text-composer-text-secondary">Romaji</p>
+                <input
+                  type="text"
+                  aria-label="Romaji text"
+                  value={romajiInput}
+                  onChange={(e) => setRomajiInput(e.target.value)}
+                  onBlur={handleRomajiBlur}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === "Enter") {
+                      handleRomajiBlur();
+                      close();
+                    }
+                  }}
+                  placeholder="Kimi wa..."
+                  className="w-full px-2 py-1 text-sm border rounded bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent"
+                />
+              </div>
+            )}
+          </Popover>
+        )}
+
         {line.hasTiming && <span className="text-xs text-composer-accent-text">synced</span>}
         {line.hasBrackets && <IconAlertTriangle className="size-4 text-composer-error" />}
       </div>
     </div>
   );
-};
+}, (prev, next) => {
+  return (
+    prev.isSelected === next.isSelected &&
+    prev.hasMultipleSelected === next.hasMultipleSelected &&
+    prev.groupColor === next.groupColor &&
+    prev.groupTooltip === next.groupTooltip &&
+    prev.line.text === next.line.text &&
+    prev.line.agentId === next.line.agentId &&
+    prev.line.backgroundText === next.line.backgroundText &&
+    prev.line.romaji === next.line.romaji &&
+    prev.line.hasBrackets === next.line.hasBrackets &&
+    prev.line.isEmpty === next.line.isEmpty &&
+    prev.line.hasTiming === next.line.hasTiming &&
+    prev.line.groupId === next.line.groupId &&
+    prev.line.instanceIdx === next.line.instanceIdx &&
+    prev.line.lineNumber === next.line.lineNumber &&
+    prev.agents === next.agents
+  );
+});
 
 const EditPanel: React.FC = () => {
   const textareaId = useId();
@@ -305,12 +382,33 @@ const EditPanel: React.FC = () => {
   const linesSetByUs = useRef<LyricLine[] | null>(null);
   const modalPendingRef = useRef(false);
   const pastedRef = useRef(false);
+  const [hoveredLine, setHoveredLine] = useState<number | null>(null);
   const runBaselineRef = useRef<{ lines: LyricLine[]; wasDirty: boolean } | null>(null);
   const debounceRef = useRef<number | null>(null);
   const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set());
   const lastSelectedLineRef = useRef<number | null>(null);
   const dragAnchorRef = useRef<number | null>(null);
   const didDragRef = useRef(false);
+  const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null);
+  const scrollViewportRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (scrollViewportRef.current && scrollViewportRef.current !== scrollParent) {
+      setScrollParent(scrollViewportRef.current);
+    }
+  });
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+
+  const handleScroll = useCallback(() => {
+    if (textareaRef.current && gutterRef.current) {
+      gutterRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  }, []);
+
+  const groupsById = useMemo(() => new Map((groups ?? []).map((g) => [g.id, g])), [groups]);
 
   // Sync rawText when lines change externally (persistence restore, project import, etc.)
   useEffect(() => {
@@ -384,6 +482,11 @@ const EditPanel: React.FC = () => {
     useProjectStore
       .getState()
       .updateLineWithHistory(lineId, backgroundFields({ text: newBgText, words, source: "manual" }));
+  }, []);
+
+  const handleRomajiChange = useCallback((lineId: string, text: string) => {
+    const newRomaji = text || undefined;
+    useProjectStore.getState().updateLineWithHistory(lineId, { romaji: newRomaji });
   }, []);
 
   const handleExtractLine = useCallback((lineId: string) => {
@@ -636,7 +739,20 @@ const EditPanel: React.FC = () => {
     [agents, autoExtractBackgroundVocals, confirm, mergeStandaloneBackgroundLines, preserveBracketsOnExtraction],
   );
 
-  const importTriggers = useDualClickImport(openImportModal);
+  const projectMetadata = useProjectStore((s) => s.metadata);
+  const audioSource = useAudioStore((s) => s.source);
+
+  const importTriggers = useDualClickImport(() => {
+    openImportModal({
+      prefill: {
+        track: projectMetadata?.title,
+        artist: projectMetadata?.artist,
+        album: projectMetadata?.album,
+        videoId: audioSource?.type === "youtube" ? audioSource.videoId : undefined,
+        durationSec: useAudioStore.getState().duration,
+      },
+    });
+  });
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -702,21 +818,58 @@ const EditPanel: React.FC = () => {
           <label htmlFor={textareaId} className="mb-2 text-sm font-medium select-none text-composer-text-secondary">
             Paste or type lyrics
           </label>
-          {/* react-doctor-disable-next-line react-doctor/control-has-associated-label */}
-          <textarea
-            id={textareaId}
-            value={rawText}
-            onChange={handleTextChange}
-            onBlur={handleTextareaBlur}
-            onPaste={() => {
-              pastedRef.current = true;
-            }}
-            placeholder="Paste your lyrics here, one line at a time...
+          <div className="flex flex-1 min-h-0 border rounded-lg bg-composer-input border-composer-border focus-within:border-composer-accent transition-colors overflow-hidden">
+            {/* Gutter */}
+            <div 
+              ref={gutterRef}
+              className="py-3 pl-3 pr-2 text-sm text-right text-composer-text-muted/50 select-none overflow-hidden font-mono bg-composer-bg-dark/30 border-r border-composer-border/50"
+              style={{ minWidth: "3.5rem" }}
+              aria-hidden="true"
+            >
+              {Array.from({ length: Math.max(1, rawText.split("\n").length) }).map((_, i) => (
+                <div 
+                  key={i} 
+                  className={`leading-6 transition-colors ${hoveredLine === i + 1 ? "text-composer-text bg-composer-button/30 rounded-sm" : ""}`}
+                >
+                  {i + 1}
+                </div>
+              ))}
+            </div>
+            
+            {/* react-doctor-disable-next-line react-doctor/control-has-associated-label */}
+            <textarea
+              id={textareaId}
+              ref={textareaRef}
+              value={rawText}
+              onChange={handleTextChange}
+              onBlur={handleTextareaBlur}
+              onScroll={handleScroll}
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const relativeY = e.clientY - rect.top;
+                const y = relativeY + e.currentTarget.scrollTop;
+                const lineIndex = Math.floor((y - 12) / 24); // 12px is pt-3 (padding top)
+                if (lineIndex >= 0) {
+                  const newLine = lineIndex + 1;
+                  if (hoveredLine !== newLine) {
+                    setHoveredLine(newLine);
+                    // Match the exact vertical height on the screen by using an offset
+                    // offset: -relativeY puts the top of the line at exactly relativeY from the top of the container
+                    virtuosoRef.current?.scrollToIndex({ index: lineIndex, behavior: "smooth", align: "start", offset: -Math.max(0, relativeY - 12) });
+                  }
+                }
+              }}
+              onMouseLeave={() => setHoveredLine(null)}
+              onPaste={() => {
+                pastedRef.current = true;
+              }}
+              placeholder="Paste your lyrics here, one line at a time...
 
 Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
-            className="flex-1 p-3 text-sm border rounded-lg resize-none bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent placeholder:text-composer-text-muted"
-            spellCheck={false}
-          />
+              className="flex-1 w-full p-3 text-sm resize-none bg-transparent focus:outline-none placeholder:text-composer-text-muted native-textarea-scrollbar whitespace-pre leading-6"
+              spellCheck={false}
+            />
+          </div>
         </div>
 
         {/* Preview */}
@@ -730,20 +883,21 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
                 {selectedLines.size} line{selectedLines.size !== 1 ? "s" : ""} selected
               </span>
               {agents.length > 1 && (
-                <select
-                  onChange={(e) => handleBulkAgentChange(e.target.value)}
+                <Select
+                  onChange={(val) => {
+                    if (val) handleBulkAgentChange(val);
+                  }}
                   value=""
-                  className="h-6 px-1.5 text-xs border rounded cursor-pointer bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent"
-                >
-                  <option value="" disabled>
-                    Assign agent
-                  </option>
-                  {agents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name || agent.id}
-                    </option>
-                  ))}
-                </select>
+                  className="h-6 px-1.5 text-xs border rounded bg-composer-input border-composer-border"
+                  options={[
+                    { value: "", label: "Assign agent" },
+                    ...agents.map((agent) => ({
+                      value: agent.id,
+                      label: agent.name || agent.id,
+                    })),
+                  ]}
+                  popoverWidth="w-32"
+                />
               )}
               <button
                 type="button"
@@ -754,14 +908,21 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
               </button>
             </div>
           </div>
-          <Scroll className="flex-1 border rounded-lg border-composer-border bg-composer-bg-dark">
+          <Scroll viewportRef={scrollViewportRef} className="flex-1 border rounded-lg border-composer-border bg-composer-bg-dark">
             {parsed.length === 0 || (parsed.length === 1 && parsed[0].isEmpty) ? (
               <div className="flex items-center justify-center h-full text-sm text-composer-text-muted">
                 Lyrics will appear here
               </div>
             ) : (
-              <div className="py-2">
-                {parsed.map((line, index) => {
+              <Virtuoso
+                ref={virtuosoRef}
+                data={parsed}
+                context={{ hoveredLine }}
+                className="py-2"
+                style={{ height: "100%", width: "100%" }}
+                customScrollParent={scrollParent ?? undefined}
+                overscan={200}
+                itemContent={(index, line, context) => {
                   const prev = index > 0 ? parsed[index - 1] : null;
                   const next = index < parsed.length - 1 ? parsed[index + 1] : null;
                   const isFirstOfInstance =
@@ -772,7 +933,7 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
                     line.groupId !== undefined &&
                     line.instanceIdx !== undefined &&
                     (next?.groupId !== line.groupId || next?.instanceIdx !== line.instanceIdx);
-                  const group = line.groupId ? groups.find((g) => g.id === line.groupId) : undefined;
+                  const group = line.groupId ? groupsById.get(line.groupId) : undefined;
                   const totalInstances = group ? (instanceCountByGroup.get(group.id) ?? 0) : 0;
                   const groupTooltip =
                     group && totalInstances > 1
@@ -796,6 +957,7 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
                         line={line}
                         agents={agents}
                         isSelected={selectedLines.has(line.lineNumber)}
+                        isHovered={context.hoveredLine === line.lineNumber}
                         hasMultipleSelected={selectedLines.size > 1}
                         groupColor={group?.color}
                         groupTooltip={groupTooltip}
@@ -803,7 +965,19 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
                         onAgentChange={handleAgentChange}
                         onBulkAgentChange={handleBulkAgentChange}
                         onBackgroundChange={handleBackgroundChange}
+                        onRomajiChange={handleRomajiChange}
                         onExtractLine={handleExtractLine}
+                        onHoverChange={(lineNum, clientY) => {
+                          setHoveredLine(lineNum);
+                          if (lineNum !== null && textareaRef.current && scrollViewportRef.current && clientY !== undefined) {
+                            const rightRect = scrollViewportRef.current.getBoundingClientRect();
+                            const relativeY = clientY - rightRect.top;
+                            const lineTop = (lineNum - 1) * 24 + 12; // 24px line height, 12px padding top
+                            const ta = textareaRef.current;
+                            // Match the exact vertical height on the screen
+                            ta.scrollTo({ top: Math.max(0, lineTop - relativeY + 12), behavior: "smooth" });
+                          }
+                        }}
                         onGutterMouseDown={handleGutterMouseDown}
                         onGutterMouseEnter={handleGutterMouseEnter}
                         didDragRef={didDragRef}
@@ -815,8 +989,8 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
                       )}
                     </div>
                   );
-                })}
-              </div>
+                }}
+              />
             )}
           </Scroll>
         </div>

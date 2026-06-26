@@ -29,6 +29,7 @@ function isLinkedSibling(line: LyricLine, scope: LinkScope | null): boolean {
 function extractLinkedFields(updates: Partial<LyricLine>): Partial<LyricLine> {
   const linked: Partial<LyricLine> = {};
   if ("text" in updates) linked.text = updates.text;
+  if ("romaji" in updates) linked.romaji = updates.romaji;
   if ("agentId" in updates) linked.agentId = updates.agentId;
   if ("backgroundText" in updates) linked.backgroundText = updates.backgroundText;
   if ("backgroundTextSource" in updates) linked.backgroundTextSource = updates.backgroundTextSource;

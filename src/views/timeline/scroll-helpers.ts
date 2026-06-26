@@ -2,7 +2,7 @@ import { instanceBounds } from "@/domain/instance/bounds";
 import { linesOfInstance } from "@/domain/instance/enumerate";
 import { useProjectStore } from "@/stores/project";
 import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
-import { GUTTER_WIDTH, useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
+import { GUTTER_WIDTH, useTimelineStore, getVisualizerHeight } from "@/views/timeline/timeline-store";
 import { computeRowLayout } from "@/views/timeline/utils";
 
 // -- Constants -----------------------------------------------------------------
@@ -21,7 +21,7 @@ function scrollToInstanceHeader(groupId: string, instanceIdx: number): void {
     rowHeights,
     defaultRowHeight,
     collapsedInstances,
-    waveformHeight: WAVEFORM_HEIGHT,
+    waveformHeight: getVisualizerHeight(),
     bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
     groupHeaderHeight: GROUP_HEADER_HEIGHT,
   });
@@ -38,7 +38,9 @@ function scrollToInstanceHeader(groupId: string, instanceIdx: number): void {
     : container.scrollLeft;
 
   const rowCenter = target.top + target.height / 2;
-  const scrollTop = Math.max(0, Math.min(container.scrollHeight - viewportHeight, rowCenter - viewportHeight / 2));
+  const visualizerHeight = getVisualizerHeight();
+  const targetScreenY = visualizerHeight + 60;
+  const scrollTop = Math.max(0, Math.min(container.scrollHeight - viewportHeight, rowCenter - targetScreenY));
 
   container.scrollTo({ left: scrollLeft, top: scrollTop, behavior: "smooth" });
 }

@@ -6,7 +6,7 @@ import type { WordTiming } from "@/domain/word/timing";
 import { applyWordPatch } from "@/utils/word-patch";
 import { GROUP_HEADER_HEIGHT, GroupHeaderRow } from "@/views/timeline/group-header-row";
 import { LineRow } from "@/views/timeline/line-row";
-import { DEFAULT_ROW_HEIGHT, GUTTER_WIDTH, useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
+import { DEFAULT_ROW_HEIGHT, GUTTER_WIDTH, useTimelineStore, useVisualizerHeight } from "@/views/timeline/timeline-store";
 import { isLinked } from "@/domain/instance/predicates";
 import { isLineSynced } from "@/domain/line/predicates";
 import { type EffectiveRow, getEffectiveRows } from "@/views/timeline/utils";
@@ -32,6 +32,7 @@ const TimelineRows: React.FC<TimelineRowsProps> = ({ scrollContainerRef }) => {
   const duration = useAudioStore((s) => s.duration);
   const zoom = useTimelineStore((s) => s.zoom);
   const rowHeights = useTimelineStore((s) => s.rowHeights);
+  const visualizerHeight = useVisualizerHeight();
   const collapsedInstances = useTimelineStore((s) => s.collapsedInstances);
 
   const allRows = useMemo(() => getEffectiveRows(lines), [lines]);
@@ -189,7 +190,7 @@ const TimelineRows: React.FC<TimelineRowsProps> = ({ scrollContainerRef }) => {
         customScrollParent={scrollContainerRef.current ?? undefined}
         overscan={200}
         defaultItemHeight={DEFAULT_ROW_HEIGHT + BG_DROP_ZONE_HEIGHT}
-        increaseViewportBy={{ top: WAVEFORM_HEIGHT, bottom: 0 }}
+        increaseViewportBy={{ top: visualizerHeight, bottom: 0 }}
       />
     </div>
   );

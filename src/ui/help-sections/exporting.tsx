@@ -7,7 +7,7 @@ const ExportSection: React.FC = () => (
     <p className={PROSE}>The Export tab shows a syntax-highlighted preview of your TTML output.</p>
     <ul className={`${PROSE} list-disc pl-4 space-y-1.5`}>
       <li>
-        <strong>Download TTML</strong>: Saves the file to your computer. The filename uses your project title.
+        <strong>Save TTML</strong>: Saves the file to your computer. The filename uses your project title.
       </li>
       <li>
         <strong>Copy</strong>: Copies the minified TTML to your clipboard.

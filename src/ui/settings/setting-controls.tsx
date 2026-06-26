@@ -1,7 +1,7 @@
 import { useSettingsStore } from "@/stores/settings";
 import type { SettingsState } from "@/stores/settings";
+import { Select } from "@/ui/select";
 import { cn } from "@/utils/cn";
-
 // -- Setting Controls ---------------------------------------------------------
 
 const SliderSetting: React.FC<{
@@ -108,17 +108,11 @@ const SelectSetting: React.FC<{
         <span className="text-sm font-medium text-composer-text">{label}</span>
         <span className="text-xs text-composer-text-muted">{description}</span>
       </div>
-      <select
+      <Select
         value={value}
-        onChange={(e) => set(settingKey, e.target.value as SettingsState[typeof settingKey])}
-        className="h-7 px-2 text-sm rounded-lg bg-composer-input text-composer-text border border-composer-border focus:outline-none focus:border-composer-accent cursor-pointer"
-      >
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+        onChange={(val) => set(settingKey, val as SettingsState[typeof settingKey])}
+        options={options}
+      />
     </div>
   );
 };

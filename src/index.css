@@ -301,6 +301,33 @@ input[type="range"].settings-slider::-moz-range-progress {
   height: calc(100% - 80px) !important;
 }
 
+/* Native scrollbar styling for textareas (so we don't break React DOM layout)
+   We use a transparent border and background-clip: padding-box to perfectly emulate
+   the floating overlay appearance of OverlayScrollbars */
+.native-textarea-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.native-textarea-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.native-textarea-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 5px;
+}
+
+.native-textarea-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+.native-textarea-scrollbar::-webkit-scrollbar-thumb:active {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
 .os-theme-light {
   --os-handle-bg: rgba(255, 255, 255, 0.3);
   --os-handle-bg-hover: rgba(255, 255, 255, 0.4);

@@ -1,25 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { IconCheck, IconExclamationCircle, IconLoader2 } from "@tabler/icons-react";
-import { useSettingsStore } from "@/stores/settings";
-import { useUIStore } from "@/stores/ui";
-import { hasBridgeEverBeenDetected, markBridgeDetected } from "@/utils/bridge-detection";
-import {
-  type BridgeHealth,
-  checkBridgeHealth,
-  DEFAULT_BRIDGE_URL,
-  HEALTH_QUERY_KEY,
-} from "@/utils/composer-bridge-api";
+import { useBridgeConfig } from "@/hooks/use-bridge-config";
+import { UploadCookies, ShowDirectoryDialog } from "@/wailsjs/go/app/App";
 import { cn } from "@/utils/cn";
-import { BridgeInstallGuide } from "@/ui/settings/bridge-install-guide";
-import { BridgeUrlField } from "@/ui/settings/bridge-url-field";
-
-// -- Constants ----------------------------------------------------------------
-
-const HEALTH_REFETCH_INTERVAL = 8000;
-const HIGHLIGHT_PULSE_MS = 2000;
-
-// -- Sub-components -----------------------------------------------------------
+import { Select } from "@/ui/select";
 
 const BridgeToggle: React.FC<{ enabled: boolean; onToggle: () => void }> = ({ enabled, onToggle }) => (
   <button
@@ -42,167 +24,156 @@ const BridgeToggle: React.FC<{ enabled: boolean; onToggle: () => void }> = ({ en
   </button>
 );
 
-const StatusBadge: React.FC<{
-  state: "checking" | "ok" | "error";
-  data: BridgeHealth | undefined;
-  errorMessage: string | undefined;
-}> = ({ state, data, errorMessage }) => {
-  if (state === "checking") {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-composer-text-muted">
-        <IconLoader2 size={12} className="animate-spin" />
-        Checking…
-      </span>
-    );
-  }
-  if (state === "ok" && data) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-emerald-500" title={`yt-dlp ${data.ytdlp}`}>
-        <IconCheck size={12} />
-        Running · bridge {data.bridge} · yt-dlp {data.ytdlp}
-      </span>
-    );
-  }
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 text-xs text-rose-500"
-      title={errorMessage ?? "bridge unreachable"}
-    >
-      <IconExclamationCircle size={12} />
-      Not running
-    </span>
-  );
-};
-
-// -- Sub-sections -------------------------------------------------------------
-
-const BridgeStoppedHint: React.FC = () => (
-  <div className="text-xs text-composer-text-muted leading-relaxed">
-    <p className="mb-1">Bridge isn't responding at this address. Start it with:</p>
-    <code className="block px-2 py-1 rounded bg-composer-bg font-mono text-[11px] select-text">composer-bridge</code>
-    <p className="mt-2">
-      If you don't have it yet, grab a binary from{" "}
-      <a
-        href="https://github.com/better-lyrics/composer-bridge/releases"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-composer-accent-text hover:text-composer-accent underline"
-      >
-        releases
-      </a>
-      .
-    </p>
+const BridgeToggleConfig: React.FC<{ enabled: boolean; onToggle: () => void; label: string; description?: string }> = ({ enabled, onToggle, label, description }) => (
+  <div className="flex items-center justify-between py-3">
+    <div className="flex flex-col gap-0.5 pr-4">
+      <span className="text-sm font-medium text-composer-text">{label}</span>
+      {description && <span className="text-xs text-composer-text-muted">{description}</span>}
+    </div>
+    <BridgeToggle enabled={enabled} onToggle={onToggle} />
   </div>
 );
 
-// -- Section ------------------------------------------------------------------
+const BridgeSelectConfig: React.FC<{
+  label: string;
+  description?: string;
+  value: string;
+  onChange: (val: string) => void;
+  options: { value: string; label: string }[];
+}> = ({ label, description, value, onChange, options }) => (
+  <div className="flex items-center justify-between py-3">
+    <div className="flex flex-col gap-0.5 pr-4">
+      <span className="text-sm font-medium text-composer-text">{label}</span>
+      {description && <span className="text-xs text-composer-text-muted">{description}</span>}
+    </div>
+    <Select
+      value={value}
+      onChange={onChange}
+      options={options}
+    />
+  </div>
+);
+
+// -- Sub-sections -------------------------------------------------------------
 
 const BridgeSection: React.FC = () => {
-  const enabled = useSettingsStore((s) => s.experiments.youtubeBridge);
-  const bridgeUrl = useSettingsStore((s) => s.composerBridgeUrl);
-  const setSetting = useSettingsStore((s) => s.set);
-  const settingsHighlight = useUIStore((s) => s.settingsHighlight);
-  const clearHighlight = useUIStore((s) => s.clearHighlight);
+  const isNative = typeof (window as any).go !== "undefined" && !!(window as any).go.app?.App;
+  const { config: backendConfig, update: updateBackendConfig, saveStatus } = useBridgeConfig();
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [pulsing, setPulsing] = useState(false);
-  useEffect(() => {
-    if (settingsHighlight !== "bridge-section") return;
-    containerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    if (pulseTimerRef.current !== null) clearTimeout(pulseTimerRef.current);
-    setPulsing(true);
-    pulseTimerRef.current = setTimeout(() => {
-      setPulsing(false);
-      pulseTimerRef.current = null;
-    }, HIGHLIGHT_PULSE_MS);
-    clearHighlight();
-  }, [settingsHighlight, clearHighlight]);
-  useEffect(() => {
-    return () => {
-      if (pulseTimerRef.current !== null) clearTimeout(pulseTimerRef.current);
+  const handleUploadCookies = async () => {
+    if (!isNative) return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".txt";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const content = await file.text();
+        await UploadCookies(content);
+        alert("Cookies uploaded successfully!");
+      } catch (err) {
+        console.error("Failed to upload cookies:", err);
+        alert(`Failed to upload cookies: ${err instanceof Error ? err.message : String(err)}`);
+      }
     };
-  }, []);
-
-  const toggleEnabled = () => {
-    const current = useSettingsStore.getState().experiments;
-    setSetting("experiments", { ...current, youtubeBridge: !current.youtubeBridge });
+    input.click();
   };
 
-  const commitUrl = (url: string) => {
-    if (url !== bridgeUrl) setSetting("composerBridgeUrl", url);
-  };
-
-  const everDetectedAtMount = useMemo(() => hasBridgeEverBeenDetected(), []);
-
-  const health = useQuery({
-    queryKey: [HEALTH_QUERY_KEY, bridgeUrl],
-    queryFn: ({ signal }) => checkBridgeHealth(bridgeUrl, signal),
-    enabled,
-    staleTime: 0,
-    gcTime: 0,
-    refetchInterval: enabled ? HEALTH_REFETCH_INTERVAL : false,
-    retry: false,
-  });
-
-  useEffect(() => {
-    if (health.data) markBridgeDetected();
-  }, [health.data]);
-
-  const state: "checking" | "ok" | "error" =
-    health.isFetching && !health.data ? "checking" : health.data ? "ok" : "error";
-  const errorMessage = health.error instanceof Error ? health.error.message : undefined;
+  if (!isNative || !backendConfig) return null;
 
   return (
     <div
-      ref={containerRef}
-      data-testid="bridge-section"
-      className={cn(
-        "pt-3 mt-3 border-t border-composer-border transition-shadow duration-300",
-        pulsing && "ring-2 ring-composer-accent",
-      )}
+      data-testid="youtube-download-section"
+      className="pt-3 mt-3 border-t border-composer-border transition-shadow duration-300"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex flex-col gap-0.5 pr-4">
           <span className="text-sm font-medium text-composer-text">
-            Composer Bridge for YouTube
-            <span className="ml-2 text-[10px] tracking-wide text-composer-accent-text">Experimental</span>
+            Downloads & YouTube Bridge
           </span>
           <span className="text-xs text-composer-text-muted">
-            Route YouTube imports through a small local binary running on your machine instead of Cobalt. Uses your
-            residential IP, so YouTube doesn't block it. Requires running{" "}
-            <a
-              href="https://github.com/better-lyrics/composer-bridge"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 transition-colors hover:text-composer-text"
-            >
-              Composer Bridge
-            </a>
-            .
+            Configure default directories and the internal yt-dlp engine for downloading tracks.
           </span>
         </div>
-        <BridgeToggle enabled={enabled} onToggle={toggleEnabled} />
       </div>
 
-      {enabled && (
-        <div className="flex flex-col gap-2 px-3 py-3 rounded-md bg-composer-input border border-composer-border">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-composer-text">Bridge status</span>
-            <StatusBadge state={state} data={health.data} errorMessage={errorMessage} />
+      <div className="flex flex-col px-4 py-1 rounded-md bg-composer-input border border-composer-border mb-4">
+        <div className="flex flex-col divide-y divide-composer-border">
+          <div className="flex items-center justify-between py-3">
+            <div className="flex flex-col gap-0.5 pr-4 flex-1">
+              <span className="text-sm font-medium text-composer-text">Default Save Directory</span>
+              <span className="text-xs text-composer-text-muted">Where to save exported projects, TTML lyrics, and downloaded YouTube audio. Leave empty for default.</span>
+            </div>
+            <div className="flex items-center gap-2 max-w-xs w-full">
+              <input
+                type="text"
+                className="flex-1 h-7 px-2 text-xs rounded bg-composer-bg text-composer-text border border-composer-border min-w-0"
+                value={backendConfig.download_dir || ""}
+                onChange={(e) => updateBackendConfig("download_dir", e.target.value)}
+                placeholder="Default (library cache)"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  const dir = await ShowDirectoryDialog(backendConfig.download_dir || "");
+                  if (dir) updateBackendConfig("download_dir", dir);
+                }}
+                className="shrink-0 h-7 px-3 text-xs font-medium rounded bg-composer-button hover:bg-composer-button-hover text-composer-text transition-colors"
+              >
+                Browse...
+              </button>
+            </div>
           </div>
-
-          <BridgeUrlField
-            key={bridgeUrl}
-            initialUrl={bridgeUrl}
-            onCommit={commitUrl}
-            onReset={() => setSetting("composerBridgeUrl", DEFAULT_BRIDGE_URL)}
-          />
-
-          {state === "error" &&
-            (everDetectedAtMount ? <BridgeStoppedHint /> : <BridgeInstallGuide onCheckNow={() => health.refetch()} />)}
         </div>
-      )}
+      </div>
+
+      <div className="flex flex-col px-4 py-1 rounded-md bg-composer-input border border-composer-border">
+        <div className="flex flex-col divide-y divide-composer-border">
+          <BridgeSelectConfig
+            label="Audio format"
+            description="Preferred audio container format"
+            value={backendConfig.audio_format}
+            onChange={(v) => updateBackendConfig("audio_format", v)}
+            options={[
+              { value: "m4a", label: "M4A (Default)" },
+              { value: "mp3", label: "MP3" },
+              { value: "opus", label: "Opus" },
+            ]}
+          />
+          <BridgeToggleConfig
+            label="Prefer premium audio"
+            description="Download higher quality streams (requires YouTube Premium cookies)"
+            enabled={backendConfig.prefer_premium_audio}
+            onToggle={() => updateBackendConfig("prefer_premium_audio", !backendConfig.prefer_premium_audio)}
+          />
+          <BridgeSelectConfig
+            label="yt-dlp update channel"
+            description="Which release stream to follow"
+            value={backendConfig.ytdlp_channel}
+            onChange={(v) => updateBackendConfig("ytdlp_channel", v)}
+            options={[
+              { value: "stable", label: "Stable" },
+              { value: "nightly", label: "Nightly" },
+              { value: "off", label: "Off" },
+            ]}
+          />
+          <div className="flex items-center justify-between py-3">
+            <div className="flex flex-col gap-0.5 pr-4">
+              <span className="text-sm font-medium text-composer-text">YouTube Cookies</span>
+              <span className="text-xs text-composer-text-muted">Upload your cookies.txt to bypass age-restrictions and unlock premium audio</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleUploadCookies}
+              className="h-7 px-3 text-xs font-medium rounded-lg bg-composer-button hover:bg-composer-button-hover text-composer-text transition-colors"
+            >
+              Upload…
+            </button>
+          </div>
+          {saveStatus === "saving" && <div className="py-2"><span className="text-xs text-composer-text-muted text-right block">Saving...</span></div>}
+        </div>
+      </div>
     </div>
   );
 };

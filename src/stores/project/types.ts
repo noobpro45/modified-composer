@@ -9,7 +9,7 @@ import type { WordTiming } from "@/domain/word/timing";
 
 type GranularityMode = "line" | "word";
 type EditorMode = "simple" | "advanced";
-type SimpleTab = "import" | "edit" | "sync" | "timeline" | "preview" | "export";
+type SimpleTab = "home" | "import" | "edit" | "sync" | "timeline" | "preview" | "export";
 
 interface SyllableSplitDefaults {
   applyToAll: boolean;
@@ -32,6 +32,7 @@ interface HistoryEntry {
 
 interface MetadataState {
   metadata: ProjectMetadata;
+  currentFilePath: string | null;
 }
 
 interface AgentsState {
@@ -78,6 +79,7 @@ interface HistoryState {
 
 interface MetadataActions {
   setMetadata: (metadata: Partial<ProjectMetadata>) => void;
+  setCurrentFilePath: (path: string | null) => void;
   reset: () => void;
 }
 

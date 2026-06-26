@@ -112,7 +112,7 @@ async function clearAudioFile(): Promise<void> {
   await deleteFromStore(PROJECT_STORE_NAME, AUDIO_FILE_KEY);
 }
 
-function exportProjectToFile(
+async function exportProjectToFile(
   metadata: ProjectMetadata,
   agents: Agent[],
   lines: LyricLine[],
@@ -122,8 +122,10 @@ function exportProjectToFile(
   dismissedSuggestions: string[],
   dismissedExplicitSuggestions: string[],
   customSnapPoints: SnapPoint[],
-  audioFileName?: string,
-): void {
+  audioSource?: SavedAudioSource,
+  currentFilePath?: string | null,
+): Promise<string | null> {
+  const audioFileName = audioSource?.kind === "file" ? audioSource.name : undefined;
   const project: SavedProject = {
     version: 1,
     savedAt: Date.now(),
@@ -134,12 +136,30 @@ function exportProjectToFile(
     granularity,
     syllableSplitDefaults,
     audioFileName,
+    audioSource,
     dismissedSuggestions,
     dismissedExplicitSuggestions,
     customSnapPoints,
   };
 
-  const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
+  const json = JSON.stringify(project, null, 2);
+  let targetPath = currentFilePath;
+
+  if (typeof (window as any).go !== "undefined" && (window as any).go.app?.App) {
+    if (!targetPath) {
+      const suggestedName = `${metadata.title || "project"}.composer`;
+      const defaultDir = await (window as any).go.app.App.DownloadDir();
+      targetPath = await (window as any).go.app.App.ShowSaveFileDialog(suggestedName, defaultDir);
+    }
+    if (targetPath) {
+      await (window as any).go.app.App.WriteProjectFile(targetPath, json);
+      return targetPath;
+    }
+    return null;
+  }
+
+  // Fallback for web mode
+  const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -148,10 +168,15 @@ function exportProjectToFile(
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+  return null;
 }
 
 async function importProjectFromFile(file: File): Promise<SavedProject> {
   const text = await file.text();
+  return importProjectFromText(text);
+}
+
+function importProjectFromText(text: string): SavedProject {
   const project = JSON.parse(text) as SavedProject;
 
   if (project.version !== 1) {
@@ -174,6 +199,7 @@ export {
   clearCurrentProject,
   exportProjectToFile,
   importProjectFromFile,
+  importProjectFromText,
   saveAudioFile,
   loadAudioFile,
   clearAudioFile,

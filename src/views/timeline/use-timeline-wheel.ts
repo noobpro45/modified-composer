@@ -3,7 +3,7 @@ import { computeScrubVelocity, DEFAULT_SCRUB_OPTS, type ScrubSample } from "@/au
 import { useAudioStore } from "@/stores/audio";
 import { useSettingsStore } from "@/stores/settings";
 import { computeAnchoredScrollLeft } from "@/utils/timeline/zoom-anchor";
-import { GUTTER_WIDTH, MAX_ZOOM, MIN_ZOOM, useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
+import { GUTTER_WIDTH, MAX_ZOOM, MIN_ZOOM, useTimelineStore, getVisualizerHeight } from "@/views/timeline/timeline-store";
 import { computeScrubTime, decideWheelAction, normalizeWheelDelta } from "@/views/timeline/timeline-wheel";
 import { type RefObject, useCallback, useEffect, useRef } from "react";
 
@@ -26,8 +26,15 @@ function useTimelineWheel(scrollContainerRef: RefObject<HTMLDivElement | null>, 
       const zoom = useTimelineStore.getState().zoom;
 
       const rect = container.getBoundingClientRect();
+      const isPlaying = useAudioStore.getState().isPlaying;
+      const isHorizontalScroll = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      
       const overWaveform =
-        e.clientY >= rect.top && e.clientY <= rect.top + WAVEFORM_HEIGHT && e.clientX >= rect.left + GUTTER_WIDTH;
+        !isPlaying &&
+        !isHorizontalScroll &&
+        e.clientY >= rect.top && 
+        e.clientY <= rect.top + getVisualizerHeight() && 
+        e.clientX >= rect.left + GUTTER_WIDTH;
 
       const action = decideWheelAction({
         deltaX: e.deltaX,

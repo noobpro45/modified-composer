@@ -5,6 +5,7 @@ import type { WordTiming } from "@/domain/word/timing";
 interface LineFields {
   id: string;
   text: string;
+  romaji?: string;
   agentId: string;
   backgroundText?: string;
   backgroundWords?: WordTiming[];

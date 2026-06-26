@@ -6,7 +6,7 @@ import { buildPlayheadMask } from "@/views/timeline/timeline-playhead-mask";
 import { createPlayheadDrag } from "@/views/timeline/playhead-drag";
 import { snapPlayheadTime } from "@/views/timeline/playhead-snap";
 import { GUTTER_WIDTH, timeToX } from "@/views/timeline/coords";
-import { useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
+import { useTimelineStore, useVisualizerHeight } from "@/views/timeline/timeline-store";
 import { isLinked } from "@/domain/instance/predicates";
 import { effectiveBounds } from "@/domain/line/bounds";
 import { computeRowLayout } from "@/views/timeline/utils";
@@ -32,6 +32,7 @@ const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({ containerHeight, sc
 
   const setDraggingPlayhead = useTimelineStore((s) => s.setDraggingPlayhead);
   const setDragTime = useTimelineStore((s) => s.setDragTime);
+  const visualizerHeight = useVisualizerHeight();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLDivElement>(null);
@@ -39,6 +40,7 @@ const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({ containerHeight, sc
   const lastFollowedLineRef = useRef<number>(-1);
   const verticalTargetRef = useRef<number | null>(null);
   const lastMaskRef = useRef<string>("");
+  const lastMaskUpdateRef = useRef<number>(0);
   const playheadCenterXLocalRef = useRef<number>(0);
   const containerLeftRef = useRef<number>(0);
 
@@ -84,7 +86,7 @@ const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({ containerHeight, sc
             rowHeights,
             defaultRowHeight,
             collapsedInstances,
-            waveformHeight: WAVEFORM_HEIGHT,
+            waveformHeight: visualizerHeight,
             bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
             groupHeaderHeight: GROUP_HEADER_HEIGHT,
           });
@@ -101,9 +103,10 @@ const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({ containerHeight, sc
           if (target) {
             const viewportHeight = container.clientHeight;
             const rowCenter = target.top + target.height / 2;
+            const targetScreenY = visualizerHeight + 60;
             verticalTargetRef.current = Math.max(
               0,
-              Math.min(container.scrollHeight - viewportHeight, rowCenter - viewportHeight / 2),
+              Math.min(container.scrollHeight - viewportHeight, rowCenter - targetScreenY),
             );
           }
         }
@@ -141,12 +144,17 @@ const TimelinePlayhead: React.FC<TimelinePlayheadProps> = ({ containerHeight, sc
         const playheadCenterXViewport = playheadCenterXLocal + containerRect.left;
         playheadCenterXLocalRef.current = playheadCenterXLocal;
         containerLeftRef.current = containerRect.left;
-        const mask = buildPlayheadMask(playheadCenterXViewport, containerRect.top);
-        if (mask !== lastMaskRef.current) {
-          lastMaskRef.current = mask;
-          const style = playheadRef.current.style;
-          style.maskImage = mask;
-          style.webkitMaskImage = mask;
+
+        const now = performance.now();
+        if (now - lastMaskUpdateRef.current > 50) {
+          lastMaskUpdateRef.current = now;
+          const mask = buildPlayheadMask(playheadCenterXViewport, containerRect.top);
+          if (mask !== lastMaskRef.current) {
+            lastMaskRef.current = mask;
+            const style = playheadRef.current.style;
+            style.maskImage = mask;
+            style.webkitMaskImage = mask;
+          }
         }
       }
 

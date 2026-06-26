@@ -18,6 +18,7 @@ function createMetadataInitialState(): MetadataState {
       album: "",
       duration: 0,
     },
+    currentFilePath: null,
   };
 }
 
@@ -44,6 +45,8 @@ const createMetadataSlice: StateCreator<ProjectStore, [], [], MetadataState & Me
       metadata: { ...state.metadata, ...metadata },
       isDirty: true,
     })),
+
+  setCurrentFilePath: (path) => set({ currentFilePath: path }),
 
   reset: () => set(createProjectInitialState()),
 });

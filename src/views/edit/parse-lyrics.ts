@@ -9,6 +9,7 @@ interface ParsedLine {
   hasTiming: boolean;
   agentId: string;
   backgroundText?: string;
+  romaji?: string;
   groupId?: string;
   instanceIdx?: number;
   templateLineIdx?: number;
@@ -34,6 +35,7 @@ function parseLyrics(text: string, lines: LyricLine[], defaultAgentId: string): 
       hasTiming,
       agentId: lyricLine?.agentId ?? defaultAgentId,
       backgroundText: lyricLine?.backgroundText,
+      romaji: lyricLine?.romaji,
       groupId: lyricLine?.groupId,
       instanceIdx: lyricLine?.instanceIdx,
       templateLineIdx: lyricLine?.templateLineIdx,

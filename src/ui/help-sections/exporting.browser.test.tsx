@@ -5,6 +5,6 @@ import { ExportSection } from "@/ui/help-sections/exporting";
 describe("ExportSection", () => {
   it("renders the section content", async () => {
     const screen = await render(<ExportSection />);
-    await expect.element(screen.getByText("Download TTML")).toBeInTheDocument();
+    await expect.element(screen.getByText("Save TTML")).toBeInTheDocument();
   });
 });

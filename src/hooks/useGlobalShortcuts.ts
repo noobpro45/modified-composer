@@ -2,7 +2,8 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import type { Shortcut } from "@/hooks/useKeyboardShortcuts";
 import { getEffectiveBinding, useShortcutBindingsStore } from "@/stores/shortcut-bindings";
 import { useAudioStore } from "@/stores/audio";
-import type { SimpleTab } from "@/stores/project";
+import { useProjectStore, type SimpleTab } from "@/stores/project";
+import { exportProjectToFile } from "@/lib/persistence";
 import { useMemo } from "react";
 
 interface GlobalShortcutActions {
@@ -26,6 +27,7 @@ function useGlobalShortcuts(actions: GlobalShortcutActions): void {
     const goToTimeline = getEffectiveBinding("global.goToTimeline");
     const goToPreview = getEffectiveBinding("global.goToPreview");
     const goToExport = getEffectiveBinding("global.goToExport");
+    const saveProject = getEffectiveBinding("global.saveProject");
     return [
       { ...goToImport, action: () => setActiveTab("import"), description: "Go to Import" },
       { ...goToEdit, action: () => setActiveTab("edit"), description: "Go to Edit" },
@@ -56,6 +58,54 @@ function useGlobalShortcuts(actions: GlobalShortcutActions): void {
         alt: settings.alt,
         action: () => setSettingsOpen(true),
         description: "Open settings",
+      },
+      {
+        key: saveProject.key,
+        shift: saveProject.shift,
+        alt: saveProject.alt,
+        mod: saveProject.mod,
+        action: async () => {
+          const store = useProjectStore.getState();
+          const {
+            metadata,
+            agents,
+            lines,
+            groups,
+            granularity,
+            syllableSplitDefaults,
+            dismissedSuggestions,
+            dismissedExplicitSuggestions,
+            customSnapPoints,
+            currentFilePath,
+          } = store;
+
+          const audioSource = useAudioStore.getState().source;
+          let savedAudioSource: { kind: "file"; name: string } | { kind: "youtube"; videoId: string } | undefined;
+          if (audioSource?.type === "file") {
+            savedAudioSource = { kind: "file", name: audioSource.file.name };
+          } else if (audioSource?.type === "youtube") {
+            savedAudioSource = { kind: "youtube", videoId: audioSource.videoId };
+          }
+
+          const path = await exportProjectToFile(
+            metadata,
+            agents,
+            lines,
+            groups,
+            granularity,
+            syllableSplitDefaults,
+            dismissedSuggestions,
+            dismissedExplicitSuggestions,
+            customSnapPoints,
+            savedAudioSource,
+            currentFilePath,
+          );
+          if (path) {
+            store.setCurrentFilePath(path);
+            store.markClean();
+          }
+        },
+        description: "Save Project",
       },
     ];
   }, [setActiveTab, setHelpOpen, setSettingsOpen, overrides]);

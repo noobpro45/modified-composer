@@ -3,7 +3,7 @@ import { YouTubeUrlInput } from "@/audio/youtube-url-input";
 import { useBridgeThumb } from "@/hooks/useBridgeThumb";
 import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
-import { useSettingsStore } from "@/stores/settings";
+
 import { IconBrandYoutube, IconClock, IconFile, IconLoader2, IconMusic } from "@tabler/icons-react";
 import { useCallback } from "react";
 
@@ -34,7 +34,6 @@ const ROW_HEIGHT = 56;
 // -- Sub-components -----------------------------------------------------------
 
 const YouTubeSourceThumb: React.FC<{ videoId: string; loading: boolean }> = ({ videoId, loading }) => {
-  const bridgeEnabled = useSettingsStore((s) => s.experiments.youtubeBridge);
   const persistedThumb = useProjectStore((s) => s.metadata.thumbnailDataUrl);
   const persistedFor = useProjectStore((s) => s.metadata.thumbnailForVideoId);
   const hasMatchingPersistedThumb = Boolean(persistedThumb && persistedFor === videoId);
@@ -43,7 +42,7 @@ const YouTubeSourceThumb: React.FC<{ videoId: string; loading: boolean }> = ({ v
   if (hasMatchingPersistedThumb) {
     return <img src={persistedThumb} alt="" className="size-full object-cover" />;
   }
-  if (loading || (bridgeEnabled && thumbQuery.isFetching)) {
+  if (loading || thumbQuery.isFetching) {
     return <div className="size-full bg-composer-bg-elevated animate-pulse" />;
   }
   return <IconBrandYoutube size={16} className="text-composer-accent" />;

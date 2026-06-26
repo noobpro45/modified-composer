@@ -83,6 +83,24 @@ function parseTtml(content: string, _fallbackDuration?: number): ParseResult {
     groups.push({ id, label, color, templateVersion });
   }
 
+  // Parse Romaji transliterations
+  const transliterations = new Map<string, { romajiText?: string; romajiWords?: WordTiming[] }>();
+  // Apple Music format: <iTunesMetadata><transliterations><transliteration><text for="L1">...
+  // Use getElementsByTagNameNS if available or simple getElementsByTagName
+  const textEls = doc.getElementsByTagName("text");
+  for (const el of textEls) {
+    const forAttr = el.getAttribute("for");
+    if (forAttr) {
+      const romajiWords = inferSyllableGroupIds(extractTimedWords(el, null));
+      const text = el.textContent || "";
+      if (romajiWords.length > 0) {
+        transliterations.set(forAttr, { romajiWords, romajiText: reconstructLineText(romajiWords, getSplitCharacter()) });
+      } else if (text.trim()) {
+        transliterations.set(forAttr, { romajiText: text.trim() });
+      }
+    }
+  }
+
   // Parse lyrics - look for <p> elements with timing
   const paragraphs = doc.getElementsByTagName("p");
 
@@ -99,6 +117,7 @@ function parseTtml(content: string, _fallbackDuration?: number): ParseResult {
     const instanceIdxStr = getComposerAttribute(p, "instanceIdx");
     const templateLineIdxStr = getComposerAttribute(p, "templateLineIdx");
     const detachedStr = getComposerAttribute(p, "detached");
+    const itunesKey = p.getAttribute("itunes:key") || p.getAttributeNS("http://music.apple.com/lyric-ttml-internal", "key");
 
     const groupFields = knownGroupId
       ? {
@@ -141,8 +160,24 @@ function parseTtml(content: string, _fallbackDuration?: number): ParseResult {
 
     // Check for word-level timing (span elements NOT inside x-bg)
     const words = inferSyllableGroupIds(extractTimedWords(p, bgContainer));
+    
+    // Merge romaji into words or line if available
+    const transliterationData = itunesKey ? transliterations.get(itunesKey) : undefined;
+    let romaji: string | undefined = transliterationData?.romajiText;
 
     if (words.length > 0) {
+      // If we have romaji words, we can merge them into the word timings. 
+      // But Apple's TTML word timings for romaji might not exactly match the base words length if syllables differ.
+      // So we will just attach romaji to words if counts match, else we just attach to the line.
+      if (transliterationData?.romajiWords && transliterationData.romajiWords.length === words.length) {
+        for (let i = 0; i < words.length; i++) {
+          words[i].romaji = transliterationData.romajiWords[i].text;
+        }
+      } else if (transliterationData?.romajiWords) {
+         // Different syllable lengths, best effort map by time or just set to line
+         romaji = reconstructLineText(transliterationData.romajiWords, getSplitCharacter());
+      }
+
       lines.push(
         reconcileLine({
           id: generateLineId(),
@@ -152,6 +187,7 @@ function parseTtml(content: string, _fallbackDuration?: number): ParseResult {
           backgroundText,
           backgroundWords,
           backgroundTextSource,
+          romaji,
           ...groupFields,
         }),
       );
@@ -182,6 +218,7 @@ function parseTtml(content: string, _fallbackDuration?: number): ParseResult {
             backgroundText,
             backgroundWords,
             backgroundTextSource,
+            romaji,
             ...groupFields,
           }),
         );

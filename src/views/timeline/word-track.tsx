@@ -61,6 +61,7 @@ const WordTrack: React.FC<WordTrackProps> = ({
   onUpdateWord,
 }) => {
   const zoom = useTimelineStore((s) => s.zoom);
+  const showRomaji = useTimelineStore((s) => s.showRomaji);
   const selectedWords = useTimelineStore((s) => s.selectedWords);
   const setSelectedWords = useTimelineStore((s) => s.setSelectedWords);
   const toggleSelection = useTimelineStore((s) => s.toggleSelection);
@@ -411,6 +412,8 @@ const WordTrack: React.FC<WordTrackProps> = ({
             wordIndex={wordIndex}
             trackType={trackType}
             text={word.text}
+            romaji={word.romaji}
+            showRomaji={showRomaji}
             begin={display.begin}
             end={display.end}
             color={color}

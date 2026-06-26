@@ -14,7 +14,7 @@ function createUiInitialState(): UiState {
   return {
     granularity: useSettingsStore.getState().defaultGranularity,
     editorMode: "simple",
-    activeTab: "import",
+    activeTab: "home",
     syllableSplitDefaults: DEFAULT_SYLLABLE_SPLIT_DEFAULTS,
     primingStripped: false,
   };

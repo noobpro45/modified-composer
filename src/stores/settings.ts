@@ -8,24 +8,8 @@ type GranularityDefault = "word" | "line";
 type LinkedDivergenceAction = "ask" | "apply" | "detach";
 type PreviewRenderer = "braccato" | "am-lyrics";
 type VocalModelVariant = "fp16" | "fp32";
+type VisualizerMode = "waveform" | "spectrogram";
 
-interface ExperimentFlags {
-  youtubeBridge: boolean;
-}
-
-interface CobaltInstance {
-  id: string;
-  label: string;
-  url: string;
-}
-
-interface CobaltInstanceStatus {
-  status: "success" | "error";
-  errorMessage?: string;
-  at: number;
-}
-
-const DEFAULT_COBALT_INSTANCE_ID = "default";
 
 interface SettingsState {
   defaultPlaybackRate: number;
@@ -43,6 +27,9 @@ interface SettingsState {
   vocalOnsetSnap: boolean;
   snapPlayheadToPoints: boolean;
   timelineHorizontalScroll: boolean;
+  visualizerMode: VisualizerMode;
+  spectrogramHeight: number;
+  spectrogramGain: number;
 
   nudgeAmount: number;
   defaultWordDuration: number;
@@ -73,22 +60,12 @@ interface SettingsState {
   autoSeparateOnImport: boolean;
   vocalModelVariant: VocalModelVariant;
 
-  cobaltInstances: CobaltInstance[];
-  selectedCobaltInstanceId: string;
-  cobaltInstanceStatus: Record<string, CobaltInstanceStatus>;
-
-  experiments: ExperimentFlags;
   composerBridgeUrl: string;
 }
 
 interface SettingsActions {
   set: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void;
   resetToDefaults: () => void;
-  addCobaltInstance: (instance: Omit<CobaltInstance, "id">) => void;
-  updateCobaltInstance: (id: string, updates: Partial<Omit<CobaltInstance, "id">>) => void;
-  removeCobaltInstance: (id: string) => void;
-  selectCobaltInstance: (id: string) => void;
-  recordCobaltInstanceResult: (id: string, status: "success" | "error", errorMessage?: string) => void;
 }
 
 // -- Defaults -----------------------------------------------------------------
@@ -109,6 +86,9 @@ const DEFAULTS: SettingsState = {
   vocalOnsetSnap: true,
   snapPlayheadToPoints: true,
   timelineHorizontalScroll: false,
+  visualizerMode: "waveform",
+  spectrogramHeight: 80,
+  spectrogramGain: 1.5,
 
   nudgeAmount: 0.05,
   defaultWordDuration: 0.3,
@@ -139,18 +119,7 @@ const DEFAULTS: SettingsState = {
   autoSeparateOnImport: false,
   vocalModelVariant: "fp32",
 
-  cobaltInstances: [],
-  selectedCobaltInstanceId: DEFAULT_COBALT_INSTANCE_ID,
-  cobaltInstanceStatus: {},
-
-  experiments: { youtubeBridge: false },
   composerBridgeUrl: DEFAULT_BRIDGE_URL,
-};
-
-const BUILTIN_COBALT_INSTANCE: CobaltInstance = {
-  id: DEFAULT_COBALT_INSTANCE_ID,
-  label: "Composer",
-  url: "https://cobalt.boidu.dev",
 };
 
 const SETTINGS_PERSIST_VERSION = 5;
@@ -166,6 +135,9 @@ function migrateSettings(persistedState: unknown, version: number): unknown {
   if (next.defaultPreviewSidebar === undefined) next.defaultPreviewSidebar = false;
   if (next.vocalOnsetSnap === undefined) next.vocalOnsetSnap = true;
   if (next.snapPlayheadToPoints === undefined) next.snapPlayheadToPoints = true;
+  if (next.visualizerMode === undefined) next.visualizerMode = "waveform";
+  if (next.spectrogramHeight === undefined) next.spectrogramHeight = 80;
+  if (next.spectrogramGain === undefined) next.spectrogramGain = 1.5;
   return next;
 }
 
@@ -189,67 +161,18 @@ const useSettingsStore = create<SettingsState & SettingsActions>()(
           confirmGroupDissolution: state.confirmGroupDissolution,
           confirmApplyToAllSyllableSplit: state.confirmApplyToAllSyllableSplit,
           linkedDivergenceAction: state.linkedDivergenceAction,
-          cobaltInstances: state.cobaltInstances,
-          selectedCobaltInstanceId: state.selectedCobaltInstanceId,
-          cobaltInstanceStatus: state.cobaltInstanceStatus,
-          experiments: state.experiments,
           composerBridgeUrl: state.composerBridgeUrl,
-        })),
-      addCobaltInstance: (instance) =>
-        set((state) => {
-          const id = crypto.randomUUID();
-          return { cobaltInstances: [...state.cobaltInstances, { ...instance, id }] };
-        }),
-      updateCobaltInstance: (id, updates) =>
-        set((state) => ({
-          cobaltInstances: state.cobaltInstances.map((i) => (i.id === id ? { ...i, ...updates } : i)),
-        })),
-      removeCobaltInstance: (id) =>
-        set((state) => {
-          const nextStatus = { ...state.cobaltInstanceStatus };
-          delete nextStatus[id];
-          return {
-            cobaltInstances: state.cobaltInstances.filter((i) => i.id !== id),
-            selectedCobaltInstanceId:
-              state.selectedCobaltInstanceId === id ? DEFAULT_COBALT_INSTANCE_ID : state.selectedCobaltInstanceId,
-            cobaltInstanceStatus: nextStatus,
-          };
-        }),
-      selectCobaltInstance: (id) => set({ selectedCobaltInstanceId: id }),
-      recordCobaltInstanceResult: (id, status, errorMessage) =>
-        set((state) => ({
-          cobaltInstanceStatus: {
-            ...state.cobaltInstanceStatus,
-            [id]: { status, errorMessage, at: Date.now() },
-          },
         })),
     }),
     { name: "composer-settings", version: SETTINGS_PERSIST_VERSION, migrate: migrateSettings },
   ),
 );
 
-function getActiveCobaltInstance(): CobaltInstance {
-  const state = useSettingsStore.getState();
-  if (state.selectedCobaltInstanceId === DEFAULT_COBALT_INSTANCE_ID) return BUILTIN_COBALT_INSTANCE;
-  const found = state.cobaltInstances.find((i) => i.id === state.selectedCobaltInstanceId);
-  return found ?? BUILTIN_COBALT_INSTANCE;
-}
-
-function isUsingDefaultCobaltInstance(): boolean {
-  const state = useSettingsStore.getState();
-  if (state.selectedCobaltInstanceId === DEFAULT_COBALT_INSTANCE_ID) return true;
-  return !state.cobaltInstances.some((i) => i.id === state.selectedCobaltInstanceId);
-}
-
 // -- Exports ------------------------------------------------------------------
 
 export {
   useSettingsStore,
   DEFAULTS,
-  BUILTIN_COBALT_INSTANCE,
-  DEFAULT_COBALT_INSTANCE_ID,
-  getActiveCobaltInstance,
-  isUsingDefaultCobaltInstance,
   migrateSettings as migrateSettingsForTest,
 };
-export type { SettingsState, CobaltInstanceStatus, LinkedDivergenceAction, VocalModelVariant };
+export type { SettingsState, LinkedDivergenceAction, VocalModelVariant };

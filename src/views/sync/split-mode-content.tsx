@@ -17,6 +17,7 @@ interface SplitModeContentProps {
   identicalCount: number;
   sourceText: string;
   showApplyControls: boolean;
+  onAutoSplit?: () => void;
 }
 
 // -- Components ---------------------------------------------------------------
@@ -34,6 +35,7 @@ const SplitModeContent: React.FC<SplitModeContentProps> = ({
   identicalCount,
   sourceText,
   showApplyControls,
+  onAutoSplit,
 }) => {
   const chars = text.split("");
 
@@ -131,11 +133,20 @@ const SplitModeContent: React.FC<SplitModeContentProps> = ({
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2 pt-2">
-        <Button onClick={onCancel}>Cancel</Button>
-        <Button variant="primary" onClick={onConfirm} disabled={splitPoints.length === 0}>
-          {confirmLabel}
-        </Button>
+      <div className="flex items-center justify-between pt-2">
+        <div>
+          {onAutoSplit && (
+            <Button variant="secondary" onClick={onAutoSplit}>
+              Auto Split
+            </Button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button variant="primary" onClick={onConfirm} disabled={splitPoints.length === 0}>
+            {confirmLabel}
+          </Button>
+        </div>
       </div>
     </div>
   );

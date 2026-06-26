@@ -13,6 +13,8 @@ interface WordBlockProps {
   wordIndex: number;
   trackType: "word" | "bg";
   text: string;
+  romaji?: string;
+  showRomaji?: boolean;
   begin: number;
   end: number;
   color: string;
@@ -49,6 +51,8 @@ const WordBlock: React.FC<WordBlockProps> = ({
   wordIndex,
   trackType,
   text,
+  romaji,
+  showRomaji,
   begin,
   end,
   color,
@@ -172,7 +176,20 @@ const WordBlock: React.FC<WordBlockProps> = ({
         onMouseLeave={() => onEdgeHover?.("left", false)}
       />
 
-      {showText && <span className="px-1 pointer-events-none truncate">{text}</span>}
+      {showText && (
+        <span className="px-1 pointer-events-none truncate flex flex-col items-center justify-center relative gap-0.5">
+          {showRomaji && (
+            <div
+              className={`px-1.5 text-[11px] leading-none text-center truncate rounded ${
+                romaji?.trim() ? "bg-black/40 text-composer-text-muted" : "text-transparent"
+              }`}
+            >
+              {romaji?.trim() ? romaji : "\u00A0"}
+            </div>
+          )}
+          <span className="leading-tight text-sm font-medium">{text}</span>
+        </span>
+      )}
 
       <div
         data-edge="right"

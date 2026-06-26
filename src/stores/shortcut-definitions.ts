@@ -25,7 +25,7 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     id: "global.playPause",
     scope: "global",
     description: "Play / Pause",
-    defaultBinding: { key: "Enter" },
+    defaultBinding: { key: " " },
   },
   {
     id: "global.help",
@@ -38,6 +38,12 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     scope: "global",
     description: "Open settings",
     defaultBinding: { key: "," },
+  },
+  {
+    id: "global.saveProject",
+    scope: "global",
+    description: "Save Project",
+    defaultBinding: { key: "s", mod: true },
   },
   {
     id: "global.panicRecovery",
@@ -133,7 +139,7 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     id: "timeline.jumpToPlayhead",
     scope: "timeline",
     description: "Jump to playhead",
-    defaultBinding: { key: " " },
+    defaultBinding: { key: "Enter" },
   },
   {
     id: "timeline.selectWordAtPlayhead",
@@ -290,6 +296,12 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     scope: "timeline",
     description: "Toggle snap (magnet)",
     defaultBinding: { key: "t" },
+  },
+  {
+    id: "timeline.toggleRomaji",
+    scope: "timeline",
+    description: "Toggle Romaji visibility",
+    defaultBinding: { key: "r", shift: true },
   },
   {
     id: "timeline.toggleRollingEdit",

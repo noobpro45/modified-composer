@@ -11,7 +11,7 @@ function splitWordIntoWords(word: WordTiming, splitPoints: number[]): WordTiming
 
   return partitions.map((part, index) => {
     const isLast = index === partitions.length - 1;
-    const trailing = isLast ? (hadTrailingSpace ? " " : "") : " ";
+    const trailing = isLast && hadTrailingSpace ? " " : "";
     return { ...base, text: `${part.text}${trailing}`, begin: part.begin, end: part.end };
   });
 }

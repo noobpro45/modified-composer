@@ -147,6 +147,9 @@ importers:
       vite:
         specifier: ^6.4.3
         version: 6.4.3(@types/node@25.0.3)(jiti@2.7.0)(lightningcss@1.30.2)(yaml@2.9.0)
+      vite-plugin-wasm:
+        specifier: ^3.6.0
+        version: 3.6.0(vite@6.4.3(@types/node@25.0.3)(jiti@2.7.0)(lightningcss@1.30.2)(yaml@2.9.0))
       vite-react-ssg:
         specifier: 0.9.1-beta.1
         version: 0.9.1-beta.1(react-dom@19.2.3(react@19.2.3))(react-router-dom@6.30.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(vite@6.4.3(@types/node@25.0.3)(jiti@2.7.0)(lightningcss@1.30.2)(yaml@2.9.0))
@@ -2731,6 +2734,11 @@ packages:
 
   url-parse@1.5.10:
     resolution: {integrity: sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==}
+
+  vite-plugin-wasm@3.6.0:
+    resolution: {integrity: sha512-mL/QPziiIA4RAA6DkaZZzOstdwbW5jO4Vz7Zenj0wieKWBlNvIvX5L5ljum9lcUX0ShNfBgCNLKTjNkRVVqcsw==}
+    peerDependencies:
+      vite: ^2 || ^3 || ^4 || ^5 || ^6 || ^7 || ^8
 
   vite-react-ssg@0.9.1-beta.1:
     resolution: {integrity: sha512-fB1T3LfzXjwmvOhgJZ2ad8a5Lsiu5Ka7WuD5cwya/zA5foLChnpHckcHihwoOazTdfcDSwZLSQbNpdo1w/F1mQ==}
@@ -5403,6 +5411,10 @@ snapshots:
     dependencies:
       querystringify: 2.2.0
       requires-port: 1.0.0
+
+  vite-plugin-wasm@3.6.0(vite@6.4.3(@types/node@25.0.3)(jiti@2.7.0)(lightningcss@1.30.2)(yaml@2.9.0)):
+    dependencies:
+      vite: 6.4.3(@types/node@25.0.3)(jiti@2.7.0)(lightningcss@1.30.2)(yaml@2.9.0)
 
   vite-react-ssg@0.9.1-beta.1(react-dom@19.2.3(react@19.2.3))(react-router-dom@6.30.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(vite@6.4.3(@types/node@25.0.3)(jiti@2.7.0)(lightningcss@1.30.2)(yaml@2.9.0)):
     dependencies:

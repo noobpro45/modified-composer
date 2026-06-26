@@ -15,10 +15,10 @@ import type { VocalModelVariant } from "@/stores/settings";
 //     "output": [1, 4, 4, 2048, 336]  separated spectrogram branch
 //     "add_67": [1, 4, 2, 343980]     separated time branch
 //                                     stem order: drums, bass, other, vocals
-const FREQ_OUTPUT_NAME = "output";
-const TIME_OUTPUT_NAME = "add_67";
-const WAVEFORM_INPUT_NAME = "input";
-const MAGSPEC_INPUT_NAME = "x";
+const FREQ_OUTPUT_NAME = "freq";
+const TIME_OUTPUT_NAME = "time";
+const WAVEFORM_INPUT_NAME = "mix";
+const MAGSPEC_INPUT_NAME = "mag";
 
 declare const self: DedicatedWorkerGlobalScope;
 

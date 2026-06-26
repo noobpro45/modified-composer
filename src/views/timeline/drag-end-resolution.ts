@@ -1,12 +1,12 @@
 import type { LyricLine } from "@/domain/line/model";
 import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
-import { GUTTER_WIDTH, useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
+import { GUTTER_WIDTH, useTimelineStore, getVisualizerHeight } from "@/views/timeline/timeline-store";
 import { computeRowLayout, getLineAndTrackAtY } from "@/views/timeline/utils";
 
 // -- Constants -----------------------------------------------------------------
 
 const WAVEFORM_BORDER = 1;
-const ROWS_START_Y = WAVEFORM_HEIGHT + WAVEFORM_BORDER;
+const ROWS_START_Y = () => getVisualizerHeight() + WAVEFORM_BORDER;
 const BG_DROP_ZONE_HEIGHT = 24;
 
 // -- Types ---------------------------------------------------------------------
@@ -39,13 +39,16 @@ function resolveDropTarget({ clientX, clientY, lines }: ResolveDropTargetInput):
   const cursorX = clientX - rect.left + container.scrollLeft;
   const cursorY = clientY - rect.top + container.scrollTop;
 
+  const localY = cursorY;
+  if (localY < ROWS_START_Y()) return null;
+
   const { zoom, rowHeights, defaultRowHeight, collapsedInstances } = useTimelineStore.getState();
   const layout = computeRowLayout({
     lines,
     rowHeights,
     defaultRowHeight,
     collapsedInstances,
-    waveformHeight: ROWS_START_Y,
+    waveformHeight: getVisualizerHeight(),
     bgDropZoneHeight: BG_DROP_ZONE_HEIGHT,
     groupHeaderHeight: GROUP_HEADER_HEIGHT,
   });

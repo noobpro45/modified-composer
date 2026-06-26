@@ -9,8 +9,8 @@ interface ModelDescriptor {
 }
 
 const MODEL_FILENAMES: Record<VocalModelVariant, string> = {
-  fp16: "htdemucs_fp16.onnx",
-  fp32: "htdemucs_fp32.onnx",
+  fp16: "htdemucs.onnx", // Ghilda only hosts fp32 under this name
+  fp32: "htdemucs.onnx",
 };
 
 const MODEL_APPROX_BYTES: Record<VocalModelVariant, number> = {
@@ -20,9 +20,11 @@ const MODEL_APPROX_BYTES: Record<VocalModelVariant, number> = {
 
 function getBaseUrl(): string | null {
   const raw = import.meta.env.VITE_VOCAL_MODEL_BASE_URL;
-  if (!raw || typeof raw !== "string") return null;
-  const trimmed = raw.trim().replace(/\/$/, "");
-  return trimmed.length > 0 ? trimmed : null;
+  if (raw && typeof raw === "string") {
+    const trimmed = raw.trim().replace(/\/$/, "");
+    if (trimmed.length > 0) return trimmed;
+  }
+  return "https://huggingface.co/Ghilda/htdemucs-onnx/resolve/main";
 }
 
 function getModelDescriptor(variant: VocalModelVariant): ModelDescriptor | null {

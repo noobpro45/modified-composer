@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "composer",
+  "outputfilename": "composer",
+  "frontend:install": "pnpm install",
+  "frontend:build": "pnpm build",
+  "frontend:dev:watcher": "pnpm dev",
+  "frontend:dev:serverUrl": "auto",
+  "frontend:dir": ".",
+  "wailsjsdir": "./src/wailsjs",
+  "author": {
+    "name": "Boidushya"
+  },
+  "info": {
+    "productName": "Composer",
+    "productVersion": "1.32.3",
+    "copyright": "Boidushya",
+    "comments": "The Composer lyrics editor."
+  }
+}
