@@ -17,6 +17,7 @@
 </p>
 
 ---
+<img width="1920" height="1032" alt="image" src="https://github.com/user-attachments/assets/9984ce90-a122-42fc-a009-2c23b2ead92f" />
 
 ## Why Composer
 
