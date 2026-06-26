@@ -79,8 +79,8 @@ describe("decideEditTextAction", () => {
 
   it("returns needs-confirm when a chorus instance loses a row", () => {
     const lines = chorusLines();
-    // Drop a chorus line from the textarea. textToLyricLines greedily reassigns the matching
-    // existing line, so the LAST chorus instance is the one detected as impacted (c2b is orphaned).
+    // Drop a chorus line from the textarea. textToLyricLines uses LCS to align,
+    // so the FIRST chorus instance is the one detected as impacted (c1b is orphaned).
     const text = ["I love you", "verse line", "I love you", "more than words"].join("\n");
     const action = decideEditTextAction({
       text,
@@ -92,7 +92,7 @@ describe("decideEditTextAction", () => {
     expect(action.kind).toBe("needs-confirm");
     if (action.kind !== "needs-confirm") return;
     expect(action.impacted).toHaveLength(1);
-    expect(action.impacted[0]).toEqual({ groupId: "g1", instanceIdx: 1 });
+    expect(action.impacted[0]).toEqual({ groupId: "g1", instanceIdx: 0 });
     expect(action.labels).toEqual(["Chorus"]);
   });
 
