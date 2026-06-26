@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export interface RecentProject {
+interface RecentProject {
   path: string;
   title: string;
   lastOpened: number;

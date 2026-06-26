@@ -19,9 +19,11 @@ import "@/tour/tour-theme.css";
 import { AppHeader } from "@/ui/app-header";
 import { ConfirmModalHost } from "@/ui/confirm-modal";
 import { DivergenceModalHost } from "@/ui/divergence-modal";
+import { QuitPromptModalHost } from "@/ui/quit-prompt-modal";
 import { LyricsImportModalHost } from "@/views/lyrics-import-modal/lyrics-import-modal-host";
 import { HelpModal } from "@/ui/help-modal";
 import { SettingsModal } from "@/ui/settings-modal";
+import { getPersistenceSettled } from "@/lib/persistence-settled";
 import { TabBar } from "@/ui/tab-bar";
 import { EditPanel } from "@/views/edit";
 import { ExportPanel } from "@/views/export";
@@ -34,7 +36,7 @@ import { importProjectFromText } from "@/lib/persistence";
 import { loadSavedProjectToStore } from "@/stores/project";
 import { useRecentProjectsStore } from "@/stores/recent-projects";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { LazyMotion, domAnimation } from "motion/react";
+import { LazyMotion, domAnimation, AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
 
@@ -63,14 +65,25 @@ const AppContent: React.FC = () => {
   const isDirty = useProjectStore((s) => s.isDirty);
   const [isMounted, setIsMounted] = useState(false);
 
+  // Auto-pause audio if we navigate away from a tab with the player
+  // (e.g. going to Home or Export)
+  useEffect(() => {
+    if (!TABS_WITH_PLAYER.includes(activeTab)) {
+      useAudioStore.getState().setIsPlaying(false);
+    }
+  }, [activeTab]);
+
   useEffect(() => {
     // Wait for Wails bindings to attach, or fallback after 2.5 seconds (for web dev mode)
     const startTime = Date.now();
     const checkWails = () => {
-      const isWailsReady = typeof (window as any).go !== "undefined" && typeof (window as any).runtime !== "undefined";
+      const isWailsReady = typeof window.go !== "undefined" && typeof window.runtime !== "undefined";
       if (isWailsReady || Date.now() - startTime > 2500) {
-        // Add a tiny final delay for React hydration to settle
-        setTimeout(() => setIsMounted(true), 150);
+        // Wait for IndexedDB persistence to finish loading the session
+        getPersistenceSettled().then(() => {
+          // Add a tiny final delay for React hydration to settle
+          setTimeout(() => setIsMounted(true), 150);
+        });
       } else {
         setTimeout(checkWails, 50);
       }
@@ -87,19 +100,19 @@ const AppContent: React.FC = () => {
 
   // Sync unsaved changes state to Wails backend for close prompt
   useEffect(() => {
-    if (typeof (window as any).go !== "undefined" && (window as any).go.app?.App?.SetHasUnsavedChanges) {
-      (window as any).go.app.App.SetHasUnsavedChanges(isDirty);
+    if (typeof window.go !== "undefined" && window.go.app?.App?.SetHasUnsavedChanges) {
+      window.go.app.App.SetHasUnsavedChanges(isDirty);
     }
   }, [isDirty]);
 
   // Handle double-clicked .composer files on startup
   useEffect(() => {
-    if (typeof (window as any).go === "undefined" || !(window as any).go.app?.App) return;
+    if (typeof window.go === "undefined" || !window.go.app?.App) return;
     
-    (window as any).go.app.App.GetStartupProjectFilePath().then(async (path: string) => {
+    window.go.app.App.GetStartupProjectFilePath().then(async (path: string) => {
       if (path) {
         try {
-          const content = await (window as any).go.app.App.ReadProjectFile(path);
+          const content = await window.go.app.App.ReadProjectFile(path);
           const project = importProjectFromText(content);
           loadSavedProjectToStore(project, path);
           useRecentProjectsStore.getState().addProject(
@@ -185,14 +198,22 @@ const AppContent: React.FC = () => {
       </main>
       {source && <AudioEngine />}
       {showPlayer && <AudioPlayer />}
+      <div className="absolute top-0 left-0 right-0 h-8" style={{ "--wails-draggable": "drag" } as React.CSSProperties} />
       <GuideCard state={guideCard} onSkip={skipGuideCard} />
 
-      {!isMounted && (
-        <div className="absolute inset-0 z-[9999] bg-composer-bg flex flex-col items-center justify-center">
-          <img src="/logo.svg" alt="Composer Logo" className="size-24 opacity-80 animate-pulse" />
-          <div className="mt-8 text-lg font-medium text-composer-text animate-pulse">Loading Composer...</div>
-        </div>
-      )}
+      <AnimatePresence>
+        {!isMounted && (
+          <motion.div
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="absolute inset-0 z-[9999] bg-composer-bg flex flex-col items-center justify-center pointer-events-none"
+          >
+            <img src="/logo.svg" alt="Composer Logo" className="size-24 opacity-80 animate-pulse" />
+            <div className="mt-8 text-lg font-medium text-composer-text animate-pulse">Loading Composer...</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -203,6 +224,7 @@ const App: React.FC = () => {
       <LazyMotion features={domAnimation} strict>
         <AppContent />
         <ConfirmModalHost />
+        <QuitPromptModalHost />
         <DivergenceModalHost />
         <LyricsImportModalHost />
         <Toaster

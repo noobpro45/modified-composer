@@ -64,13 +64,13 @@ const ExportPanel: React.FC = () => {
   const handleDownload = useCallback(async () => {
     if (!exportContent) return;
 
-    if (typeof (window as any).go !== "undefined" && (window as any).go.app?.App) {
+    if (typeof window.go !== "undefined" && window.go.app?.App) {
       const suggestedName = `${metadata.title || "lyrics"}.ttml`;
-      const defaultDir = await (window as any).go.app.App.DownloadDir();
-      const targetPath = await (window as any).go.app.App.ShowTTMLSaveFileDialog(suggestedName, defaultDir);
+      const defaultDir = await window.go.app.App.DownloadDir();
+      const targetPath = await window.go.app.App.ShowTTMLSaveFileDialog(suggestedName, defaultDir);
       
       if (targetPath) {
-        await (window as any).go.app.App.WriteProjectFile(targetPath, exportContent);
+        await window.go.app.App.WriteProjectFile(targetPath, exportContent);
       }
     } else {
       // Fallback for web mode

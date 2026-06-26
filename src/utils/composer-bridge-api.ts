@@ -3,8 +3,7 @@
 // See `experiments/composer-bridge/README.md` for what the binary is.
 
 const DEFAULT_BRIDGE_URL = "http://localhost:7777";
-const HEALTH_QUERY_KEY = "composer-bridge-health";
-const HEALTH_TIMEOUT_MS = 1500;
+
 const AUDIO_TIMEOUT_MS = 5 * 60 * 1000;
 const THUMB_TIMEOUT_MS = 15 * 1000;
 
@@ -24,11 +23,7 @@ function composeAbortSignals(a: AbortSignal | undefined, b: AbortSignal): AbortS
   return local.signal;
 }
 
-interface BridgeHealth {
-  bridge: string;
-  ytdlp: string;
-  status: string;
-}
+
 
 interface BridgeAudio {
   buffer: ArrayBuffer;
@@ -65,34 +60,7 @@ function decodeHeader(value: string | null): string | undefined {
   }
 }
 
-async function checkBridgeHealth(baseUrl: string, signal?: AbortSignal): Promise<BridgeHealth> {
-  // If running inside Wails desktop app, we are the bridge.
-  if (typeof (window as any).go !== "undefined" && (window as any).go.app?.App) {
-    try {
-      const version = await (window as any).go.app.App.BridgeVersion();
-      return { bridge: version, ytdlp: "native", status: "ok" };
-    } catch {
-      return { bridge: "native", ytdlp: "native", status: "ok" };
-    }
-  }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
-  const composed = composeAbortSignals(signal, controller.signal);
-  try {
-    const res = await fetch(`${normalizeBaseUrl(baseUrl)}/health`, { signal: composed });
-    if (!res.ok) throw new BridgeError("http", `health: ${res.status}`, res.status);
-    return (await res.json()) as BridgeHealth;
-  } catch (err) {
-    if (err instanceof BridgeError) throw err;
-    if (err instanceof DOMException && err.name === "AbortError") {
-      throw new BridgeError("timeout", "bridge health timed out");
-    }
-    throw new BridgeError("unreachable", err instanceof Error ? err.message : "unreachable");
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
 
 async function getAudioFromBridge(baseUrl: string, videoId: string, signal?: AbortSignal): Promise<BridgeAudio> {
   const controller = new AbortController();
@@ -100,7 +68,7 @@ async function getAudioFromBridge(baseUrl: string, videoId: string, signal?: Abo
   const composed = composeAbortSignals(signal, controller.signal);
   try {
     // If inside Wails, use the Wails AssetServer directly instead of localhost
-    const isWails = typeof (window as any).go !== "undefined";
+    const isWails = typeof window.go !== "undefined";
     const targetUrl = isWails 
       ? `/audio/${encodeURIComponent(videoId)}` 
       : `${normalizeBaseUrl(baseUrl)}/audio/${encodeURIComponent(videoId)}`;
@@ -134,7 +102,7 @@ async function getThumbFromBridge(baseUrl: string, videoId: string, signal?: Abo
   const timeoutId = setTimeout(() => controller.abort(), THUMB_TIMEOUT_MS);
   const composed = composeAbortSignals(signal, controller.signal);
   try {
-    const isWails = typeof (window as any).go !== "undefined";
+    const isWails = typeof window.go !== "undefined";
     const targetUrl = isWails 
       ? `/thumb/${encodeURIComponent(videoId)}` 
       : `${normalizeBaseUrl(baseUrl)}/thumb/${encodeURIComponent(videoId)}`;
@@ -188,9 +156,7 @@ function formatBridgeErrorForToast(err: unknown): string {
 
 export {
   DEFAULT_BRIDGE_URL,
-  HEALTH_QUERY_KEY,
   BridgeError,
-  checkBridgeHealth,
   getAudioFromBridge,
   getThumbFromBridge,
   formatBridgeErrorForToast,
@@ -200,4 +166,3 @@ export {
   extensionForBridgeMime,
   buildBridgeAudioFile,
 };
-export type { BridgeHealth };

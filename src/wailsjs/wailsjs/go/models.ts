@@ -239,7 +239,7 @@ export namespace updater {
 	        this.asset = this.convertValues(source["asset"], Asset);
 	    }
 	
-		convertValues(a: any, classs: any, asMap = false): any {
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
 		    }

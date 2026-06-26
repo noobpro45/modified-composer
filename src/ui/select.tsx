@@ -4,12 +4,12 @@ import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 
 // -- Types --------------------------------------------------------------------
 
-export interface SelectOption {
+interface SelectOption {
   value: string;
   label: string;
 }
 
-export interface SelectProps {
+interface SelectProps {
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];

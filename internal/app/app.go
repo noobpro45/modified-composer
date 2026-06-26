@@ -328,20 +328,10 @@ func (a *App) OnBeforeClose(_ context.Context) bool {
 	}
 
 	if a.state.Snapshot().UnsavedChanges {
-		result, err := wailsRuntime.MessageDialog(a.ctx, wailsRuntime.MessageDialogOptions{
-			Type:          wailsRuntime.QuestionDialog,
-			Title:         "Unsaved Changes",
-			Message:       "You have unsaved changes. Are you sure you want to quit without saving?",
-			Buttons:       []string{"Yes", "No"},
-			DefaultButton: "No",
-			CancelButton:  "No",
-		})
-		if err == nil && result == "No" {
-			return true // cancel close
+		if a.ctx != nil {
+			wailsRuntime.EventsEmit(a.ctx, "bridge:request-close")
 		}
-		// If Yes, we proceed to quit entirely, bypassing hide-to-tray.
-		a.MarkQuitting()
-		return false
+		return true // prevent close, wait for React modal decision
 	}
 
 	if a.ctx != nil && a.hideWindow != nil {

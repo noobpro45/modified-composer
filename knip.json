@@ -3,5 +3,6 @@
   "entry": ["src/router.tsx", "src/App.tsx", "scripts/build-seo-assets.ts"],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
   "ignoreDependencies": ["@vercel/og", "@dnd-kit/sortable", "@dnd-kit/utilities", "lit", "tailwindcss"],
-  "ignoreExportsUsedInFile": false
+  "ignoreExportsUsedInFile": false,
+  "ignore": ["src/wailsjs/**"]
 }

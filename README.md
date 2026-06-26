@@ -45,15 +45,19 @@ Four-step workflow:
 - **Tap-to-sync** - Press Space in time with the music to stamp each word
 - **YouTube import** - Paste a video URL to pull the audio straight in, no manual download needed
 - **Timeline editor** - DAW-style view with draggable word blocks on a waveform
+- **Spectrogram view** - Visualize audio frequencies with a detailed spectrogram view on the timeline
 - **Snap (magnet)** - Word edges magnetically lock onto neighbors and the playhead when dragging or resizing
 - **Multiple agents** - Assign lines to different singers with distinct colors
 - **Background vocals** - Separate track for backing vocals with `x-bg` TTML role
+- **Romaji support** - Optional Romaji fields for Japanese lyrics with a dedicated toggle in the timeline
+- **Auto-segmentation** - Smart word splitting based on character transitions, including CJK support
 - **Syllable splitting** - Break words into individually timed syllables
+- **Vocal separation** - Built-in vocal isolation using HTDemucs
 - **Live preview** - See your lyrics rendered in real time with Better Lyrics' engine
 - **Lyrics import** - Drop .lrc, .srt, .ttml, or .txt files to get started quickly
 - **Project files** - Save and share your work as JSON
 - **Keyboard-driven** - Comprehensive shortcuts for every action
-- **Local processing** - No uploads, no accounts, your audio and processing never leave your machine
+- **Native desktop app** - System tray integration, complete offline support. No uploads, no accounts, your audio and processing never leave your machine
 
 ## Standards
 

@@ -140,6 +140,32 @@ function usePersistence(): void {
             source: useAudioStore.getState().source,
           });
         }
+        
+        const state = useProjectStore.getState();
+        const hasUnsavedContent = state.lines.length > 0 || state.metadata.title;
+        const currentPath = useProjectStore.getState().currentFilePath;
+        
+        // Only prompt if they have unsaved content, no file on disk yet, and are stuck on the home screen
+        if (hasUnsavedContent && !currentPath && state.activeTab === "home") {
+          import("@/stores/confirm-store").then(({ useConfirmStore }) => {
+            useConfirmStore.getState().open({
+              title: "Resume Unsaved Project?",
+              description: "You have an unsaved project from your last session. Would you like to resume editing it, or start fresh?",
+              confirmLabel: "Resume Project",
+              cancelLabel: "Start Fresh",
+              variant: "primary",
+            }).then((resume) => {
+              if (resume) {
+                useProjectStore.getState().setActiveTab("edit");
+              } else {
+                useProjectStore.getState().reset();
+                useAudioStore.getState().reset();
+                import("@/lib/persistence").then((p) => p.clearCurrentProject());
+              }
+            });
+          });
+        }
+        
         markPersistenceSettled();
       });
   }, []);

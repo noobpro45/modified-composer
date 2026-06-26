@@ -173,6 +173,5 @@ const useSettingsStore = create<SettingsState & SettingsActions>()(
 export {
   useSettingsStore,
   DEFAULTS,
-  migrateSettings as migrateSettingsForTest,
 };
 export type { SettingsState, LinkedDivergenceAction, VocalModelVariant };

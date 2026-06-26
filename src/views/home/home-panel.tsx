@@ -2,8 +2,9 @@ import { useProjectStore, loadSavedProjectToStore } from "@/stores/project";
 import { useAudioStore } from "@/stores/audio";
 import { useRecentProjectsStore } from "@/stores/recent-projects";
 import { importProjectFromText } from "@/lib/persistence";
+import { useConfirm } from "@/stores/confirm-store";
 import { Button } from "@/ui/button";
-import { IconFilePlus, IconFolderOpen, IconHistory } from "@tabler/icons-react";
+import { IconFilePlus, IconFolderOpen, IconHistory, IconPlayerPlayFilled } from "@tabler/icons-react";
 
 const HomePanel: React.FC = () => {
   const setActiveTab = useProjectStore((s) => s.setActiveTab);
@@ -13,12 +14,15 @@ const HomePanel: React.FC = () => {
   const addProject = useRecentProjectsStore((s) => s.addProject);
   const removeProject = useRecentProjectsStore((s) => s.removeProject);
   const clearAll = useRecentProjectsStore((s) => s.clearAll);
+  
+  const hasActiveProject = useProjectStore((s) => s.lines.length > 0 || !!s.metadata.title);
+  const confirm = useConfirm();
 
   const handleOpenProject = async () => {
     try {
-      const path = await (window as any).go.app.App.ShowOpenFileDialog();
+      const path = await window.go.app.App.ShowOpenFileDialog();
       if (path) {
-        const content = await (window as any).go.app.App.ReadProjectFile(path);
+        const content = await window.go.app.App.ReadProjectFile(path);
         const project = importProjectFromText(content);
         
         loadSavedProjectToStore(project, path);
@@ -38,7 +42,7 @@ const HomePanel: React.FC = () => {
 
   const handleOpenRecentProject = async (projPath: string) => {
     try {
-      const content = await (window as any).go.app.App.ReadProjectFile(projPath);
+      const content = await window.go.app.App.ReadProjectFile(projPath);
       const project = importProjectFromText(content);
       
       loadSavedProjectToStore(project, projPath);
@@ -56,6 +60,22 @@ const HomePanel: React.FC = () => {
     }
   };
 
+  const handleNewProject = async () => {
+    if (hasActiveProject) {
+      const ok = await confirm({
+        title: "Discard Active Project?",
+        description: "You have an active project loaded. Creating a new project will wipe your current session. Are you sure you want to discard it?",
+        confirmLabel: "Start Fresh",
+        cancelLabel: "Cancel",
+        variant: "destructive",
+      });
+      if (!ok) return;
+    }
+    resetProject();
+    resetAudio();
+    setActiveTab("import");
+  };
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
       <div className="max-w-2xl w-full flex flex-col gap-12">
@@ -66,7 +86,13 @@ const HomePanel: React.FC = () => {
         </div>
 
         <div className="flex gap-4 justify-center">
-          <Button className="gap-2 px-8 py-3 h-auto" onClick={() => { resetProject(); resetAudio(); setActiveTab("import"); }}>
+          {hasActiveProject && (
+            <Button className="gap-2 px-8 py-3 h-auto bg-composer-accent hover:bg-composer-accent-hover text-white" onClick={() => setActiveTab("edit")}>
+              <IconPlayerPlayFilled className="size-5" />
+              Resume Active Project
+            </Button>
+          )}
+          <Button variant={hasActiveProject ? "secondary" : "primary"} className="gap-2 px-8 py-3 h-auto" onClick={handleNewProject}>
             <IconFilePlus className="size-5" />
             New Project
           </Button>

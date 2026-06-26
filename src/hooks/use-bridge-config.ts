@@ -4,7 +4,7 @@ import type { config } from "@/wailsjs/go/models";
 
 const SAVE_DEBOUNCE_MS = 300;
 
-export type SaveStatus = "idle" | "saving" | "saved" | "error";
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 interface UseBridgeConfigResult {
   config: config.Config | null;
@@ -22,7 +22,7 @@ export function useBridgeConfig(): UseBridgeConfigResult {
   useEffect(() => {
     let cancelled = false;
     // Only fetch config if running inside Wails
-    if (typeof (window as any).go === "undefined" || !(window as any).go.app?.App) {
+    if (typeof window.go === "undefined" || !window.go.app?.App) {
       return;
     }
     GetConfig()

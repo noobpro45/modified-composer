@@ -8,7 +8,7 @@ export interface TileGenerationParams {
 	paletteId: string;
 }
 
-export type WorkerRequest =
+type WorkerRequest =
 	| { type: "INIT"; audioData: Float32Array; sampleRate: number }
 	| { type: "SET_PALETTE"; palette: Uint8Array }
 	| { type: "GET_TILE"; reqId: number; params: TileGenerationParams };

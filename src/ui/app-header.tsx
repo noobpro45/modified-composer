@@ -1,6 +1,7 @@
 import { Button } from "@/ui/button";
 import { IconHome, IconHelp, IconMinus, IconSettings, IconSquare, IconX } from "@tabler/icons-react";
 import { useProjectStore } from "@/stores/project";
+import { useAudioStore } from "@/stores/audio";
 import { Quit, WindowMinimise, WindowToggleMaximise } from "@/wailsjs/runtime/runtime";
 
 interface AppHeaderProps {
@@ -8,35 +9,41 @@ interface AppHeaderProps {
   onHelpOpen: () => void;
 }
 
-const AppHeader: React.FC<AppHeaderProps> = ({ onSettingsOpen, onHelpOpen }) => (
-  <header
-    className="flex items-center justify-between p-4 border-b select-none border-composer-border"
-    style={{ "--wails-draggable": "drag" } as React.CSSProperties}
-  >
-    <h1 
-      className="text-xl font-semibold flex items-center gap-2 cursor-pointer hover:text-composer-accent transition-colors"
-      style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
-      onClick={() => useProjectStore.getState().setActiveTab("home")}
-      title="Return to Home"
+const AppHeader: React.FC<AppHeaderProps> = ({ onSettingsOpen, onHelpOpen }) => {
+  const handleGoHome = () => {
+    useAudioStore.getState().setIsPlaying(false);
+    useProjectStore.getState().setActiveTab("home");
+  };
+
+  return (
+    <header
+      className="flex items-center justify-between p-4 border-b select-none border-composer-border"
+      style={{ "--wails-draggable": "drag" } as React.CSSProperties}
     >
-      <img src="/logo.svg" alt="Composer Logo" className="size-6" />
-      Composer
-    </h1>
-    <div className="flex items-center gap-1" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-      <Button 
-        size="icon" 
-        variant="ghost" 
-        onClick={() => useProjectStore.getState().setActiveTab("home")} 
-        title="Home"
+      <h1 
+        className="text-xl font-semibold flex items-center gap-2 cursor-pointer hover:text-composer-accent transition-colors"
+        style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
+        onClick={handleGoHome}
+        title="Return to Home"
       >
-        <IconHome className="size-5" />
-      </Button>
-      <Button size="icon" variant="ghost" onClick={onSettingsOpen} title="Settings">
-        <IconSettings className="size-5" />
-      </Button>
-      <Button size="icon" variant="ghost" onClick={onHelpOpen} title="Keyboard shortcuts (?)">
-        <IconHelp className="size-5" />
-      </Button>
+        <img src="/logo.svg" alt="Composer Logo" className="size-6" />
+        Composer
+      </h1>
+      <div className="flex items-center gap-1" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+        <Button 
+          size="icon" 
+          variant="ghost" 
+          onClick={handleGoHome} 
+          title="Home"
+        >
+          <IconHome className="size-5" />
+        </Button>
+        <Button size="icon" variant="ghost" onClick={onSettingsOpen} title="Settings">
+          <IconSettings className="size-5" />
+        </Button>
+        <Button size="icon" variant="ghost" onClick={onHelpOpen} title="Keyboard shortcuts (?)">
+          <IconHelp className="size-5" />
+        </Button>
       
       {/* Window Controls */}
       {(window as any).runtime && (
@@ -55,6 +62,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onSettingsOpen, onHelpOpen }) => 
       )}
     </div>
   </header>
-);
+  );
+};
 
 export { AppHeader };

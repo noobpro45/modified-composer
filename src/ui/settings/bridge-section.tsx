@@ -57,7 +57,7 @@ const BridgeSelectConfig: React.FC<{
 // -- Sub-sections -------------------------------------------------------------
 
 const BridgeSection: React.FC = () => {
-  const isNative = typeof (window as any).go !== "undefined" && !!(window as any).go.app?.App;
+  const isNative = typeof window.go !== "undefined" && !!window.go.app?.App;
   const { config: backendConfig, update: updateBackendConfig, saveStatus } = useBridgeConfig();
 
   const handleUploadCookies = async () => {

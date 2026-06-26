@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 )
@@ -136,11 +137,19 @@ func Save(path string, cfg Config) error {
 	if err := f.Close(); err != nil {
 		return fmt.Errorf("close config tmp: %w", err)
 	}
-	// TODO(windows): os.Rename onto an existing file fails on Windows; swap to a Windows-safe atomic rename helper if/when the bridge ships there.
-	if err := os.Rename(tmp, path); err != nil {
+	if err := replaceFile(tmp, path); err != nil {
 		return fmt.Errorf("rename config tmp: %w", err)
 	}
 	return nil
+}
+
+// replaceFile wraps os.Rename, but on Windows it removes the destination first
+// to avoid "file already exists" errors when the file is locked or hidden.
+func replaceFile(src, dst string) error {
+	if runtime.GOOS == "windows" {
+		os.Remove(dst) // Ignore error, as the file might not exist yet
+	}
+	return os.Rename(src, dst)
 }
 
 // SplitAndCleanOrigins re-splits any allowed-origin entry that has commas baked
