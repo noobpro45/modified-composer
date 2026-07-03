@@ -20,6 +20,7 @@ import { type ParseResult, parseLyricsFile } from "@/utils/lyrics-parsers";
 import { remapWordTextsPreservingTiming } from "@/domain/word/remap-text";
 import { stripSplitCharacter } from "@/utils/split-character";
 import { AgentManager } from "@/views/edit/agent-manager";
+import { MetadataEditor } from "@/views/edit/metadata-editor";
 import { decideEditTextAction } from "@/views/edit/decide-edit-text-action";
 import { detachInstancesFromLines } from "@/views/edit/diff-edit-text";
 import { parseLyrics } from "@/views/edit/parse-lyrics";
@@ -810,6 +811,7 @@ const EditPanel: React.FC = () => {
 
       <BracketWarning count={bracketCount} />
 
+      <MetadataEditor />
       <AgentManager />
 
       <div className="flex flex-1 min-h-0 gap-4">

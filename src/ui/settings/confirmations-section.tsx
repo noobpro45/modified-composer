@@ -48,6 +48,11 @@ const ConfirmationsSection: React.FC = () => {
           description="Show a warning when a syllable split would also apply to other identical words across the project."
           settingKey="confirmApplyToAllSyllableSplit"
         />
+        <ToggleSetting
+          label="Confirm deleting cached tracks"
+          description="Show a warning before permanently deleting downloaded audio from your library."
+          settingKey="confirmDeleteCachedTrack"
+        />
       </div>
     </div>
   );

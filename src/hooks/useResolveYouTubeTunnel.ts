@@ -119,7 +119,7 @@ function useResolveYouTubeTunnel(): void {
       const project = useProjectStore.getState();
       const currentTitle = project.metadata.title;
       if (!currentTitle || currentTitle === videoId) {
-        const metadataPatch: Partial<typeof project.metadata> = { title: data.filename || videoId };
+        const metadataPatch: Partial<typeof project.metadata> = { title: data.title || data.filename || videoId };
         if (data.artist) metadataPatch.artist = data.artist;
         if (data.album) metadataPatch.album = data.album;
         project.setMetadata(metadataPatch);

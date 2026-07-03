@@ -230,11 +230,12 @@ const TimelinePanel: React.FC = () => {
 
   const handleScrollRef = useRef<NodeJS.Timeout | null>(null);
   const handleScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
-      const scrollLeft = e.currentTarget.scrollLeft;
+    (_e: React.UIEvent<HTMLDivElement>) => {
       if (!handleScrollRef.current) {
         handleScrollRef.current = setTimeout(() => {
-          setScrollLeft(scrollLeft);
+          if (scrollContainerRef.current) {
+            setScrollLeft(scrollContainerRef.current.scrollLeft);
+          }
           handleScrollRef.current = null;
         }, 50);
       }
@@ -496,7 +497,7 @@ const TimelinePanel: React.FC = () => {
 
               <TimelinePlayhead containerHeight={contentHeight} scrollContainerRef={scrollContainerRef} />
 
-              <SnapGuideline />
+              <SnapGuideline scrollContainerRef={scrollContainerRef} />
 
               <SnapMarkersOverlay scrollContainerRef={scrollContainerRef} />
 

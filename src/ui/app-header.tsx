@@ -17,7 +17,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onSettingsOpen, onHelpOpen }) => 
 
   return (
     <header
-      className="flex items-center justify-between p-4 border-b select-none border-composer-border"
+      className="relative z-[9999] bg-composer-bg flex items-center justify-between p-4 border-b select-none border-composer-border"
       style={{ "--wails-draggable": "drag" } as React.CSSProperties}
     >
       <h1 

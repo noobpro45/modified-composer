@@ -12,6 +12,18 @@ if (typeof document !== "undefined") {
       e.preventDefault();
     }
   }, { passive: false });
+
+  // Hide the default browser context menu unless right-clicking an input
+  document.addEventListener("contextmenu", (e) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    // Allow context menu if the shift key is held down (useful for debugging)
+    if (e.shiftKey) {
+      return;
+    }
+    e.preventDefault();
+  });
 }
 
 export const createRoot = ViteReactSSG({ routes });

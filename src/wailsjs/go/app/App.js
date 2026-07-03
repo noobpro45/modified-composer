@@ -42,6 +42,10 @@ export function DownloadDir() {
   return window['go']['app']['App']['DownloadDir']();
 }
 
+export function ExportTrack(arg1, arg2) {
+  return window['go']['app']['App']['ExportTrack'](arg1, arg2);
+}
+
 export function ForceYtdlpUpdate() {
   return window['go']['app']['App']['ForceYtdlpUpdate']();
 }

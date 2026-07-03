@@ -30,6 +30,8 @@ export function DownloadAudio(arg1:string):Promise<library.Track>;
 
 export function DownloadDir():Promise<string>;
 
+export function ExportTrack(arg1:string,arg2:string):Promise<void>;
+
 export function ForceYtdlpUpdate():Promise<string>;
 
 export function GetConfig():Promise<config.Config>;

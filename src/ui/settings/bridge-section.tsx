@@ -34,7 +34,7 @@ const BridgeToggleConfig: React.FC<{ enabled: boolean; onToggle: () => void; lab
   </div>
 );
 
-const BridgeSelectConfig: React.FC<{
+export const BridgeSelectConfig: React.FC<{
   label: string;
   description?: string;
   value: string;
@@ -83,98 +83,72 @@ const BridgeSection: React.FC = () => {
   if (!isNative || !backendConfig) return null;
 
   return (
-    <div
-      data-testid="youtube-download-section"
-      className="pt-3 mt-3 border-t border-composer-border transition-shadow duration-300"
-    >
-      <div className="flex items-start justify-between mb-3">
+    <>
+      <div className="flex items-center justify-between py-3">
+        <div className="flex flex-col gap-0.5 pr-4 flex-1">
+          <span className="text-sm font-medium text-composer-text">Default Save Directory</span>
+          <span className="text-xs text-composer-text-muted">Where to save exported projects, TTML lyrics, and downloaded YouTube audio. Leave empty for default.</span>
+        </div>
+        <div className="flex items-center gap-2 max-w-xs w-full">
+          <input
+            type="text"
+            className="flex-1 h-7 px-2 text-xs rounded bg-composer-bg text-composer-text border border-composer-border min-w-0"
+            value={backendConfig.download_dir || ""}
+            onChange={(e) => updateBackendConfig("download_dir", e.target.value)}
+            placeholder="Default (library cache)"
+          />
+          <button
+            type="button"
+            onClick={async () => {
+              const dir = await ShowDirectoryDialog(backendConfig.download_dir || "");
+              if (dir) updateBackendConfig("download_dir", dir);
+            }}
+            className="shrink-0 h-7 px-3 text-xs font-medium rounded bg-composer-button hover:bg-composer-button-hover text-composer-text transition-colors"
+          >
+            Browse...
+          </button>
+        </div>
+      </div>
+
+      <BridgeToggleConfig
+        label="Cache Streams for Offline Playback"
+        description="Automatically save streamed songs to an internal cache so you can replay them instantly offline."
+        enabled={backendConfig.auto_download_to_library}
+        onToggle={() => updateBackendConfig("auto_download_to_library", !backendConfig.auto_download_to_library)}
+      />
+
+      <BridgeToggleConfig
+        label="Prefer premium audio"
+        description="Download higher quality streams (requires YouTube Premium cookies)"
+        enabled={backendConfig.prefer_premium_audio}
+        onToggle={() => updateBackendConfig("prefer_premium_audio", !backendConfig.prefer_premium_audio)}
+      />
+      <BridgeSelectConfig
+        label="yt-dlp update channel"
+        description="Which release stream to follow"
+        value={backendConfig.ytdlp_channel}
+        onChange={(v) => updateBackendConfig("ytdlp_channel", v)}
+        options={[
+          { value: "stable", label: "Stable" },
+          { value: "nightly", label: "Nightly" },
+          { value: "off", label: "Off" },
+        ]}
+      />
+      <div className="flex items-center justify-between py-3">
         <div className="flex flex-col gap-0.5 pr-4">
-          <span className="text-sm font-medium text-composer-text">
-            Downloads & YouTube Bridge
-          </span>
-          <span className="text-xs text-composer-text-muted">
-            Configure default directories and the internal yt-dlp engine for downloading tracks.
-          </span>
+          <span className="text-sm font-medium text-composer-text">YouTube Cookies</span>
+          <span className="text-xs text-composer-text-muted">Upload your cookies.txt to bypass age-restrictions and unlock premium audio</span>
         </div>
+        <button
+          type="button"
+          onClick={handleUploadCookies}
+          className="h-7 px-3 text-xs font-medium rounded-lg bg-composer-button hover:bg-composer-button-hover text-composer-text transition-colors"
+        >
+          Upload…
+        </button>
       </div>
-
-      <div className="flex flex-col px-4 py-1 rounded-md bg-composer-input border border-composer-border mb-4">
-        <div className="flex flex-col divide-y divide-composer-border">
-          <div className="flex items-center justify-between py-3">
-            <div className="flex flex-col gap-0.5 pr-4 flex-1">
-              <span className="text-sm font-medium text-composer-text">Default Save Directory</span>
-              <span className="text-xs text-composer-text-muted">Where to save exported projects, TTML lyrics, and downloaded YouTube audio. Leave empty for default.</span>
-            </div>
-            <div className="flex items-center gap-2 max-w-xs w-full">
-              <input
-                type="text"
-                className="flex-1 h-7 px-2 text-xs rounded bg-composer-bg text-composer-text border border-composer-border min-w-0"
-                value={backendConfig.download_dir || ""}
-                onChange={(e) => updateBackendConfig("download_dir", e.target.value)}
-                placeholder="Default (library cache)"
-              />
-              <button
-                type="button"
-                onClick={async () => {
-                  const dir = await ShowDirectoryDialog(backendConfig.download_dir || "");
-                  if (dir) updateBackendConfig("download_dir", dir);
-                }}
-                className="shrink-0 h-7 px-3 text-xs font-medium rounded bg-composer-button hover:bg-composer-button-hover text-composer-text transition-colors"
-              >
-                Browse...
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col px-4 py-1 rounded-md bg-composer-input border border-composer-border">
-        <div className="flex flex-col divide-y divide-composer-border">
-          <BridgeSelectConfig
-            label="Audio format"
-            description="Preferred audio container format"
-            value={backendConfig.audio_format}
-            onChange={(v) => updateBackendConfig("audio_format", v)}
-            options={[
-              { value: "m4a", label: "M4A (Default)" },
-              { value: "mp3", label: "MP3" },
-              { value: "opus", label: "Opus" },
-            ]}
-          />
-          <BridgeToggleConfig
-            label="Prefer premium audio"
-            description="Download higher quality streams (requires YouTube Premium cookies)"
-            enabled={backendConfig.prefer_premium_audio}
-            onToggle={() => updateBackendConfig("prefer_premium_audio", !backendConfig.prefer_premium_audio)}
-          />
-          <BridgeSelectConfig
-            label="yt-dlp update channel"
-            description="Which release stream to follow"
-            value={backendConfig.ytdlp_channel}
-            onChange={(v) => updateBackendConfig("ytdlp_channel", v)}
-            options={[
-              { value: "stable", label: "Stable" },
-              { value: "nightly", label: "Nightly" },
-              { value: "off", label: "Off" },
-            ]}
-          />
-          <div className="flex items-center justify-between py-3">
-            <div className="flex flex-col gap-0.5 pr-4">
-              <span className="text-sm font-medium text-composer-text">YouTube Cookies</span>
-              <span className="text-xs text-composer-text-muted">Upload your cookies.txt to bypass age-restrictions and unlock premium audio</span>
-            </div>
-            <button
-              type="button"
-              onClick={handleUploadCookies}
-              className="h-7 px-3 text-xs font-medium rounded-lg bg-composer-button hover:bg-composer-button-hover text-composer-text transition-colors"
-            >
-              Upload…
-            </button>
-          </div>
-          {saveStatus === "saving" && <div className="py-2"><span className="text-xs text-composer-text-muted text-right block">Saving...</span></div>}
-        </div>
-      </div>
-    </div>
+      {saveStatus === "saving" && <div className="py-2"><span className="text-xs text-composer-text-muted text-right block">Saving...</span></div>}
+    </>
   );
 };
 

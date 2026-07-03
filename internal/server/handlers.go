@@ -72,14 +72,14 @@ type Handlers struct {
 	// effect immediately. A nil callback is treated as false. Gated by the
 	// App so the flag only takes effect when cookies are also live.
 	PreferPremiumAudio func() bool
-	// DownloadDir returns the absolute path of the user-configured audio
-	// download root. Read on every request so a config change takes effect
+	// AudioCacheDir returns the absolute path of the internal audio
+	// cache root. Read on every request so a config change takes effect
 	// immediately. A nil callback (or empty return) disables the cache-first
 	// audio path, leaving every /audio/{id} request to stream via yt-dlp.
 	// The Audio handler only serves cached files whose track.AudioPath
 	// resolves to a location under this root, mirroring the ThumbDir guard
 	// used by Thumb.
-	DownloadDir func() string
+	AudioCacheDir func() string
 	// AutoDownload reports whether a cache-miss on /audio/{id} should tee the
 	// yt-dlp stdout into a file under DownloadDir while streaming the same
 	// bytes to the response. Live-read per request so a Settings flip takes
@@ -127,14 +127,13 @@ func (h *Handlers) preferPremium() bool {
 	return h.PreferPremiumAudio()
 }
 
-// downloadDir returns the live audio download root via the callback, or ""
-// when no callback is wired. Centralized so the cache-first guard reads the
-// same value on every request.
-func (h *Handlers) downloadDir() string {
-	if h.DownloadDir == nil {
+// audioCacheDir returns the live audio cache root via the callback, or ""
+// when disabled or missing.
+func (h *Handlers) audioCacheDir() string {
+	if h.AudioCacheDir == nil {
 		return ""
 	}
-	return h.DownloadDir()
+	return h.AudioCacheDir()
 }
 
 // autoDownload returns the live auto-download-to-library flag via the
@@ -276,12 +275,12 @@ func (h *Handlers) openAutoDownloadCapture(videoID string, track *library.Track,
 	if track == nil || track.Title == "" {
 		return nil
 	}
-	root := h.downloadDir()
+	root := h.audioCacheDir()
 	if root == "" {
 		return nil
 	}
 	if err := os.MkdirAll(root, 0o755); err != nil {
-		slog.Warn("autodl: mkdir download dir failed", "videoID", videoID, "path", root, "err", err)
+		slog.Warn("autodl: mkdir cache dir failed", "videoID", videoID, "path", root, "err", err)
 		return nil
 	}
 	base := library.AudioFilename(track.Title, videoID, ytdlp.FormatExtension(format))
@@ -381,9 +380,9 @@ func (h *Handlers) serveCachedAudio(w http.ResponseWriter, r *http.Request, trac
 		slog.Debug("serveCached: skip (no track or empty AudioPath)", "hasTrack", track != nil)
 		return false
 	}
-	slog.Debug("serveCached: downloadDir lookup", "videoID", track.VideoID)
-	root := h.downloadDir()
-	slog.Debug("serveCached: downloadDir done", "videoID", track.VideoID, "root", root)
+	slog.Debug("serveCached: cacheDir lookup", "videoID", track.VideoID)
+	root := h.audioCacheDir()
+	slog.Debug("serveCached: cacheDir done", "videoID", track.VideoID, "root", root)
 	if root == "" {
 		return false
 	}

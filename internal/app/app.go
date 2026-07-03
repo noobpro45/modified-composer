@@ -66,6 +66,7 @@ type App struct {
 	cfgPath               string
 	dataDir               string
 	thumbDir              string
+	audioCacheDir         string
 	logPath               string
 	version               string
 	ctx                   context.Context
@@ -92,15 +93,16 @@ type App struct {
 // goroutine on app boot) can still find it.
 func New(lib *library.Library, act *activity.Log, cfg config.Config, cfgPath, dataDir, version string) *App {
 	a := &App{
-		library:     lib,
-		activity:    act,
-		cfg:         cfg,
-		cfgPath:     cfgPath,
-		dataDir:     dataDir,
-		thumbDir:    filepath.Join(dataDir, "thumbs"),
-		downloadDir: resolveDownloadDir(cfg.DownloadDir),
-		logPath:     filepath.Join(dataDir, "bridge.log"),
-		version:     version,
+		library:       lib,
+		activity:      act,
+		cfg:           cfg,
+		cfgPath:       cfgPath,
+		dataDir:       dataDir,
+		thumbDir:      filepath.Join(dataDir, "thumbs"),
+		audioCacheDir: filepath.Join(dataDir, "audio_cache"),
+		downloadDir:   resolveDownloadDir(cfg.DownloadDir),
+		logPath:       filepath.Join(dataDir, "bridge.log"),
+		version:       version,
 		hideWindow:  wailsRuntime.WindowHide,
 		showWindow:  wailsRuntime.WindowShow,
 		manifestURL: updater.DefaultManifestURL,
@@ -186,7 +188,7 @@ func (a *App) repairBrokenAudio(ctx context.Context) {
 			continue
 		}
 		slog.Info("repair: rewriting unplayable cached audio", "videoID", t.VideoID, "path", t.AudioPath)
-		size, err := ytdlp.DownloadToFile(ctx, ytdlpPath, t.VideoID, format, t.AudioPath, a.CookiesPath(), a.PreferPremiumAudio())
+		size, err := ytdlp.DownloadToFile(ctx, ytdlpPath, t.VideoID, format, t.AudioPath, a.CookiesPath(), a.dataDir, a.PreferPremiumAudio())
 		if err != nil {
 			slog.Warn("repair: download failed", "videoID", t.VideoID, "err", err)
 			continue
@@ -326,8 +328,11 @@ func (a *App) OnBeforeClose(_ context.Context) bool {
 	if a.quitting.Load() == 1 {
 		return false
 	}
+	a.mu.RLock()
+	state := a.state
+	a.mu.RUnlock()
 
-	if a.state.Snapshot().UnsavedChanges {
+	if state != nil && state.Snapshot().UnsavedChanges {
 		if a.ctx != nil {
 			wailsRuntime.EventsEmit(a.ctx, "bridge:request-close")
 		}
@@ -386,13 +391,76 @@ func (a *App) RemoveTrack(videoID string) error {
 		downloadDir := a.downloadDir
 		a.mu.RUnlock()
 		if track.AudioPath != "" && pathIsUnder(track.AudioPath, downloadDir) {
-			_ = os.Remove(track.AudioPath)
+			if err := os.Remove(track.AudioPath); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("failed to delete audio file (it might be in use): %w", err)
+			}
 		}
 		if track.ThumbPath != "" && pathIsUnder(track.ThumbPath, a.thumbDir) {
-			_ = os.Remove(track.ThumbPath)
+			if err := os.Remove(track.ThumbPath); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("failed to delete thumbnail file: %w", err)
+			}
 		}
 	}
 	return a.library.RemoveTrack(videoID)
+}
+
+// ExportTrack opens a save file dialog and runs a yt-dlp download to the chosen location.
+func (a *App) ExportTrack(videoID string, defaultName string) error {
+	_, err := a.library.GetTrack(videoID)
+	if err != nil {
+		return err
+	}
+
+	a.mu.RLock()
+	format := a.cfg.AudioFormat
+	a.mu.RUnlock()
+	if format == "" {
+		format = "opus"
+	}
+	ext := "." + ytdlp.FormatExtension(format)
+
+	// Clean up invalid characters from the provided base name
+	baseName := defaultName
+	invalidChars := []string{"<", ">", ":", "\"", "/", "\\", "|", "?", "*"}
+	for _, char := range invalidChars {
+		baseName = strings.ReplaceAll(baseName, char, "_")
+	}
+
+	if strings.HasSuffix(strings.ToLower(baseName), ".m4a") || 
+	   strings.HasSuffix(strings.ToLower(baseName), ".mp3") || 
+	   strings.HasSuffix(strings.ToLower(baseName), ".opus") {
+		baseName = baseName[:len(baseName)-4]
+	}
+	defaultFilename := baseName + ext
+
+	filter := wailsRuntime.FileFilter{
+		DisplayName: fmt.Sprintf("Audio File (*%s)", ext),
+		Pattern:     fmt.Sprintf("*%s", ext),
+	}
+
+	targetPath, err := wailsRuntime.SaveFileDialog(a.ctx, wailsRuntime.SaveDialogOptions{
+		Title:           "Export Audio",
+		DefaultFilename: defaultFilename,
+		Filters:         []wailsRuntime.FileFilter{filter},
+	})
+	if err != nil {
+		return err
+	}
+	if targetPath == "" {
+		return nil // Cancelled
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	actID := a.startActivity(activity.KindAudioDownload, videoID)
+	_, err = ytdlp.DownloadToFile(ctx, a.GetYtdlpPath(), videoID, format, targetPath, a.CookiesPath(), a.dataDir, a.PreferPremiumAudio())
+	if err != nil {
+		a.endActivity(actID, activity.StatusError, err.Error())
+		return err
+	}
+	a.endActivity(actID, activity.StatusOK, "")
+	return nil
 }
 
 // pathIsUnder reports whether path resolves to a location inside root. Both are
@@ -617,14 +685,19 @@ func (a *App) AutoDownloadToLibrary() bool {
 }
 
 // DownloadDir returns the absolute path of the user-configured audio download
-// root. Read by the cache-first branch of the /audio/{id} handler (via the
-// callback in main.go) to decide whether a track's library-recorded AudioPath
+// root. Read on every request so a config change takes effect immediately. It
 // is a valid cache hit. Lock-protected because SaveConfig can mutate this at
 // runtime.
 func (a *App) DownloadDir() string {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.downloadDir
+}
+
+// AudioCacheDir returns the absolute path of the internal audio cache root
+// where streamed tracks are automatically stored if AutoDownloadToLibrary is true.
+func (a *App) AudioCacheDir() string {
+	return a.audioCacheDir
 }
 
 // CookiesPath returns the absolute path of the active cookies file, or ""
@@ -945,7 +1018,7 @@ func (a *App) DownloadAudio(videoID string) (*library.Track, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	actID := a.startActivity(activity.KindAudioDownload, videoID)
-	size, err := ytdlp.DownloadToFile(ctx, ytdlpPath, videoID, format, dest, a.CookiesPath(), a.PreferPremiumAudio())
+	size, err := ytdlp.DownloadToFile(ctx, ytdlpPath, videoID, format, dest, a.CookiesPath(), a.dataDir, a.PreferPremiumAudio())
 	if err != nil {
 		a.endActivity(actID, activity.StatusError, err.Error())
 		return nil, err

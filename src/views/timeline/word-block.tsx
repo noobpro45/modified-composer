@@ -3,6 +3,7 @@ import type { SyllablePosition } from "@/domain/word/syllable-groups";
 import { selfKey } from "@/views/timeline/snap";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { useDraggable } from "@dnd-kit/core";
+import { memo } from "react";
 
 // -- Types ---------------------------------------------------------------------
 
@@ -28,11 +29,11 @@ interface WordBlockProps {
   rightHighlighted?: boolean;
   leftConjoined?: boolean;
   rightConjoined?: boolean;
-  onClick: (e: React.MouseEvent) => void;
-  onResizeStart: (edge: "left" | "right", startX: number) => void;
-  onEdgeHover?: (edge: "left" | "right", hovering: boolean) => void;
-  onDoubleClick?: (e: React.MouseEvent) => void;
-  onContextMenu?: (e: React.MouseEvent) => void;
+  onClick: (wordIndex: number, e: React.MouseEvent) => void;
+  onResizeStart: (wordIndex: number, edge: "left" | "right", startX: number) => void;
+  onEdgeHover?: (wordIndex: number, edge: "left" | "right", hovering: boolean) => void;
+  onDoubleClick?: (wordIndex: number, e: React.MouseEvent) => void;
+  onContextMenu?: (wordIndex: number, e: React.MouseEvent) => void;
 }
 
 // -- Component -----------------------------------------------------------------
@@ -99,7 +100,7 @@ const WordBlock: React.FC<WordBlockProps> = ({
     e.stopPropagation();
     e.preventDefault();
     const edge = e.currentTarget.dataset.edge as "left" | "right";
-    onResizeStart(edge, e.clientX);
+    onResizeStart(wordIndex, edge, e.clientX);
   };
 
   const syllableBorder: React.CSSProperties = {};
@@ -139,23 +140,23 @@ const WordBlock: React.FC<WordBlockProps> = ({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        onClick(e);
+        onClick(wordIndex, e);
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        onDoubleClick?.(e);
+        onDoubleClick?.(wordIndex, e);
       }}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        onContextMenu?.(e);
+        onContextMenu?.(wordIndex, e);
       }}
       {...attributes}
       {...listeners}
       role="button"
       tabIndex={-1}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onClick(e as unknown as React.MouseEvent);
+        if (e.key === "Enter" || e.key === " ") onClick(wordIndex, e as unknown as React.MouseEvent);
       }}
     >
       <div
@@ -172,8 +173,8 @@ const WordBlock: React.FC<WordBlockProps> = ({
         )}
         onMouseDown={handleResizeStart}
         onPointerDown={(e) => e.stopPropagation()}
-        onMouseEnter={() => onEdgeHover?.("left", true)}
-        onMouseLeave={() => onEdgeHover?.("left", false)}
+        onMouseEnter={() => onEdgeHover?.(wordIndex, "left", true)}
+        onMouseLeave={() => onEdgeHover?.(wordIndex, "left", false)}
       />
 
       {showText && (
@@ -205,8 +206,8 @@ const WordBlock: React.FC<WordBlockProps> = ({
         )}
         onMouseDown={handleResizeStart}
         onPointerDown={(e) => e.stopPropagation()}
-        onMouseEnter={() => onEdgeHover?.("right", true)}
-        onMouseLeave={() => onEdgeHover?.("right", false)}
+        onMouseEnter={() => onEdgeHover?.(wordIndex, "right", true)}
+        onMouseLeave={() => onEdgeHover?.(wordIndex, "right", false)}
       />
     </div>
   );
@@ -214,4 +215,5 @@ const WordBlock: React.FC<WordBlockProps> = ({
 
 // -- Exports -------------------------------------------------------------------
 
-export { WordBlock };
+const MemoizedWordBlock = memo(WordBlock);
+export { MemoizedWordBlock as WordBlock };

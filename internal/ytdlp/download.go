@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 )
@@ -66,7 +67,9 @@ func FormatExtension(format string) string {
 // ctx cancellation and rejects malformed video IDs before forking. An empty
 // cookiesPath omits the --cookies flag. When preferPremium is true, the
 // extractor-args chain tries YouTube Music's higher quality tier first.
-func DownloadToFile(ctx context.Context, ytdlpPath, videoID, format, destPath, cookiesPath string, preferPremium bool) (int64, error) {
+// dataDir is used to locate the managed ffmpeg binary for metadata embedding;
+// pass an empty string to skip the managed-path probe and rely on system PATH.
+func DownloadToFile(ctx context.Context, ytdlpPath, videoID, format, destPath, cookiesPath, dataDir string, preferPremium bool) (int64, error) {
 	if err := validateVideoID(videoID); err != nil {
 		return 0, err
 	}
@@ -76,15 +79,74 @@ func DownloadToFile(ctx context.Context, ytdlpPath, videoID, format, destPath, c
 		"--no-warnings",
 		"--no-playlist",
 		"--force-overwrites",
+		"--geo-bypass",
+		"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36",
+		"--referer", "https://www.youtube.com/",
 		"--extractor-args", BuildExtractorArgs(preferPremium),
 	}
 	if cookiesPath != "" {
 		args = append(args, "--cookies", cookiesPath)
 	}
-	args = append(args, videoURL(videoID))
-	if format == "mp3" {
-		args = append([]string{"--extract-audio", "--audio-format", "mp3"}, args...)
+	// Embed metadata and thumbnail when ffmpeg is available. Prefer the managed
+	// binary installed by bootstrapFfmpeg; fall back to any system ffmpeg on PATH.
+	ffmpegPath := ""
+	if dataDir != "" {
+		managed := ffmpegBinaryPath(dataDir)
+		if _, err := os.Stat(managed); err == nil {
+			ffmpegPath = managed
+		}
 	}
+	if ffmpegPath == "" {
+		ffmpegPath, _ = exec.LookPath(ffmpegBinaryName())
+	}
+	baseArgs := args
+	if ffmpegPath != "" {
+		// First attempt: full quality with embedded metadata + cover art.
+		// --convert-thumbnails jpg converts YouTube's webp thumbnail to jpeg
+		// before embedding so mp3/m4a containers accept it.
+		fullArgs := append(append([]string{}, baseArgs...),
+			"--ffmpeg-location", ffmpegPath,
+			"--extract-audio",
+			"--audio-format", format,
+			"--audio-quality", "0",
+			"--embed-metadata",
+			"--convert-thumbnails", "jpg",
+			"--embed-thumbnail",
+			videoURL(videoID),
+		)
+		cmd := exec.CommandContext(ctx, ytdlpPath, fullArgs...)
+		cmd.WaitDelay = killWaitDelay
+		cmd.Env = execEnv()
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err == nil {
+			// Success with thumbnail — stat and return.
+			stat, err := os.Stat(destPath)
+			if err != nil {
+				return 0, fmt.Errorf("stat downloaded file: %w", err)
+			}
+			return stat.Size(), nil
+		}
+		// Thumbnail embedding failed (e.g. webp decoder unavailable in this
+		// ffmpeg build). Fall through to metadata-only retry.
+		slog.Warn("yt-dlp thumbnail embedding failed, retrying without cover art",
+			"videoID", videoID, "stderr", stderrTail(&stderr))
+		// Clean up any partial output before retry.
+		_ = os.Remove(destPath)
+
+		// Second attempt: metadata only, no thumbnail.
+		args = append(baseArgs,
+			"--ffmpeg-location", ffmpegPath,
+			"--extract-audio",
+			"--audio-format", format,
+			"--audio-quality", "0",
+			"--embed-metadata",
+			videoURL(videoID),
+		)
+	} else {
+		args = append(args, videoURL(videoID))
+	}
+
 	cmd := exec.CommandContext(ctx, ytdlpPath, args...)
 	cmd.WaitDelay = killWaitDelay
 	cmd.Env = execEnv()

@@ -53,6 +53,7 @@ interface SettingsState {
   confirmResetShortcuts: boolean;
   confirmGroupDissolution: boolean;
   confirmApplyToAllSyllableSplit: boolean;
+  confirmDeleteCachedTrack: boolean;
   linkedDivergenceAction: LinkedDivergenceAction;
 
   previewRenderer: PreviewRenderer;
@@ -112,6 +113,7 @@ const DEFAULTS: SettingsState = {
   confirmResetShortcuts: true,
   confirmGroupDissolution: true,
   confirmApplyToAllSyllableSplit: true,
+  confirmDeleteCachedTrack: true,
   linkedDivergenceAction: "ask",
 
   previewRenderer: "braccato",

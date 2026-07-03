@@ -80,7 +80,7 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
   const hasBgWords = line.backgroundWords && line.backgroundWords.length > 0;
   const hasMainWords = line.words && line.words.length > 0;
 
-  const rowHeight = useTimelineStore((s) => s.rowHeights[line.id] ?? s.defaultRowHeight);
+  const storeRowHeight = useTimelineStore((s) => s.rowHeights[line.id] ?? s.defaultRowHeight);
   const defaultRowHeight = useTimelineStore((s) => s.defaultRowHeight);
   const setRowHeight = useTimelineStore((s) => s.setRowHeight);
   const zoom = useTimelineStore((s) => s.zoom);
@@ -95,7 +95,10 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
   );
 
   const [isResizing, setIsResizing] = useState(false);
+  const [localHeight, setLocalHeight] = useState<number | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+
+  const rowHeight = localHeight !== null ? localHeight : storeRowHeight;
 
   // react-doctor-disable-next-line react-doctor/exhaustive-deps
   useEffect(() => {
@@ -120,15 +123,19 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
       e.preventDefault();
       setIsResizing(true);
       const startY = e.clientY;
-      const startHeight = rowHeight;
+      const startHeight = storeRowHeight;
+      let currentHeight = startHeight;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
         const delta = moveEvent.clientY - startY;
-        setRowHeight(line.id, startHeight + delta);
+        currentHeight = Math.max(32, Math.min(120, startHeight + delta));
+        setLocalHeight(currentHeight);
       };
 
       const handleMouseUp = () => {
         setIsResizing(false);
+        setLocalHeight(null);
+        setRowHeight(line.id, currentHeight);
         cleanupRef.current = null;
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
@@ -142,7 +149,7 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [line.id, rowHeight, setRowHeight],
+    [line.id, storeRowHeight, setRowHeight],
   );
 
   return (
