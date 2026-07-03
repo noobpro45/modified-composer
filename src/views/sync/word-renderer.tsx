@@ -32,7 +32,7 @@ interface WordRendererProps {
 
 // -- Helper -------------------------------------------------------------------
 
-function renderWordContent(word: string, timing: WordTiming | undefined, isBackground: boolean, editMode: boolean) {
+function renderWordContent(word: string, timing: WordTiming | undefined, isBackground: boolean) {
   const isSynced = !!timing;
   const baseClass = isBackground ? "italic" : "";
   const syncedClass = isBackground ? "text-composer-text-muted/70" : "text-composer-text-muted";
@@ -69,7 +69,6 @@ const WordRenderer: React.FC<WordRendererProps> = ({
   allWords,
   handlers,
   isBackground = false,
-  editMode,
   currentTime = 0,
 }) => {
   const isSynced = !!timing;
@@ -97,7 +96,7 @@ const WordRenderer: React.FC<WordRendererProps> = ({
               {effectiveRomaji?.trim() ? stripSplitCharacter(effectiveRomaji) : "\u00A0"}
             </div>
           )}
-          {renderWordContent(word, timing, isBackground, editMode)}
+          {renderWordContent(word, timing, isBackground)}
         </span>
         {isSynced && timing && timing.end === timing.begin && (
           <Tooltip content="No duration - sync the next word to close this one or increase the end time">

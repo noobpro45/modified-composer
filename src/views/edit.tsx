@@ -30,7 +30,7 @@ import {
   importParsedLyrics,
   type ImportParsedLyricsContext,
 } from "@/views/lyrics-import-modal/use-import-modal-actions";
-import { IconAlertTriangle, IconFileImport, IconMicrophone, IconX, IconLanguage } from "@tabler/icons-react";
+import { IconAlertTriangle, IconFileImport, IconMicrophone, IconX } from "@tabler/icons-react";
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { nanoid } from "nanoid";
@@ -349,6 +349,11 @@ const EditPanel: React.FC = () => {
   const lastSelectedLineRef = useRef<number | null>(null);
   const dragAnchorRef = useRef<number | null>(null);
   const didDragRef = useRef(false);
+
+  // rawText tracks only the committed lyrics text (not romaji/bg modes) for snap-back.
+  const [rawText, setRawText] = useState(() => (lines.length > 0 ? lines.map((l) => l.text).join("\n") : ""));
+  const rawTextRef = useRef(rawText);
+  rawTextRef.current = rawText;
   const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null);
   const scrollViewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -447,12 +452,7 @@ const EditPanel: React.FC = () => {
 
     useProjectStore
       .getState()
-      .updateLineWithHistory(lineId, backgroundFields({ text: newBgText, words, source: "manual" }));
-  }, []);
-
-  const handleRomajiChange = useCallback((lineId: string, text: string) => {
-    const newRomaji = text || undefined;
-    useProjectStore.getState().updateLineWithHistory(lineId, { romaji: newRomaji });
+      .updateLineWithHistory(lineId, backgroundFields({ text: bgText, words, source: "manual" }));
   }, []);
 
   const handleExtractLine = useCallback((lineId: string) => {
@@ -630,23 +630,23 @@ const EditPanel: React.FC = () => {
           if (editorMode === "romaji") {
             const romajiStr = textLines[i] || "";
             newLines[i] = { ...newLines[i], romaji: romajiStr };
-            if (newLines[i].words && newLines[i].words.length > 0) {
+            if (newLines[i].words && newLines[i].words!.length > 0) {
               if (romajiStr.trim()) {
                 const { parts, trailingSpace } = splitIntoWordsWithMeta(romajiStr);
-                newLines[i].words = newLines[i].words.map((w, index) => {
+                newLines[i].words = newLines[i].words!.map((w, index) => {
                   const part = parts[index];
                   const romaji = part !== undefined ? part + (trailingSpace[index] ? " " : "") : undefined;
                   return { ...w, romaji };
                 });
               } else {
-                newLines[i].words = newLines[i].words.map((w) => ({ ...w, romaji: undefined }));
+                newLines[i].words = newLines[i].words!.map((w) => ({ ...w, romaji: undefined }));
               }
             }
           } else if (editorMode === "background") {
             const bgStr = textLines[i] || "";
             newLines[i] = { ...newLines[i], backgroundText: bgStr };
-            if (newLines[i].backgroundWords && newLines[i].backgroundWords.length > 0) {
-              const remapped = remapWordTextsPreservingTiming(newLines[i].backgroundWords, bgStr);
+            if (newLines[i].backgroundWords && newLines[i].backgroundWords!.length > 0) {
+              const remapped = remapWordTextsPreservingTiming(newLines[i].backgroundWords!, bgStr);
               if (remapped) {
                 newLines[i].backgroundWords = remapped;
               } else if (!bgStr.trim()) {
