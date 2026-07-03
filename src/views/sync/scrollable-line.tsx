@@ -6,6 +6,7 @@ import { stripSplitCharacter } from "@/utils/split-character";
 import { splitIntoWords } from "@/utils/sync-helpers";
 import { TimeNudgeInput } from "@/views/sync/time-nudge-input";
 import { WordRenderer, type WordHandlers } from "@/views/sync/word-renderer";
+import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { IconLink } from "@tabler/icons-react";
 import { memo, useEffect, useMemo, useRef } from "react";
 
@@ -24,6 +25,7 @@ interface ScrollableLineProps {
   lineNumber: number;
   isCurrent: boolean;
   agentId?: string;
+  romaji?: string;
   backgroundText?: string;
   backgroundWords?: WordTiming[];
   words?: WordTiming[];
@@ -55,6 +57,7 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
   lineNumber,
   isCurrent,
   agentId,
+  romaji,
   backgroundText,
   backgroundWords,
   words,
@@ -78,7 +81,9 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
   onSetBgWordEndTime,
 }) => {
   const lineRef = useRef<HTMLDivElement>(null);
+  const showRomaji = useTimelineStore((s) => s.showRomaji);
   const wordTexts = useMemo(() => (words?.length ? words.map((w) => w.text) : splitIntoWords(text)), [text, words]);
+  const wordRomajis = useMemo(() => (words?.length ? words.map((w) => w.romaji) : []), [words]);
   const bgWordTexts = useMemo(
     () =>
       backgroundWords?.length
@@ -88,6 +93,7 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
           : [],
     [backgroundText, backgroundWords],
   );
+  const bgWordRomajis = useMemo(() => (backgroundWords?.length ? backgroundWords.map((w) => w.romaji) : []), [backgroundWords]);
 
   useEffect(() => {
     if (isCurrent && lineRef.current) {
@@ -97,8 +103,22 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
 
   const renderLineContent = () => {
     const displayText = stripSplitCharacter(text);
-    if (editMode && lineBegin !== undefined && lineEnd !== undefined) {
+
+    const wrapContent = (content: React.ReactNode) => {
       return (
+        <span className="relative inline-flex flex-col items-start gap-0.5">
+          {showRomaji && romaji?.trim() && (
+            <div className="px-1.5 text-[11px] leading-none text-center truncate rounded bg-composer-button text-composer-text-muted">
+              {stripSplitCharacter(romaji.trim())}
+            </div>
+          )}
+          {content}
+        </span>
+      );
+    };
+
+    if (editMode && lineBegin !== undefined && lineEnd !== undefined) {
+      return wrapContent(
         <span className="relative inline-block">
           <span className="text-composer-text-muted">{displayText}</span>
           <span
@@ -112,7 +132,7 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
         </span>
       );
     }
-    return (
+    return wrapContent(
       <span className={lineBegin !== undefined ? "text-composer-text-muted" : "text-composer-text"}>{displayText}</span>
     );
   };
@@ -146,6 +166,7 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
 
   const renderWordList = (
     texts: string[],
+    romajis: (string | undefined)[],
     timings: WordTiming[] | undefined,
     handlers: WordHandlers,
     groups: ReturnType<typeof computeSyllableGroups>,
@@ -159,6 +180,8 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
           key={`${lineNumber}-${prefix}-${idx}`}
           lineId={lineId}
           word={word}
+          romaji={romajis[idx]}
+          lineRomaji={romaji}
           idx={idx}
           timing={timings?.[idx]}
           allWords={timings}
@@ -196,6 +219,8 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
                     key={`${lineNumber}-${prefix}-${idx}`}
                     lineId={lineId}
                     word={word}
+                    romaji={romajis[idx]}
+                    lineRomaji={romaji}
                     idx={idx}
                     timing={timings?.[idx]}
                     allWords={timings}
@@ -216,6 +241,8 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
             key={`${lineNumber}-${prefix}-${i}`}
             lineId={lineId}
             word={texts[i]}
+            romaji={romajis[i]}
+            lineRomaji={romaji}
             idx={i}
             timing={timings?.[i]}
             allWords={timings}
@@ -293,12 +320,12 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
           </div>
         ) : (
           <div className="flex flex-wrap gap-x-3 gap-y-1 items-end">
-            {renderWordList(wordTexts, words, mainWordHandlers, mainSyllableGroups, "main")}
+            {renderWordList(wordTexts, wordRomajis, words, mainWordHandlers, mainSyllableGroups, "main")}
           </div>
         )}
         {bgWordTexts.length > 0 && (
           <div className="flex flex-wrap gap-x-3 gap-y-1 items-end">
-            {renderWordList(bgWordTexts, backgroundWords, bgWordHandlers, bgSyllableGroups, "bg", true)}
+            {renderWordList(bgWordTexts, bgWordRomajis, backgroundWords, bgWordHandlers, bgSyllableGroups, "bg", true)}
           </div>
         )}
       </div>

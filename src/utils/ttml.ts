@@ -136,7 +136,7 @@ function generateTTML({ metadata, agents, lines, groups, granularity, minify = f
       const wordCount = words.length;
       for (let j = 0; j < wordCount; j++) {
         const word = words[j];
-        const text = word.text.trimEnd();
+        const text = stripSplitCharacter(word.text.trimEnd());
         const needsSpace = j < wordCount - 1 && word.text.endsWith(" ");
         content += `${emitWordSpan(word, text)}${needsSpace ? " " : ""}`;
       }
@@ -150,7 +150,7 @@ function generateTTML({ metadata, agents, lines, groups, granularity, minify = f
       let bgContent = "";
       for (let j = 0; j < bgCount; j++) {
         const bgWord = bgWords[j];
-        const text = bgWord.text.trimEnd();
+        const text = stripSplitCharacter(bgWord.text.trimEnd());
         const needsSpace = j < bgCount - 1 && bgWord.text.endsWith(" ");
         bgContent += `${emitWordSpan(bgWord, text)}${needsSpace ? " " : ""}`;
       }

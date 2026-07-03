@@ -105,7 +105,7 @@ const AppContent: React.FC = () => {
     }
   }, [isDirty]);
 
-  // Handle double-clicked .composer files on startup
+  // Handle double-clicked .json files on startup
   useEffect(() => {
     if (typeof window.go === "undefined" || !window.go.app?.App) return;
     

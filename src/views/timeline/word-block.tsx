@@ -16,6 +16,7 @@ interface WordBlockProps {
   text: string;
   romaji?: string;
   showRomaji?: boolean;
+  height?: number;
   begin: number;
   end: number;
   color: string;
@@ -54,6 +55,7 @@ const WordBlock: React.FC<WordBlockProps> = ({
   text,
   romaji,
   showRomaji,
+  height = 48,
   begin,
   end,
   color,
@@ -102,6 +104,8 @@ const WordBlock: React.FC<WordBlockProps> = ({
     const edge = e.currentTarget.dataset.edge as "left" | "right";
     onResizeStart(wordIndex, edge, e.clientX);
   };
+
+  const scale = Math.max(1, height / 48);
 
   const syllableBorder: React.CSSProperties = {};
   if (!isSelected && (syllablePosition === "first" || syllablePosition === "middle")) {
@@ -181,14 +185,15 @@ const WordBlock: React.FC<WordBlockProps> = ({
         <span className="px-1 pointer-events-none truncate flex flex-col items-center justify-center relative gap-0.5">
           {showRomaji && (
             <div
-              className={`px-1.5 text-[11px] leading-none text-center truncate rounded ${
-                romaji?.trim() ? "bg-black/40 text-composer-text-muted" : "text-transparent"
+              className={`leading-none mb-0.5 truncate text-center transition-colors max-w-full px-1 py-0.5 rounded ${
+                romaji?.trim() ? "bg-composer-button text-composer-text-muted" : "text-transparent"
               }`}
+              style={{ fontSize: `${10 * scale}px` }}
             >
               {romaji?.trim() ? romaji : "\u00A0"}
             </div>
           )}
-          <span className="leading-tight text-sm font-medium">{text}</span>
+          <span className="leading-tight font-medium" style={{ fontSize: `${14 * scale}px` }}>{text}</span>
         </span>
       )}
 

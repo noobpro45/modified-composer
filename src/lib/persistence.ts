@@ -147,7 +147,7 @@ async function exportProjectToFile(
 
   if (typeof window.go !== "undefined" && window.go.app?.App) {
     if (!targetPath) {
-      const suggestedName = `${metadata.title || "project"}.composer`;
+      const suggestedName = `${metadata.title || "project"}.json`;
       const defaultDir = await window.go.app.App.DownloadDir();
       targetPath = await window.go.app.App.ShowSaveFileDialog(suggestedName, defaultDir);
     }

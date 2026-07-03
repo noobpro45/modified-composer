@@ -1,10 +1,11 @@
 import { useProjectStore, loadSavedProjectToStore } from "@/stores/project";
 import { useAudioStore } from "@/stores/audio";
 import { useRecentProjectsStore } from "@/stores/recent-projects";
-import { importProjectFromText } from "@/lib/persistence";
+import { importProjectFromText, importProjectFromFile } from "@/lib/persistence";
 import { useConfirm } from "@/stores/confirm-store";
 import { Button } from "@/ui/button";
 import { IconFilePlus, IconFolderOpen, IconHistory, IconPlayerPlayFilled } from "@tabler/icons-react";
+import { useState, useCallback, useRef } from "react";
 
 const HomePanel: React.FC = () => {
   const setActiveTab = useProjectStore((s) => s.setActiveTab);
@@ -17,6 +18,61 @@ const HomePanel: React.FC = () => {
   
   const hasActiveProject = useProjectStore((s) => s.lines.length > 0 || !!s.metadata.title);
   const confirm = useConfirm();
+
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCountRef = useRef(0);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCountRef.current++;
+    if (dragCountRef.current === 1) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCountRef.current--;
+    if (dragCountRef.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCountRef.current = 0;
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+
+    if (file.name.endsWith(".json") || file.name.endsWith(".composer")) {
+      try {
+        const project = await importProjectFromFile(file);
+        const projPath = (file as any).path || file.name;
+        
+        loadSavedProjectToStore(project, projPath);
+        if (project.audioSource?.kind === "youtube") {
+          useAudioStore.getState().setYouTubeSource(project.audioSource.videoId);
+        } else {
+          useAudioStore.getState().setSource(null);
+        }
+        
+        addProject(projPath, project.metadata.title || projPath.split(/[\/\\]/).pop() || projPath);
+        setActiveTab("edit");
+      } catch (err) {
+        console.error("Failed to load dropped project:", err);
+      }
+    }
+  }, [addProject, setActiveTab]);
 
   const handleOpenProject = async () => {
     try {
@@ -77,7 +133,13 @@ const HomePanel: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
+    <div 
+      className={`flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto transition-colors ${isDragging ? "bg-composer-accent/10 border-2 border-dashed border-composer-accent" : ""}`}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <div className="max-w-2xl w-full flex flex-col gap-12">
         <div className="flex flex-col items-center text-center gap-4">
           <img src="/logo.svg" alt="Composer Logo" className="size-24 opacity-80" />
@@ -139,6 +201,16 @@ const HomePanel: React.FC = () => {
           </div>
         )}
       </div>
+      
+      {isDragging && (
+        <div className="absolute inset-0 flex items-center justify-center bg-composer-bg/80 backdrop-blur-sm pointer-events-none z-50">
+          <div className="flex flex-col items-center text-composer-accent">
+            <IconFilePlus className="size-24 mb-4" />
+            <h2 className="text-2xl font-bold">Drop Project File Here</h2>
+            <p className="text-composer-text-muted mt-2">Supports .json and .composer</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

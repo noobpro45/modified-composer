@@ -18,6 +18,7 @@ import { Scroll } from "@/ui/scroll";
 import { classifyLine, extractBackgroundVocals, extractInlineFromLine } from "@/utils/background-vocal-extraction";
 import { type ParseResult, parseLyricsFile } from "@/utils/lyrics-parsers";
 import { remapWordTextsPreservingTiming } from "@/domain/word/remap-text";
+import { splitIntoWordsWithMeta } from "@/utils/sync-helpers";
 import { stripSplitCharacter } from "@/utils/split-character";
 import { AgentManager } from "@/views/edit/agent-manager";
 import { MetadataEditor } from "@/views/edit/metadata-editor";
@@ -32,6 +33,9 @@ import {
 import { IconAlertTriangle, IconFileImport, IconMicrophone, IconX, IconLanguage } from "@tabler/icons-react";
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { nanoid } from "nanoid";
+
+type EditorMode = "lyrics" | "romaji" | "background";
 
 // -- Constants ----------------------------------------------------------------
 
@@ -93,7 +97,6 @@ const LinePreview = memo(({
   onAgentChange,
   onBulkAgentChange,
   onBackgroundChange,
-  onRomajiChange,
   onExtractLine,
   onHoverChange,
   onGutterMouseDown,
@@ -111,7 +114,6 @@ const LinePreview = memo(({
   onAgentChange: (lineId: string, agentId: string) => void;
   onBulkAgentChange: (agentId: string) => void;
   onBackgroundChange: (lineId: string, text: string) => void;
-  onRomajiChange: (lineId: string, text: string) => void;
   onExtractLine: (lineId: string) => void;
   onHoverChange: (lineNumber: number | null, clientY?: number) => void;
   onGutterMouseDown: (lineNumber: number, e: React.MouseEvent) => void;
@@ -119,7 +121,6 @@ const LinePreview = memo(({
   didDragRef: React.MutableRefObject<boolean>;
 }) => {
   const [bgInput, setBgInput] = useState(line.backgroundText ?? "");
-  const [romajiInput, setRomajiInput] = useState(line.romaji ?? "");
   const agentColor = getAgentColor(line.agentId);
 
   const handleBgBlur = useCallback(() => {
@@ -127,12 +128,6 @@ const LinePreview = memo(({
       onBackgroundChange(line.lineId, bgInput);
     }
   }, [line.lineId, bgInput, onBackgroundChange]);
-
-  const handleRomajiBlur = useCallback(() => {
-    if (line.lineId) {
-      onRomajiChange(line.lineId, romajiInput);
-    }
-  }, [line.lineId, romajiInput, onRomajiChange]);
 
   const selectLineForBulkEdit = useCallback(
     (e: React.MouseEvent) => {
@@ -226,7 +221,7 @@ const LinePreview = memo(({
 
       {line.romaji && (
         <span data-testid="line-preview-romaji" className="text-xs text-composer-accent opacity-80 ml-2">
-          {line.romaji}
+          {stripSplitCharacter(line.romaji)}
         </span>
       )}
 
@@ -301,43 +296,6 @@ const LinePreview = memo(({
           </Popover>
         )}
 
-        {line.lineId && (
-          <Popover
-            placement="bottom-start"
-            trigger={
-              <button
-                type="button"
-                className="flex items-center gap-1 px-1.5 h-5 text-xs rounded cursor-pointer bg-composer-button hover:bg-composer-button-hover text-composer-text-muted hover:text-composer-text"
-              >
-                <IconLanguage className="size-3" />
-                RMJ
-              </button>
-            }
-          >
-            {(close) => (
-              <div className="p-2 w-48">
-                <p className="mb-1 text-xs text-composer-text-secondary">Romaji</p>
-                <input
-                  type="text"
-                  aria-label="Romaji text"
-                  value={romajiInput}
-                  onChange={(e) => setRomajiInput(e.target.value)}
-                  onBlur={handleRomajiBlur}
-                  onKeyDown={(e) => {
-                    e.stopPropagation();
-                    if (e.key === "Enter") {
-                      handleRomajiBlur();
-                      close();
-                    }
-                  }}
-                  placeholder="Kimi wa..."
-                  className="w-full px-2 py-1 text-sm border rounded bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent"
-                />
-              </div>
-            )}
-          </Popover>
-        )}
-
         {line.hasTiming && <span className="text-xs text-composer-accent-text">synced</span>}
         {line.hasBrackets && <IconAlertTriangle className="size-4 text-composer-error" />}
       </div>
@@ -377,9 +335,10 @@ const EditPanel: React.FC = () => {
   const mergeStandaloneBackgroundLines = useSettingsStore((s) => s.mergeStandaloneBackgroundLines);
   const preserveBracketsOnExtraction = useSettingsStore((s) => s.preserveBracketsOnExtraction);
 
-  const [rawText, setRawText] = useState(() => (lines.length > 0 ? lines.map((l) => l.text).join("\n") : ""));
-  const rawTextRef = useRef(rawText);
-  rawTextRef.current = rawText;
+  const [editorMode, setEditorMode] = useState<EditorMode>("lyrics");
+  const [editorText, setEditorText] = useState(() => (lines.length > 0 ? lines.map((l) => l.text).join("\n") : ""));
+  const editorTextRef = useRef(editorText);
+  editorTextRef.current = editorText;
   const linesSetByUs = useRef<LyricLine[] | null>(null);
   const modalPendingRef = useRef(false);
   const pastedRef = useRef(false);
@@ -411,17 +370,24 @@ const EditPanel: React.FC = () => {
 
   const groupsById = useMemo(() => new Map((groups ?? []).map((g) => [g.id, g])), [groups]);
 
-  // Sync rawText when lines change externally (persistence restore, project import, etc.)
+  // Sync editorText when lines change externally
   useEffect(() => {
     if (linesSetByUs.current === lines) {
       linesSetByUs.current = null;
       return;
     }
-    setRawText(lines.length > 0 ? lines.map((l) => l.text).join("\n") : "");
-  }, [lines]);
+    if (editorMode === "lyrics") {
+      setEditorText(lines.length > 0 ? lines.map((l) => l.text).join("\n") : "");
+    } else if (editorMode === "romaji") {
+      setEditorText(lines.length > 0 ? lines.map((l) => l.romaji || "").join("\n") : "");
+    } else if (editorMode === "background") {
+      setEditorText(lines.length > 0 ? lines.map((l) => l.backgroundText || "").join("\n") : "");
+    }
+  }, [lines, editorMode]);
 
   const defaultAgentId = agents?.[0]?.id ?? "v1";
-  const parsed = useMemo(() => parseLyrics(rawText, lines, defaultAgentId), [rawText, lines, defaultAgentId]);
+  const textForParsing = editorMode === "lyrics" ? editorText : (lines.length > 0 ? lines.map((l) => l.text).join("\n") : "");
+  const parsed = useMemo(() => parseLyrics(textForParsing, lines, defaultAgentId), [textForParsing, lines, defaultAgentId]);
   const bracketCount = useMemo(() => parsed.filter((p) => p.hasBrackets).length, [parsed]);
   const nonEmptyCount = useMemo(() => parsed.filter((p) => !p.isEmpty).length, [parsed]);
   const instanceCountByGroup = useMemo(() => {
@@ -471,13 +437,12 @@ const EditPanel: React.FC = () => {
     useProjectStore.getState().updateLineWithHistory(lineId, { agentId });
   }, []);
 
-  const handleBackgroundChange = useCallback((lineId: string, text: string) => {
-    const newBgText = text || undefined;
+  const handleBackgroundChange = useCallback((lineId: string, bgText: string) => {
     const target = useProjectStore.getState().lines.find((l) => l.id === lineId);
 
     let words: WordTiming[] | undefined;
-    if (newBgText && target?.backgroundWords?.length) {
-      words = remapWordTextsPreservingTiming(target.backgroundWords, newBgText) ?? undefined;
+    if (bgText && target?.backgroundWords?.length) {
+      words = remapWordTextsPreservingTiming(target.backgroundWords, bgText) ?? undefined;
     }
 
     useProjectStore
@@ -594,6 +559,21 @@ const EditPanel: React.FC = () => {
     }, RUN_DEBOUNCE_MS);
   }, [finalizeRun]);
 
+  const handleModeChange = useCallback(
+    (mode: EditorMode) => {
+      finalizeRun();
+      setEditorMode(mode);
+      if (mode === "lyrics") {
+        setEditorText(lines.length > 0 ? lines.map((l) => l.text).join("\n") : "");
+      } else if (mode === "romaji") {
+        setEditorText(lines.length > 0 ? lines.map((l) => l.romaji || "").join("\n") : "");
+      } else if (mode === "background") {
+        setEditorText(lines.length > 0 ? lines.map((l) => l.backgroundText || "").join("\n") : "");
+      }
+    },
+    [finalizeRun, lines],
+  );
+
   const handleTextareaBlur = useCallback(() => {
     finalizeRun();
     if (!useSettingsStore.getState().autoExtractBackgroundVocals) return;
@@ -635,6 +615,57 @@ const EditPanel: React.FC = () => {
       pastedRef.current = false;
 
       const text = e.target.value;
+      setEditorText(text);
+      useImportModalStore.getState().clearImportResult();
+
+      if (editorMode !== "lyrics") {
+        const textLines = text.split("\n");
+        const newLines = [...lines];
+        
+        for (let i = 0; i < Math.max(textLines.length, lines.length); i++) {
+          if (!newLines[i]) {
+            newLines[i] = { id: nanoid(), text: "", agentId: defaultAgentId };
+          }
+          
+          if (editorMode === "romaji") {
+            const romajiStr = textLines[i] || "";
+            newLines[i] = { ...newLines[i], romaji: romajiStr };
+            if (newLines[i].words && newLines[i].words.length > 0) {
+              if (romajiStr.trim()) {
+                const { parts, trailingSpace } = splitIntoWordsWithMeta(romajiStr);
+                newLines[i].words = newLines[i].words.map((w, index) => {
+                  const part = parts[index];
+                  const romaji = part !== undefined ? part + (trailingSpace[index] ? " " : "") : undefined;
+                  return { ...w, romaji };
+                });
+              } else {
+                newLines[i].words = newLines[i].words.map((w) => ({ ...w, romaji: undefined }));
+              }
+            }
+          } else if (editorMode === "background") {
+            const bgStr = textLines[i] || "";
+            newLines[i] = { ...newLines[i], backgroundText: bgStr };
+            if (newLines[i].backgroundWords && newLines[i].backgroundWords.length > 0) {
+              const remapped = remapWordTextsPreservingTiming(newLines[i].backgroundWords, bgStr);
+              if (remapped) {
+                newLines[i].backgroundWords = remapped;
+              } else if (!bgStr.trim()) {
+                newLines[i].backgroundWords = undefined;
+              }
+            }
+          }
+        }
+        
+        if (runBaselineRef.current === null) {
+          const projectState = useProjectStore.getState();
+          runBaselineRef.current = { lines: projectState.lines, wasDirty: projectState.isDirtySinceHistory };
+        }
+        linesSetByUs.current = newLines;
+        setLines(newLines);
+        scheduleRunFinalize();
+        return;
+      }
+
       const action = decideEditTextAction({
         text,
         defaultAgentId,
@@ -688,9 +719,6 @@ const EditPanel: React.FC = () => {
         return;
       }
 
-      setRawText(text);
-      useImportModalStore.getState().clearImportResult();
-
       if (action.kind === "noop") return;
 
       let finalLines = action.finalLines;
@@ -715,7 +743,7 @@ const EditPanel: React.FC = () => {
       setLines(finalLines);
       scheduleRunFinalize();
     },
-    [confirm, defaultAgentId, groups, lines, setLines, scheduleRunFinalize, commitLinesWithHistory, finalizeRun],
+    [confirm, defaultAgentId, groups, lines, setLines, scheduleRunFinalize, commitLinesWithHistory, finalizeRun, editorMode],
   );
 
   const handleDroppedFile = useCallback(
@@ -817,9 +845,35 @@ const EditPanel: React.FC = () => {
       <div className="flex flex-1 min-h-0 gap-4">
         {/* Input */}
         <div className="flex flex-col flex-1 min-w-0">
-          <label htmlFor={textareaId} className="mb-2 text-sm font-medium select-none text-composer-text-secondary">
-            Paste or type lyrics
-          </label>
+          <div className="flex items-center gap-1 mb-2">
+            <button
+              type="button"
+              onClick={() => handleModeChange("lyrics")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                editorMode === "lyrics" ? "bg-composer-button text-composer-text" : "text-composer-text-muted hover:text-composer-text"
+              }`}
+            >
+              Lyrics
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange("romaji")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                editorMode === "romaji" ? "bg-composer-button text-composer-text" : "text-composer-text-muted hover:text-composer-text"
+              }`}
+            >
+              Romaji
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange("background")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                editorMode === "background" ? "bg-composer-button text-composer-text" : "text-composer-text-muted hover:text-composer-text"
+              }`}
+            >
+              Background Vocals
+            </button>
+          </div>
           <div className="flex flex-1 min-h-0 border rounded-lg bg-composer-input border-composer-border focus-within:border-composer-accent transition-colors overflow-hidden">
             {/* Gutter */}
             <div 
@@ -828,7 +882,7 @@ const EditPanel: React.FC = () => {
               style={{ minWidth: "3.5rem" }}
               aria-hidden="true"
             >
-              {Array.from({ length: Math.max(1, rawText.split("\n").length) }).map((_, i) => (
+              {Array.from({ length: Math.max(1, editorText.split("\n").length) }).map((_, i) => (
                 <div 
                   key={i} 
                   className={`leading-6 transition-colors ${hoveredLine === i + 1 ? "text-composer-text bg-composer-button/30 rounded-sm" : ""}`}
@@ -842,7 +896,7 @@ const EditPanel: React.FC = () => {
             <textarea
               id={textareaId}
               ref={textareaRef}
-              value={rawText}
+              value={editorText}
               onChange={handleTextChange}
               onBlur={handleTextareaBlur}
               onScroll={handleScroll}
@@ -865,9 +919,13 @@ const EditPanel: React.FC = () => {
               onPaste={() => {
                 pastedRef.current = true;
               }}
-              placeholder="Paste your lyrics here, one line at a time...
-
-Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
+              placeholder={
+                editorMode === "lyrics"
+                  ? "Paste your lyrics here, one line at a time...\n\nOr drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
+                  : editorMode === "romaji"
+                    ? "Paste Romaji here. Line 1 matches Line 1 of lyrics."
+                    : "Paste Background Vocals here. Line 1 matches Line 1 of lyrics."
+              }
               className="flex-1 w-full p-3 text-sm resize-none bg-transparent focus:outline-none placeholder:text-composer-text-muted native-textarea-scrollbar whitespace-pre leading-6"
               spellCheck={false}
             />
@@ -967,7 +1025,6 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
                         onAgentChange={handleAgentChange}
                         onBulkAgentChange={handleBulkAgentChange}
                         onBackgroundChange={handleBackgroundChange}
-                        onRomajiChange={handleRomajiChange}
                         onExtractLine={handleExtractLine}
                         onHoverChange={(lineNum, clientY) => {
                           setHoveredLine(lineNum);

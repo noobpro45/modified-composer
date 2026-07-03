@@ -1,12 +1,13 @@
 import { ExportTrack, ListTracks, RemoveTrack } from "@/wailsjs/go/app/App";
 import { library } from "@/wailsjs/go/models";
-import { IconCheck, IconDownload, IconLoader2, IconMusic, IconTrash } from "@tabler/icons-react";
+import { IconCheck, IconDownload, IconLoader2, IconMusic, IconTrash, IconFilePlus } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useConfirm } from "@/stores/confirm-store";
 import { useBridgeConfig } from "@/hooks/use-bridge-config";
 import { BridgeSelectConfig } from "@/ui/settings/bridge-section";
 import { useAudioStore } from "@/stores/audio";
+import { useProjectStore } from "@/stores/project";
 
 // -- Library Section ----------------------------------------------------------
 
@@ -62,6 +63,28 @@ const LibrarySection: React.FC = () => {
       toast.error(`Failed to export track: ${err?.message || err}`);
       console.error(err);
     }
+  };
+
+  const handleUseInProject = async (track: library.Track) => {
+    const currentSource = useAudioStore.getState().source;
+    if (currentSource) {
+      if (currentSource.type === "youtube" && currentSource.videoId === track.video_id) {
+        toast.info("This track is already loaded in the project");
+        return;
+      }
+      const ok = await confirm({
+        title: "Replace Project Audio?",
+        description: "Your current project already has an audio track loaded. Loading a new track will replace the current one. Are you sure you want to proceed?",
+        confirmLabel: "Replace",
+        cancelLabel: "Cancel",
+        variant: "destructive",
+      });
+      if (!ok) return;
+    }
+    
+    useAudioStore.getState().setYouTubeSource(track.video_id);
+    useProjectStore.getState().setMetadata({ title: track.title, artist: track.artist });
+    toast.success(`Loaded "${track.title}" into project`);
   };
 
   const handleDelete = async (track: library.Track) => {
@@ -164,6 +187,14 @@ const LibrarySection: React.FC = () => {
 
                   {/* Actions */}
                   <div className="flex items-center shrink-0 pr-2 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleUseInProject(track)}
+                      className="p-1.5 text-composer-text-muted hover:text-composer-accent hover:bg-composer-accent/10 rounded-md transition-colors"
+                      title="Use this track in current project"
+                    >
+                      <IconFilePlus className="size-4" />
+                    </button>
                     <button
                       type="button"
                       disabled={dlState === "downloading"}

@@ -26,6 +26,7 @@ interface WordTrackProps {
   trackType: "word" | "bg";
   duration: number;
   height: number;
+  lineRomaji?: string;
   onUpdateWord: (
     index: number,
     updates: Partial<WordTiming>,
@@ -58,6 +59,7 @@ const WordTrack: React.FC<WordTrackProps> = ({
   trackType,
   duration,
   height,
+  lineRomaji,
   onUpdateWord,
 }) => {
   const zoom = useTimelineStore((s) => s.zoom);
@@ -412,8 +414,9 @@ const WordTrack: React.FC<WordTrackProps> = ({
             wordIndex={wordIndex}
             trackType={trackType}
             text={word.text}
-            romaji={word.romaji}
+            romaji={words.length === 1 && lineRomaji ? lineRomaji : word.romaji}
             showRomaji={showRomaji}
+            height={height}
             begin={display.begin}
             end={display.end}
             color={color}
