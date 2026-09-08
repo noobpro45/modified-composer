@@ -1,5 +1,5 @@
-import { cn } from "@/utils/cn";
 import type { SyllablePosition } from "@/domain/word/syllable-groups";
+import { cn } from "@/utils/cn";
 import { selfKey } from "@/views/timeline/snap";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { useDraggable } from "@dnd-kit/core";
@@ -193,7 +193,12 @@ const WordBlock: React.FC<WordBlockProps> = ({
               {romaji?.trim() ? romaji : "\u00A0"}
             </div>
           )}
-          <span className="leading-tight font-medium" style={{ fontSize: `${14 * scale}px` }}>{text}</span>
+          <span
+            className="leading-tight font-medium"
+            style={{ fontFamily: "var(--font-family-lyrics)", fontSize: `${14 * scale}px` }}
+          >
+            {text}
+          </span>
         </span>
       )}
 

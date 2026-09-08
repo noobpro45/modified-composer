@@ -381,8 +381,11 @@ const EditPanel: React.FC = () => {
       linesSetByUs.current = null;
       return;
     }
+    const nextLyrics = lines.length > 0 ? lines.map((l) => l.text).join("\n") : "";
+    rawTextRef.current = nextLyrics;
+    setRawText(nextLyrics);
     if (editorMode === "lyrics") {
-      setEditorText(lines.length > 0 ? lines.map((l) => l.text).join("\n") : "");
+      setEditorText(nextLyrics);
     } else if (editorMode === "romaji") {
       setEditorText(lines.length > 0 ? lines.map((l) => l.romaji || "").join("\n") : "");
     } else if (editorMode === "background") {
@@ -721,6 +724,9 @@ const EditPanel: React.FC = () => {
 
       if (action.kind === "noop") return;
 
+      rawTextRef.current = text;
+      setRawText(text);
+
       let finalLines = action.finalLines;
 
       if (wasPaste) {
@@ -968,7 +974,7 @@ const EditPanel: React.FC = () => {
               </button>
             </div>
           </div>
-          <Scroll viewportRef={scrollViewportRef} className="flex-1 border rounded-lg border-composer-border bg-composer-bg-dark">
+          <Scroll viewportRef={scrollViewportRef} onInitialized={setScrollParent} className="flex-1 border rounded-lg border-composer-border bg-composer-bg-dark">
             {parsed.length === 0 || (parsed.length === 1 && parsed[0].isEmpty) ? (
               <div className="flex items-center justify-center h-full text-sm text-composer-text-muted">
                 Lyrics will appear here
@@ -977,12 +983,14 @@ const EditPanel: React.FC = () => {
               <Virtuoso
                 ref={virtuosoRef}
                 data={parsed}
+                initialItemCount={parsed.length}
                 context={{ hoveredLine }}
                 className="py-2"
                 style={{ height: "100%", width: "100%" }}
                 customScrollParent={scrollParent ?? undefined}
                 overscan={200}
                 itemContent={(index, line, context) => {
+                  if (!line) return null;
                   const prev = index > 0 ? parsed[index - 1] : null;
                   const next = index < parsed.length - 1 ? parsed[index + 1] : null;
                   const isFirstOfInstance =

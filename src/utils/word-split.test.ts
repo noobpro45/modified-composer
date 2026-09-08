@@ -18,6 +18,16 @@ describe("splitWordIntoWords", () => {
     expect(out.map((w) => w.text)).toEqual(["every ", "day "]);
   });
 
+  it("aligns whitespace-delimited romaji with the new words", () => {
+    const out = splitWordIntoWords({ ...source, romaji: "e ve ry" }, [5, 6]);
+    expect(out.map((w) => w.romaji)).toEqual(["e ", "ve ", "ry"]);
+  });
+
+  it("does not add separators when splitting CJK text", () => {
+    const out = splitWordIntoWords({ text: "おいしい", begin: 1, end: 2 }, [1, 2, 3], false);
+    expect(out.map((w) => w.text)).toEqual(["お", "い", "し", "い"]);
+  });
+
   it("distributes timing across the source span", () => {
     const out = splitWordIntoWords(source, [5]);
     expect(out[0].begin).toBe(1);

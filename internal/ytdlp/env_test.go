@@ -10,6 +10,9 @@ import (
 
 func TestAugmentPATH(t *testing.T) {
 	sep := string(os.PathListSeparator)
+	p := func(parts ...string) string {
+		return strings.Join(parts, sep)
+	}
 	cases := []struct {
 		name      string
 		env       []string
@@ -19,27 +22,27 @@ func TestAugmentPATH(t *testing.T) {
 	}{
 		{
 			name:     "missing dirs prepended in order",
-			env:      []string{"PATH=/usr/bin:/bin"},
+			env:      []string{"PATH=" + p("/usr/bin", "/bin")},
 			extras:   []string{"/opt/homebrew/bin", "/opt/local/bin"},
-			wantPath: "/opt/homebrew/bin" + sep + "/opt/local/bin" + sep + "/usr/bin:/bin",
+			wantPath: p("/opt/homebrew/bin", "/opt/local/bin", "/usr/bin", "/bin"),
 		},
 		{
 			name:     "already-present dirs are not duplicated",
-			env:      []string{"PATH=/opt/homebrew/bin:/usr/bin"},
+			env:      []string{"PATH=" + p("/opt/homebrew/bin", "/usr/bin")},
 			extras:   []string{"/opt/homebrew/bin", "/opt/local/bin"},
-			wantPath: "/opt/local/bin" + sep + "/opt/homebrew/bin:/usr/bin",
+			wantPath: p("/opt/local/bin", "/opt/homebrew/bin", "/usr/bin"),
 		},
 		{
 			name:     "all dirs already present returns env unchanged",
-			env:      []string{"PATH=/opt/homebrew/bin:/opt/local/bin:/usr/bin"},
+			env:      []string{"PATH=" + p("/opt/homebrew/bin", "/opt/local/bin", "/usr/bin")},
 			extras:   []string{"/opt/homebrew/bin", "/opt/local/bin"},
-			wantPath: "/opt/homebrew/bin:/opt/local/bin:/usr/bin",
+			wantPath: p("/opt/homebrew/bin", "/opt/local/bin", "/usr/bin"),
 		},
 		{
 			name:     "dir present in the middle of PATH is still treated as present",
-			env:      []string{"PATH=/foo:/opt/homebrew/bin:/bar"},
+			env:      []string{"PATH=" + p("/foo", "/opt/homebrew/bin", "/bar")},
 			extras:   []string{"/opt/homebrew/bin"},
-			wantPath: "/foo:/opt/homebrew/bin:/bar",
+			wantPath: p("/foo", "/opt/homebrew/bin", "/bar"),
 		},
 		{
 			name:     "empty PATH var still gets extras",
@@ -63,19 +66,19 @@ func TestAugmentPATH(t *testing.T) {
 			name:     "empty-string extra is skipped, not prepended as ::",
 			env:      []string{"PATH=/usr/bin"},
 			extras:   []string{"", "/opt/homebrew/bin", ""},
-			wantPath: "/opt/homebrew/bin:/usr/bin",
+			wantPath: p("/opt/homebrew/bin", "/usr/bin"),
 		},
 		{
 			name:     "duplicate extras are deduped within the prepend list",
 			env:      []string{"PATH=/usr/bin"},
 			extras:   []string{"/opt/homebrew/bin", "/opt/homebrew/bin"},
-			wantPath: "/opt/homebrew/bin:/usr/bin",
+			wantPath: p("/opt/homebrew/bin", "/usr/bin"),
 		},
 		{
 			name:      "other env vars are preserved",
 			env:       []string{"HOME=/h", "PATH=/usr/bin", "USER=u"},
 			extras:    []string{"/opt/homebrew/bin"},
-			wantPath:  "/opt/homebrew/bin:/usr/bin",
+			wantPath:  p("/opt/homebrew/bin", "/usr/bin"),
 			wantOther: []string{"HOME=/h", "USER=u"},
 		},
 	}

@@ -224,7 +224,7 @@ func (h *Handlers) Audio(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("audio stream failed mid-flight", "videoID", videoID, "err", err)
 		return
 	}
-	writeError(w, http.StatusBadGateway, fmt.Sprintf("yt-dlp failed for %s", videoID))
+	writeError(w, http.StatusBadGateway, fmt.Sprintf("yt-dlp failed for %s: %v", videoID, err))
 }
 
 // autoDownloadCapture is the per-request state for tee-while-streaming. Lives

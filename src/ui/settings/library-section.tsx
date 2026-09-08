@@ -1,5 +1,5 @@
 import { ExportTrack, ListTracks, RemoveTrack } from "@/wailsjs/go/app/App";
-import { library } from "@/wailsjs/go/models";
+import type { library } from "@/wailsjs/go/models";
 import { IconCheck, IconDownload, IconLoader2, IconMusic, IconTrash, IconFilePlus } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";

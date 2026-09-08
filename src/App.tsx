@@ -166,24 +166,24 @@ const AppContent: React.FC = () => {
         }}
       />
       {activeTab !== "home" && <TabBar />}
-      <main className="relative flex-1 overflow-hidden pb-16">
-        <div className="absolute inset-0 flex flex-col pb-16" style={{ display: activeTab === "home" ? undefined : "none" }}>
+      <main className="relative flex-1 overflow-hidden">
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "home" ? undefined : "none" }}>
           <HomePanel />
         </div>
-        <div className="absolute inset-0 flex flex-col pb-16" style={{ display: activeTab === "import" ? undefined : "none" }}>
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "import" ? undefined : "none" }}>
           <ImportPanel />
         </div>
-        <div className="absolute inset-0 flex flex-col pb-16" style={{ display: activeTab === "edit" ? undefined : "none" }}>
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "edit" ? undefined : "none" }}>
           <EditPanel />
         </div>
-        <div className="absolute inset-0 flex flex-col pb-16" style={{ display: activeTab === "sync" ? undefined : "none" }}>
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "sync" ? undefined : "none" }}>
           <SyncPanel />
         </div>
-        <div className="absolute inset-0 flex flex-col pb-16" style={{ display: activeTab === "timeline" ? undefined : "none" }}>
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "timeline" ? undefined : "none" }}>
           <TimelinePanel />
         </div>
         <div 
-          className="absolute inset-0 flex flex-col pb-16" 
+          className="absolute inset-0 flex flex-col" 
           style={{ 
             opacity: activeTab === "preview" ? 1 : 0,
             pointerEvents: activeTab === "preview" ? "auto" : "none",
@@ -192,13 +192,13 @@ const AppContent: React.FC = () => {
         >
           <PreviewPanel />
         </div>
-        <div className="absolute inset-0 flex flex-col pb-16" style={{ display: activeTab === "export" ? undefined : "none" }}>
+        <div className="absolute inset-0 flex flex-col" style={{ display: activeTab === "export" ? undefined : "none" }}>
           <ExportPanel />
         </div>
       </main>
       {source && <AudioEngine />}
       {showPlayer && (
-        <div className="fixed bottom-0 left-0 right-0 z-50">
+        <div className="relative shrink-0 z-50">
           <AudioPlayer />
         </div>
       )}

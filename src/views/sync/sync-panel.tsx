@@ -236,14 +236,21 @@ const SyncPanel: React.FC = () => {
             const splitPoints = getAutoSplitPoints(word.text.trimEnd());
             if (splitPoints.length > 0) {
               hasChanges = true;
-              newWords.push(...splitWordIntoWords(word, splitPoints));
+              // CJK characters are not whitespace-delimited words. Preserve the
+              // source spacing instead of adding English-style separators.
+              newWords.push(...splitWordIntoWords(word, splitPoints, false));
             } else {
               newWords.push(word);
             }
           }
 
           if (newWords.length !== line.words.length) {
-            return { ...line, words: newWords };
+            const hasAlignedRomaji = newWords.every((word) => word.romaji !== undefined);
+            return {
+              ...line,
+              words: newWords,
+              ...(hasAlignedRomaji ? { romaji: newWords.map((word) => word.romaji).join("").trimEnd() } : {}),
+            };
           }
           return line;
         });

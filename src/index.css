@@ -49,6 +49,8 @@
 
   /* Typography */
   --font-family-sans: "Satoshi", "Avenir", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-family-lyrics: "Satoshi", "Yu Gothic UI", "Yu Gothic", Meiryo, "Malgun Gothic", "Microsoft YaHei",
+    "Noto Sans CJK JP", "Noto Sans CJK KR", "Noto Sans CJK SC", ui-sans-serif, sans-serif;
   --font-family-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
   /* Animation */
@@ -290,7 +292,7 @@ input[type="range"].settings-slider::-moz-range-progress {
   z-index: 200;
 }
 
-/* Timeline-specific: offset scrollbars to account for gutter (48px) and waveform (80px) */
+/* Keep timeline scrollbars clear of the fixed gutter and visualizer. */
 [data-timeline-scroll-host] .os-scrollbar-horizontal {
   left: 48px !important;
   width: calc(100% - 48px) !important;
@@ -299,6 +301,28 @@ input[type="range"].settings-slider::-moz-range-progress {
 [data-timeline-scroll-host] .os-scrollbar-vertical {
   top: 80px !important;
   height: calc(100% - 80px) !important;
+}
+
+/* Match the overlay scrollbar when a desktop webview falls back to native bars. */
+[data-timeline-scroll-host] [data-scroll-container]::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+[data-timeline-scroll-host] [data-scroll-container]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-timeline-scroll-host] [data-scroll-container]::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border: 2px solid transparent;
+  border-radius: 5px;
+  background-clip: padding-box;
+}
+
+[data-timeline-scroll-host] [data-scroll-container]::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+  background-clip: padding-box;
 }
 
 /* Native scrollbar styling for textareas (so we don't break React DOM layout)

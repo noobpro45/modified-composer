@@ -8,14 +8,21 @@ function useLoadYouTubeSource(): (videoId: string) => Promise<void> {
   return useCallback((videoId: string) => {
     const audio = useAudioStore.getState();
     const prevVideoId = audio.source?.type === "youtube" ? audio.source.videoId : null;
+    const project = useProjectStore.getState();
+    const previousMetadata = project.metadata;
     audio.setYouTubeSource(videoId);
 
-    const project = useProjectStore.getState();
     if (!project.metadata.title || prevVideoId !== videoId) {
       project.setMetadata({ title: videoId });
     }
 
-    return waitForYouTubeLoad(videoId);
+    return waitForYouTubeLoad(videoId).catch((error) => {
+      const current = useAudioStore.getState().source;
+      if (current?.type === "youtube" && current.videoId === videoId && current.file == null) {
+        useProjectStore.getState().setMetadata(previousMetadata);
+      }
+      throw error;
+    });
   }, []);
 }
 

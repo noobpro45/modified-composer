@@ -23,8 +23,8 @@ func TestBuildExtractorArgs_PreferPremiumPrependsWebMusic(t *testing.T) {
 	if !strings.HasPrefix(got, "youtube:player_client=web_music,") {
 		t.Errorf("prefer-premium args should start with web_music, got %q", got)
 	}
-	if !strings.Contains(got, "android_vr") || !strings.Contains(got, "web_safari") {
-		t.Errorf("prefer-premium args should still include fallback clients, got %q", got)
+	if !strings.Contains(got, "tv_embedded") {
+		t.Errorf("prefer-premium args should still include tv_embedded fallback, got %q", got)
 	}
 }
 

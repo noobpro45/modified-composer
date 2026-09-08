@@ -10,7 +10,12 @@ import { effectiveBounds } from "@/domain/line/bounds";
 // -- Helpers ------------------------------------------------------------------
 
 function escapeXml(str: string): string {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 function emitWordSpan(word: { text: string; begin: number; end: number; explicit?: true }, text: string): string {
@@ -83,7 +88,7 @@ function generateTTML({ metadata, agents, lines, groups, granularity, minify = f
         const words = line.words;
         for (let j = 0; j < words.length; j++) {
           const word = words[j];
-          const text = word.romaji ? word.romaji.trimEnd() : "";
+          const text = word.romaji ? stripSplitCharacter(word.romaji.trimEnd()) : "";
           const needsSpace = j < words.length - 1 && (word.romaji?.endsWith(" ") || word.text.endsWith(" "));
           const explicitAttr = word.explicit ? ' composer:explicit="true"' : "";
           transliterationContent += `<span begin="${formatTime(word.begin)}" end="${formatTime(word.end)}"${explicitAttr}>${escapeXml(text)}</span>${needsSpace ? " " : ""}`;

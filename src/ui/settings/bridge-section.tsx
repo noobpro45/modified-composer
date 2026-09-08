@@ -1,7 +1,8 @@
 import { useBridgeConfig } from "@/hooks/use-bridge-config";
-import { UploadCookies, ShowDirectoryDialog } from "@/wailsjs/go/app/App";
+import { BridgeStatus, StartServer, StopServer, UploadCookies, ShowDirectoryDialog } from "@/wailsjs/go/app/App";
 import { cn } from "@/utils/cn";
 import { Select } from "@/ui/select";
+import { useEffect, useState } from "react";
 
 const BridgeToggle: React.FC<{ enabled: boolean; onToggle: () => void }> = ({ enabled, onToggle }) => (
   <button
@@ -59,6 +60,29 @@ export const BridgeSelectConfig: React.FC<{
 const BridgeSection: React.FC = () => {
   const isNative = typeof window.go !== "undefined" && !!window.go.app?.App;
   const { config: backendConfig, update: updateBackendConfig, saveStatus } = useBridgeConfig();
+  const [serverStatus, setServerStatus] = useState("unknown");
+
+  const refreshServerStatus = () => {
+    if (!isNative) return;
+    void BridgeStatus().then((state) => setServerStatus(state.server)).catch(() => setServerStatus("unknown"));
+  };
+
+  useEffect(() => {
+    refreshServerStatus();
+  }, [isNative]);
+
+  const toggleServer = async () => {
+    try {
+      if (serverStatus === "running") {
+        await StopServer();
+      } else {
+        await StartServer();
+      }
+      refreshServerStatus();
+    } catch (err) {
+      console.error("Failed to change bridge server state:", err);
+    }
+  };
 
   const handleUploadCookies = async () => {
     if (!isNative) return;
@@ -84,6 +108,87 @@ const BridgeSection: React.FC = () => {
 
   return (
     <>
+      <div className="flex items-center justify-between py-3">
+        <div className="flex flex-col gap-0.5 pr-4">
+          <span className="text-sm font-medium text-composer-text">Bridge server</span>
+          <span className="text-xs text-composer-text-muted">{serverStatus === "running" ? "Running" : serverStatus}</span>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={serverStatus === "running"}
+          aria-label="Run Composer Bridge server"
+          onClick={toggleServer}
+          className={cn(
+            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors",
+            serverStatus === "running" ? "bg-composer-accent" : "bg-composer-button",
+          )}
+        >
+          <span
+            className={cn(
+              "pointer-events-none inline-block size-4 rounded-full bg-white shadow transform transition-transform mt-0.5",
+              serverStatus === "running" ? "translate-x-4.5" : "translate-x-0.5",
+            )}
+          />
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between py-3">
+        <div className="flex flex-col gap-0.5 pr-4">
+          <span className="text-sm font-medium text-composer-text">Listen port</span>
+          <span className="text-xs text-composer-text-muted">Applied the next time the bridge server starts.</span>
+        </div>
+        <input
+          type="number"
+          min={1}
+          max={65535}
+          className="h-7 w-24 px-2 text-xs rounded bg-composer-bg text-composer-text border border-composer-border"
+          value={backendConfig.listen_port}
+          onChange={(e) => updateBackendConfig("listen_port", Number(e.target.value))}
+        />
+      </div>
+
+      <BridgeToggleConfig
+        label="Use a random port if busy"
+        description="Keep the bridge available when the configured port is already in use."
+        enabled={backendConfig.use_random_if_busy}
+        onToggle={() => updateBackendConfig("use_random_if_busy", !backendConfig.use_random_if_busy)}
+      />
+
+      <BridgeToggleConfig
+        label="Open at login"
+        description="Start Composer Bridge when you sign in to your computer."
+        enabled={backendConfig.open_at_login}
+        onToggle={() => updateBackendConfig("open_at_login", !backendConfig.open_at_login)}
+      />
+
+      <BridgeSelectConfig
+        label="Log level"
+        description="How much diagnostic detail to write to the bridge log."
+        value={backendConfig.log_level}
+        onChange={(v) => updateBackendConfig("log_level", v)}
+        options={[
+          { value: "error", label: "Errors" },
+          { value: "warn", label: "Warnings" },
+          { value: "info", label: "Info" },
+          { value: "debug", label: "Debug" },
+        ]}
+      />
+
+      <div className="flex items-center justify-between py-3">
+        <div className="flex flex-col gap-0.5 pr-4 flex-1">
+          <span className="text-sm font-medium text-composer-text">yt-dlp binary path</span>
+          <span className="text-xs text-composer-text-muted">Leave empty to use the managed binary.</span>
+        </div>
+        <input
+          type="text"
+          className="h-7 px-2 text-xs rounded bg-composer-bg text-composer-text border border-composer-border min-w-0 w-1/2"
+          value={backendConfig.ytdlp_binary_path || ""}
+          onChange={(e) => updateBackendConfig("ytdlp_binary_path", e.target.value)}
+          placeholder="Managed yt-dlp"
+        />
+      </div>
+
       <div className="flex items-center justify-between py-3">
         <div className="flex flex-col gap-0.5 pr-4 flex-1">
           <span className="text-sm font-medium text-composer-text">Default Save Directory</span>
