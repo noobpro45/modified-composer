@@ -352,6 +352,31 @@ input[type="range"].settings-slider::-moz-range-progress {
   background-color: rgba(255, 255, 255, 0.5);
 }
 
+/* App custom scrollbar for dropdown menus and popovers */
+.composer-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.composer-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.composer-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+  background-clip: padding-box;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+}
+
+.composer-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.45);
+}
+
+.composer-scrollbar::-webkit-scrollbar-thumb:active {
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
 .os-theme-light {
   --os-handle-bg: rgba(255, 255, 255, 0.3);
   --os-handle-bg-hover: rgba(255, 255, 255, 0.4);

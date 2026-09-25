@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushPendingSave } from "@/lib/persistence-debounce";
 import { autoUpdate, flip, FloatingPortal, offset, shift, useFloating } from "@floating-ui/react";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
+import { Scroll } from "@/ui/scroll";
 import { cn } from "@/utils/cn";
 
 const LANGUAGE_PRESETS = [
@@ -39,6 +40,7 @@ const MetadataEditor: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const { refs, floatingStyles } = useFloating({
     open: isOpen,
@@ -91,6 +93,13 @@ const MetadataEditor: React.FC = () => {
       (p) => p.code.toLowerCase().includes(query) || p.name.toLowerCase().includes(query),
     );
   }, [query]);
+
+  // Keep highlighted item in view when navigating with keyboard
+  useEffect(() => {
+    if (highlightedIndex >= 0 && itemRefs.current[highlightedIndex]) {
+      itemRefs.current[highlightedIndex]?.scrollIntoView({ block: "nearest" });
+    }
+  }, [highlightedIndex]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -210,45 +219,52 @@ const MetadataEditor: React.FC = () => {
                 menuRef.current = node;
               }}
               style={floatingStyles}
-              className="z-100 w-56 max-h-60 overflow-y-auto p-1 border select-none shadow-2xl rounded-xl bg-composer-bg border-composer-border flex flex-col gap-0.5"
+              className="z-100 w-56 border select-none shadow-2xl rounded-xl bg-composer-bg border-composer-border overflow-hidden"
             >
-              {filteredPresets.length > 0 ? (
-                filteredPresets.map((opt, index) => {
-                  const isSelected = metadata.language?.toLowerCase() === opt.code.toLowerCase();
-                  const isHighlighted = highlightedIndex === index;
-                  return (
-                    <button
-                      key={opt.code}
-                      type="button"
-                      className={cn(
-                        "flex items-center justify-between px-2.5 py-1.5 text-xs rounded-lg transition-colors cursor-pointer text-left",
-                        isHighlighted && !isSelected && "bg-composer-button",
-                        isSelected
-                          ? "bg-composer-accent/15 text-composer-accent font-medium"
-                          : "text-composer-text hover:bg-composer-button",
-                      )}
-                      onMouseEnter={() => setHighlightedIndex(index)}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                      }}
-                      onClick={() => handleSelectPreset(opt.code)}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-composer-input border border-composer-border text-composer-text shrink-0">
-                          {opt.code}
-                        </span>
-                        <span className="truncate text-xs text-composer-text-secondary">{opt.name}</span>
-                      </div>
-                      {isSelected && <IconCheck className="size-3.5 shrink-0 text-composer-accent" />}
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="px-3 py-2 text-xs text-composer-text-muted text-center">
-                  Custom code:{" "}
-                  <span className="font-mono text-composer-text font-semibold">{metadata.language}</span>
+              <Scroll className="max-h-60 composer-scrollbar" autoHide="leave">
+                <div className="flex flex-col gap-0.5 p-1">
+                  {filteredPresets.length > 0 ? (
+                    filteredPresets.map((opt, index) => {
+                      const isSelected = metadata.language?.toLowerCase() === opt.code.toLowerCase();
+                      const isHighlighted = highlightedIndex === index;
+                      return (
+                        <button
+                          key={opt.code}
+                          ref={(node) => {
+                            itemRefs.current[index] = node;
+                          }}
+                          type="button"
+                          className={cn(
+                            "flex items-center justify-between px-2.5 py-1.5 text-xs rounded-lg transition-colors cursor-pointer text-left",
+                            isHighlighted && !isSelected && "bg-composer-button",
+                            isSelected
+                              ? "bg-composer-accent/15 text-composer-accent font-medium"
+                              : "text-composer-text hover:bg-composer-button",
+                          )}
+                          onMouseEnter={() => setHighlightedIndex(index)}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                          }}
+                          onClick={() => handleSelectPreset(opt.code)}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-composer-input border border-composer-border text-composer-text shrink-0">
+                              {opt.code}
+                            </span>
+                            <span className="truncate text-xs text-composer-text-secondary">{opt.name}</span>
+                          </div>
+                          {isSelected && <IconCheck className="size-3.5 shrink-0 text-composer-accent" />}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="px-3 py-2 text-xs text-composer-text-muted text-center">
+                      Custom code:{" "}
+                      <span className="font-mono text-composer-text font-semibold">{metadata.language}</span>
+                    </div>
+                  )}
                 </div>
-              )}
+              </Scroll>
             </div>
           </FloatingPortal>
         )}
