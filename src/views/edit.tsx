@@ -284,6 +284,11 @@ const LinePreview = memo(
                   )}
                   <input
                     type="text"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    aria-autocomplete="none"
                     aria-label="Background vocals text"
                     value={bgInput}
                     onChange={(e) => setBgInput(e.target.value)}

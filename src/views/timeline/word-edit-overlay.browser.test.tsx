@@ -53,4 +53,21 @@ describe("WordEditOverlay", () => {
     const screen = await render(<PositionedHarness lineId={line.id} wordKey={`${line.id}-word-0`} />);
     await expect.element(screen.getByRole("textbox", { name: "Edit word" })).toBeInTheDocument();
   });
+
+  it("disables browser autocomplete and inline predictions on word edit inputs", async () => {
+    const line = createLine({ id: "line-1", words: [createWord({ text: "hello", romaji: "konnichiwa", begin: 0, end: 1 })] });
+    useProjectStore.setState({ lines: [line] });
+    useTimelineStore.setState({ zoom: 100, showRomaji: true });
+    const screen = await render(<PositionedHarness lineId={line.id} wordKey={`${line.id}-word-0`} />);
+    const wordInput = screen.getByRole("textbox", { name: "Edit word" }).element() as HTMLInputElement;
+    const romajiInput = screen.getByRole("textbox", { name: "Edit romaji" }).element() as HTMLInputElement;
+
+    expect(wordInput.getAttribute("autocomplete")).toBe("off");
+    expect(wordInput.getAttribute("spellcheck")).toBe("false");
+    expect(wordInput.getAttribute("aria-autocomplete")).toBe("none");
+
+    expect(romajiInput.getAttribute("autocomplete")).toBe("off");
+    expect(romajiInput.getAttribute("spellcheck")).toBe("false");
+    expect(romajiInput.getAttribute("aria-autocomplete")).toBe("none");
+  });
 });

@@ -47,6 +47,11 @@ var assets embed.FS
 var Version = "1.34.0"
 
 func main() {
+	// Disable Edge/WebView2 autofill, "Saved info" popups, and inline text prediction.
+	if os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") == "" {
+		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-features=Autofill,AutofillServerCommunication,msEdgeInlineTextPrediction,msEdgePersonalizedTextPred --disable-autofill --disable-save-password-bubble")
+	}
+
 	// SingleInstanceLock handshake: when ApplyAndRelaunch spawns us with the
 	// RelaunchUpdatedFlag, the parent's flock file descriptor may still be open
 	// for a few microseconds after its os.Exit. Sleep before wails.Run so the

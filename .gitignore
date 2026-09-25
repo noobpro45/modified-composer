@@ -154,7 +154,9 @@ htdemucs-onnx-out/
 .wrangler
 
 # Bloat / Scratch
+build/bin/
 *.exe
+*.exe~
 *.m4a
 *.mp3
 *.opus
