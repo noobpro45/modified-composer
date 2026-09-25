@@ -63,4 +63,55 @@ describe("bindAudioStateEvents", () => {
     audio.dispatchEvent(new Event("pause"));
     expect(useAudioStore.getState().isPlaying).toBe(true);
   });
+
+  it("ignores echo 'play' event within grace period after programmatic pause", () => {
+    useAudioStore.setState({ isPlaying: false });
+    const audio = new Audio();
+    let commandTime = Date.now();
+    bindAudioStateEvents(
+      audio,
+      () => useAudioStore.getState().isPlaying,
+      useAudioStore.getState().setIsPlaying,
+      () => commandTime,
+    );
+    // Simulates delayed play event arriving 50ms after user toggled to pause
+    commandTime = Date.now();
+    audio.dispatchEvent(new Event("play"));
+    expect(useAudioStore.getState().isPlaying).toBe(false);
+  });
+
+  it("ignores echo 'pause' event within grace period after programmatic play", () => {
+    useAudioStore.setState({ isPlaying: true });
+    const audio = new Audio();
+    let commandTime = Date.now();
+    bindAudioStateEvents(
+      audio,
+      () => useAudioStore.getState().isPlaying,
+      useAudioStore.getState().setIsPlaying,
+      () => commandTime,
+    );
+    // Simulates delayed pause event arriving 50ms after user toggled to play
+    commandTime = Date.now();
+    audio.dispatchEvent(new Event("pause"));
+    expect(useAudioStore.getState().isPlaying).toBe(true);
+  });
+
+  it("accepts external 'play' and 'pause' events after grace period elapses", () => {
+    useAudioStore.setState({ isPlaying: false });
+    const audio = new Audio();
+    let commandTime = Date.now() - 1000;
+    bindAudioStateEvents(
+      audio,
+      () => useAudioStore.getState().isPlaying,
+      useAudioStore.getState().setIsPlaying,
+      () => commandTime,
+    );
+    audio.dispatchEvent(new Event("play"));
+    expect(useAudioStore.getState().isPlaying).toBe(true);
+
+    commandTime = Date.now() - 1000;
+    audio.dispatchEvent(new Event("pause"));
+    expect(useAudioStore.getState().isPlaying).toBe(false);
+  });
 });
+
