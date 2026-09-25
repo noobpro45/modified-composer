@@ -54,6 +54,7 @@ function proportionalRemap(sourceAfter: WordTiming[], siblingWords: WordTiming[]
   if (siblingSpan <= 0) return null;
   return sourceAfter.map((w) => ({
     text: w.text,
+    ...(w.romaji !== undefined ? { romaji: w.romaji } : {}),
     begin: siblingStart + ((w.begin - sourceStart) / sourceSpan) * siblingSpan,
     end: siblingStart + ((w.end - sourceStart) / sourceSpan) * siblingSpan,
     ...(w.explicit ? { explicit: true as const } : {}),
@@ -98,6 +99,7 @@ function applySiblingWords(
       result[i] = {
         ...siblingBase,
         text: sourceAfter[i].text,
+        romaji: sourceAfter[i].romaji,
         ...(sourceAfter[i].explicit ? { explicit: true as const } : {}),
       };
       lastMatchedBefore = bIdx;
@@ -151,6 +153,7 @@ function applySiblingWords(
       }
       result[k] = synthesizeBracketedWord({
         text: w.text,
+        romaji: w.romaji,
         begin,
         end,
         leftBracket,

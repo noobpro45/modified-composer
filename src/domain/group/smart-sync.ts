@@ -22,9 +22,10 @@ function propagateWordChanges(
     if (sourceAfter.length !== siblingWords.length) return undefined;
     let changed = false;
     const next = siblingWords.map((w, i) => {
-      if (w.text === sourceAfter[i].text) return w;
+      const target = sourceAfter[i];
+      if (w.text === target.text && w.romaji === target.romaji) return w;
       changed = true;
-      return { ...w, text: sourceAfter[i].text };
+      return { ...w, text: target.text, romaji: target.romaji };
     });
     return changed ? next : undefined;
   }

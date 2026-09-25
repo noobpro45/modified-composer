@@ -83,7 +83,12 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
   const lineRef = useRef<HTMLDivElement>(null);
   const showRomaji = useTimelineStore((s) => s.showRomaji);
   const wordTexts = useMemo(() => (words?.length ? words.map((w) => w.text) : splitIntoWords(text)), [text, words]);
-  const wordRomajis = useMemo(() => (words?.length ? words.map((w) => w.romaji) : []), [words]);
+  const wordRomajis = useMemo(() => {
+    if (words?.length) return words.map((w) => w.romaji);
+    if (!romaji) return [];
+    const parts = splitIntoWords(romaji);
+    return parts.length === wordTexts.length ? parts : [];
+  }, [words, romaji, wordTexts.length]);
   const bgWordTexts = useMemo(
     () =>
       backgroundWords?.length
@@ -339,6 +344,7 @@ const ScrollableLine = memo(ScrollableLineInner, (prev, next) => {
     prev.lineNumber === next.lineNumber &&
     prev.isCurrent === next.isCurrent &&
     prev.agentId === next.agentId &&
+    prev.romaji === next.romaji &&
     prev.backgroundText === next.backgroundText &&
     prev.backgroundWords === next.backgroundWords &&
     prev.granularity === next.granularity &&

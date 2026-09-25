@@ -22,7 +22,7 @@ import { stripSplitCharacter } from "@/utils/split-character";
 import { splitIntoWordsWithMeta } from "@/utils/sync-helpers";
 import { AgentManager } from "@/views/edit/agent-manager";
 import { decideEditTextAction } from "@/views/edit/decide-edit-text-action";
-import { detachInstancesFromLines } from "@/views/edit/diff-edit-text";
+import { detachInstancesFromLines, diffEditTextChange, propagateContentUpdates } from "@/views/edit/diff-edit-text";
 import { MetadataEditor } from "@/views/edit/metadata-editor";
 import { parseLyrics } from "@/views/edit/parse-lyrics";
 import type { ParsedLine } from "@/views/edit/parse-lyrics";
@@ -645,7 +645,7 @@ const EditPanel: React.FC = () => {
 
           if (editorMode === "romaji") {
             const romajiStr = textLines[i] || "";
-            newLines[i] = { ...newLines[i], romaji: romajiStr };
+            newLines[i] = { ...newLines[i], romaji: romajiStr.trim() ? romajiStr : undefined };
             if (newLines[i].words && newLines[i].words!.length > 0) {
               if (romajiStr.trim()) {
                 const { parts, trailingSpace } = splitIntoWordsWithMeta(romajiStr);
@@ -678,8 +678,10 @@ const EditPanel: React.FC = () => {
           const projectState = useProjectStore.getState();
           runBaselineRef.current = { lines: projectState.lines, wasDirty: projectState.isDirtySinceHistory };
         }
-        linesSetByUs.current = newLines;
-        setLines(newLines);
+        const diff = diffEditTextChange(lines, newLines);
+        const finalLines = diff.contentUpdates.length > 0 ? propagateContentUpdates(lines, newLines, diff.contentUpdates) : newLines;
+        linesSetByUs.current = finalLines;
+        setLines(finalLines);
         scheduleRunFinalize();
         return;
       }

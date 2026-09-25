@@ -70,4 +70,14 @@ describe("propagateWordChanges", () => {
     expect(result?.[0]).toEqual({ text: "I ", begin: 30, end: 30.4 });
     expect(result?.[3]).toEqual({ text: "you", begin: 30.7, end: 31.2 });
   });
+
+  it("propagates word romaji updates to siblings on fast path", () => {
+    const before: WordTiming[] = [{ text: "君", begin: 0, end: 1 }];
+    const after: WordTiming[] = [{ text: "君", romaji: "kimi", begin: 0, end: 1 }];
+    const sibling: WordTiming[] = [{ text: "君", begin: 10, end: 11 }];
+
+    expect(propagateWordChanges(after, before, sibling)).toEqual([
+      { text: "君", romaji: "kimi", begin: 10, end: 11 },
+    ]);
+  });
 });

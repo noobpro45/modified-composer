@@ -1,5 +1,5 @@
 import type { WordTiming } from "@/domain/word/timing";
-import { commitHeldWord, commitTappedWord } from "@/utils/sync-helpers";
+import { commitHeldWord, commitTappedWord, convertLineToWord, type ConvertibleLine } from "@/utils/sync-helpers";
 import { describe, expect, it } from "vitest";
 
 // -- commitTappedWord ---------------------------------------------------------
@@ -114,5 +114,27 @@ describe("commitHeldWord", () => {
     }
     expect(result[0]).toEqual({ text: "one ", begin: 0, end: 1 });
     expect(result[1]).toEqual({ text: "two", begin: 5, end: 5 });
+  });
+
+  it("preserves existing word romaji when re-timing", () => {
+    const existing: WordTiming[] = [{ text: "one ", romaji: "ichi ", begin: 0, end: 1 }];
+    const result = commitHeldWord(existing, 0, "ONE ", 5);
+    expect(result[0].romaji).toBe("ichi ");
+  });
+});
+
+// -- convertLineToWord --------------------------------------------------------
+
+describe("convertLineToWord", () => {
+  it("attaches romaji to words when line.romaji parts match word count", () => {
+    const line: ConvertibleLine = { text: "わたし は", romaji: "watashi wa", begin: 0, end: 2 };
+    const result = convertLineToWord(line);
+    expect(result.words?.map((w) => w.romaji)).toEqual(["watashi ", "wa"]);
+  });
+
+  it("leaves words romaji undefined when line.romaji does not match word count", () => {
+    const line: ConvertibleLine = { text: "わたし は だれ", romaji: "watashi wa", begin: 0, end: 2 };
+    const result = convertLineToWord(line);
+    expect(result.words?.every((w) => w.romaji === undefined)).toBe(true);
   });
 });

@@ -9,9 +9,7 @@ function splitWordIntoWords(word: WordTiming, splitPoints: number[], addSeparato
   const hadTrailingSpace = word.text.endsWith(" ");
   const partitions = distributeTiming(trimmed, splitPoints, word.begin, word.end);
   const { syllableGroupId: _drop, ...base } = word;
-  const whitespaceRomajiParts = word.romaji ? word.romaji.trim().split(/\s+/) : [];
-  const romajiParts =
-    whitespaceRomajiParts.length === partitions.length ? whitespaceRomajiParts : splitRomajiForWord(word, splitPoints);
+  const romajiParts = splitRomajiForWord(word, splitPoints);
   const canAlignRomaji = romajiParts?.length === partitions.length;
 
   return partitions.map((part, index) => {

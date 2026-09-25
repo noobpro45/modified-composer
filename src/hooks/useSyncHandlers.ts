@@ -64,16 +64,19 @@ function useSyncHandlers({
   const handleTapWord = useCallback(() => {
     const prepared = prepareSyncWord(lines, lineIndex, wordIndex, isComplete);
     if (!prepared) return;
-    const { line, lineWords, textWithSpace } = prepared;
+    const { line, lineWords, textWithSpace, romajiWithSpace } = prepared;
 
     const fallbackEnd = currentTime + useSettingsStore.getState().defaultWordDuration;
     const existingWords = line.words ?? [];
 
     if (existingWords.length > 0) {
       const updatedWords = commitTappedWord(existingWords, wordIndex, textWithSpace, currentTime, fallbackEnd);
+      if (romajiWithSpace && !updatedWords[wordIndex]?.romaji) {
+        updatedWords[wordIndex] = { ...updatedWords[wordIndex], romaji: romajiWithSpace };
+      }
       updateLineWithHistory(line.id, { words: updatedWords }, { deriveText: false, propagateToSiblings: false });
     } else {
-      const updates = buildInitialWordUpdates(line, textWithSpace, currentTime, fallbackEnd);
+      const updates = buildInitialWordUpdates(line, textWithSpace, currentTime, fallbackEnd, romajiWithSpace);
       updateLineWithHistory(line.id, updates, { deriveText: false, propagateToSiblings: false });
     }
 
@@ -134,15 +137,18 @@ function useSyncHandlers({
   const handleHoldStart = useCallback(() => {
     const prepared = prepareSyncWord(lines, lineIndex, wordIndex, isComplete);
     if (!prepared) return;
-    const { line, textWithSpace } = prepared;
+    const { line, textWithSpace, romajiWithSpace } = prepared;
 
     const existingWords = line.words ?? [];
 
     if (existingWords.length > 0) {
       const updatedWords = commitHeldWord(existingWords, wordIndex, textWithSpace, currentTime);
+      if (romajiWithSpace && !updatedWords[wordIndex]?.romaji) {
+        updatedWords[wordIndex] = { ...updatedWords[wordIndex], romaji: romajiWithSpace };
+      }
       updateLineWithHistory(line.id, { words: updatedWords }, { deriveText: false, propagateToSiblings: false });
     } else {
-      const updates = buildInitialWordUpdates(line, textWithSpace, currentTime, currentTime);
+      const updates = buildInitialWordUpdates(line, textWithSpace, currentTime, currentTime, romajiWithSpace);
       updateLineWithHistory(line.id, updates, { deriveText: false, propagateToSiblings: false });
     }
 

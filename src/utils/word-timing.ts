@@ -18,6 +18,7 @@ import type { WordTiming } from "@/domain/word/timing";
 
 interface BracketedSynthesisInput {
   text: string;
+  romaji?: string;
   begin: number;
   end: number;
   leftBracket?: WordTiming;
@@ -38,7 +39,7 @@ function cloneWord(source: WordTiming, overrides: Partial<WordTiming>): WordTimi
 }
 
 function synthesizeBracketedWord(input: BracketedSynthesisInput): WordTiming {
-  const { text, begin, end, leftBracket, rightBracket, explicit } = input;
+  const { text, romaji, begin, end, leftBracket, rightBracket, explicit } = input;
   const leftId = leftBracket?.syllableGroupId;
   const rightId = rightBracket?.syllableGroupId;
   const inheritedGroupId =
@@ -48,6 +49,7 @@ function synthesizeBracketedWord(input: BracketedSynthesisInput): WordTiming {
         ? rightId
         : undefined;
   const result: WordTiming = { text, begin, end };
+  if (romaji !== undefined) result.romaji = romaji;
   if (explicit) result.explicit = true;
   if (inheritedGroupId !== undefined) result.syllableGroupId = inheritedGroupId;
   return result;

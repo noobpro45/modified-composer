@@ -3,6 +3,7 @@ import type { LinkGroup } from "@/domain/group/template";
 import { effectiveBounds } from "@/domain/line/bounds";
 import type { LyricLine } from "@/domain/line/model";
 import type { ProjectMetadata } from "@/domain/project/metadata";
+import { reconstructLineRomaji } from "@/domain/line/reconstruct-text";
 import { formatTime } from "@/utils/format-time";
 import { COMPOSER_NS } from "@/utils/lyrics-parsers/composer-namespace";
 import { stripSplitCharacter } from "@/utils/split-character";
@@ -86,6 +87,7 @@ function generateTTML({ metadata, agents, lines, groups, granularity, minify = f
         line.backgroundWords?.some((w) => w.romaji?.trim());
       if (!hasLineRomaji) continue;
 
+      const lineRomaji = line.romaji ?? (line.words ? reconstructLineRomaji(line.words, "") : undefined);
       let transliterationContent = "";
 
       if (granularity === "word" && line.words?.length) {
@@ -99,11 +101,11 @@ function generateTTML({ metadata, agents, lines, groups, granularity, minify = f
             const explicitAttr = word.explicit ? ' composer:explicit="true"' : "";
             transliterationContent += `<span begin="${formatTime(word.begin)}" end="${formatTime(word.end)}"${explicitAttr}>${escapeXml(text)}</span>${needsSpace ? " " : ""}`;
           }
-        } else if (line.romaji) {
-          transliterationContent = escapeXml(stripSplitCharacter(line.romaji));
+        } else if (lineRomaji) {
+          transliterationContent = escapeXml(stripSplitCharacter(lineRomaji));
         }
-      } else if (line.romaji) {
-        transliterationContent = escapeXml(stripSplitCharacter(line.romaji));
+      } else if (lineRomaji) {
+        transliterationContent = escapeXml(stripSplitCharacter(lineRomaji));
       }
 
       if (transliterationContent) {

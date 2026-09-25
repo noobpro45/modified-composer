@@ -79,6 +79,7 @@ function getSyncedLineCount(lines: LyricLine[]): number {
 
 interface ConvertibleLine {
   text: string;
+  romaji?: string;
   begin?: number;
   end?: number;
   words?: WordTiming[];
@@ -96,10 +97,14 @@ function convertLineToWord<T extends ConvertibleLine>(line: T): T {
   const duration = lineEnd - lineBegin;
   const wordDuration = duration / wordTexts.length;
 
+  const romajiMeta = line.romaji ? splitIntoWordsWithMeta(line.romaji) : null;
+  const canAlignRomaji = romajiMeta !== null && romajiMeta.parts.length === wordTexts.length;
+
   const words: WordTiming[] = wordTexts.map((text, i) => ({
     text: trailingSpace[i] ? `${text} ` : text,
     begin: lineBegin + i * wordDuration,
     end: lineBegin + (i + 1) * wordDuration,
+    ...(canAlignRomaji ? { romaji: `${romajiMeta.parts[i]}${romajiMeta.trailingSpace[i] ? " " : ""}` } : {}),
   }));
 
   return { ...line, words, begin: undefined, end: undefined };
@@ -164,7 +169,8 @@ function commitTappedWord(
   const result = existingWords.slice(0, keepCount);
   const lastIdx = result.length - 1;
   result[lastIdx] = { ...result[lastIdx], end: begin };
-  result.push({ text, begin, end });
+  const prevWord = existingWords[wordIndex];
+  result.push(prevWord ? { ...prevWord, text, begin, end } : { text, begin, end });
   return result;
 }
 
@@ -173,7 +179,8 @@ function commitHeldWord(existingWords: WordTiming[], wordIndex: number, text: st
   if (wordIndex === 0) return [{ ...existingWords[0], text, begin }];
   const keepCount = Math.min(wordIndex, existingWords.length);
   const result = existingWords.slice(0, keepCount);
-  result.push({ text, begin, end: begin });
+  const prevWord = existingWords[wordIndex];
+  result.push(prevWord ? { ...prevWord, text, begin, end: begin } : { text, begin, end: begin });
   return result;
 }
 
@@ -196,4 +203,4 @@ export {
   splitIntoWords,
   splitIntoWordsWithMeta,
 };
-export type { SyncState };
+export type { ConvertibleLine, SyncState };

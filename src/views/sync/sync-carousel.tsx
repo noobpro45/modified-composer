@@ -99,7 +99,13 @@ const WordGranularityLine: React.FC<WordGranularityLineProps> = ({
     const color = isCurrentHeld ? accentColor : isLastSynced ? accentColor : isCurrent ? secondaryColor : disabledColor;
 
     const hasRipple = rippleTarget !== null && rippleTarget.lineId === line.id && rippleTarget.wordIndex === widx;
-    const romaji = lineWords.length === 1 && line.romaji ? line.romaji : line.words?.[widx]?.romaji;
+    const romaji =
+      lineWords.length === 1 && line.romaji
+        ? line.romaji
+        : line.words?.[widx]?.romaji ??
+          (line.romaji && splitIntoWords(line.romaji).length === lineWords.length
+            ? splitIntoWords(line.romaji)[widx]
+            : undefined);
 
     return (
       <span key={`${line.id}-${widx}`} className="inline-flex flex-col items-center gap-1 mx-1">

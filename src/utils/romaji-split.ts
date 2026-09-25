@@ -9,8 +9,11 @@ function splitRomajiForWord(word: WordTiming, splitPoints: number[]): string[] |
   if (!romaji) return null;
 
   const expectedCount = splitPoints.length + 1;
-  const markerParts = romaji.split(getSplitCharacter());
+  const markerParts = romaji.split(getSplitCharacter()).map((s) => s.trim());
   if (markerParts.length === expectedCount && markerParts.every(Boolean)) return markerParts;
+
+  const spaceParts = romaji.trim().split(/\s+/);
+  if (spaceParts.length === expectedCount && spaceParts.every(Boolean)) return spaceParts;
 
   const lyric = word.text.trimEnd();
   if (romaji.length !== lyric.length) return null;
