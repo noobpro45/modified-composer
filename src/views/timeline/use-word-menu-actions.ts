@@ -5,7 +5,7 @@ import type { WordTiming } from "@/domain/word/timing";
 import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
-import { mergeWordText } from "@/utils/word-merge";
+
 import { findInsertionSlot } from "@/utils/word-spaces";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import type { useContextMenuTargets } from "@/views/timeline/use-context-menu-targets";
@@ -132,7 +132,7 @@ function useWordMenuActions(targets: ContextMenuTargets, clearContextMenu: () =>
 
     const firstIdx = indices[0];
     const lastIdx = indices[indices.length - 1];
-    const mergedText = mergeWordText(indices.map((idx) => wordsArray[idx].text));
+    const mergedText = indices.map((idx) => wordsArray[idx].text).reduce((acc, text, i, arr) => acc + (i === arr.length - 1 ? text : text.trimEnd()), "");
     const merged: WordTiming = {
       text: mergedText,
       begin: wordsArray[firstIdx].begin,

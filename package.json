@@ -35,7 +35,6 @@
     "driver.js": "^1.4.0",
     "lit": "^3.3.2",
     "motion": "^12.24.12",
-    "nanoid": "^5.1.11",
     "obscenity": "^0.4.6",
     "onnxruntime-web": "^1.26.0",
     "overlayscrollbars": "^2.14.0",

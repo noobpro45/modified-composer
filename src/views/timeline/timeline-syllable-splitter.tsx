@@ -67,11 +67,6 @@ const TimelineSyllableSplitter: React.FC = () => {
   const { applyToAll, setApplyToAll, caseInsensitive, setCaseInsensitive, identicalCount, sourceText, confirmSplit } =
     useTimelineSyllableSplitterState({ target, splitPoints, resetSplitPoints, closeModal });
 
-  if (!target) return null;
-
-  const trimmedText = target.word.text.trimEnd();
-  const title = target.mode === "word" ? `Split "${trimmedText}" into words` : `Split "${trimmedText}"`;
-
   const handleAutoSplit = useCallback(() => {
     if (!target) return;
     import("@/utils/auto-segment").then(({ getAutoSplitPoints }) => {
@@ -79,6 +74,11 @@ const TimelineSyllableSplitter: React.FC = () => {
       setSplitPoints(points);
     });
   }, [target]);
+
+  if (!target) return null;
+
+  const trimmedText = target.word.text.trimEnd();
+  const title = target.mode === "word" ? `Split "${trimmedText}" into words` : `Split "${trimmedText}"`;
 
   return (
     <Modal isOpen={isOpen} onClose={closeModal} title={title}>

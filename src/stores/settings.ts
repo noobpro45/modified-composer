@@ -77,8 +77,8 @@ const DEFAULTS: SettingsState = {
   lastVolume: 1,
   audioScrubPreview: true,
 
-  defaultZoom: 100,
-  defaultRowHeight: 44,
+  defaultZoom: 280,
+  defaultRowHeight: 64,
   followPlayhead: true,
   defaultRollingEdit: false,
   defaultPreviewSidebar: false,
@@ -88,8 +88,8 @@ const DEFAULTS: SettingsState = {
   snapPlayheadToPoints: true,
   timelineHorizontalScroll: false,
   visualizerMode: "waveform",
-  spectrogramHeight: 80,
-  spectrogramGain: 1.5,
+  spectrogramHeight: 120,
+  spectrogramGain: 2,
 
   nudgeAmount: 0.05,
   defaultWordDuration: 0.3,
@@ -124,7 +124,7 @@ const DEFAULTS: SettingsState = {
   composerBridgeUrl: DEFAULT_BRIDGE_URL,
 };
 
-const SETTINGS_PERSIST_VERSION = 5;
+const SETTINGS_PERSIST_VERSION = 6;
 
 function migrateSettings(persistedState: unknown, version: number): unknown {
   if (!persistedState || typeof persistedState !== "object") return persistedState;
@@ -138,8 +138,10 @@ function migrateSettings(persistedState: unknown, version: number): unknown {
   if (next.vocalOnsetSnap === undefined) next.vocalOnsetSnap = true;
   if (next.snapPlayheadToPoints === undefined) next.snapPlayheadToPoints = true;
   if (next.visualizerMode === undefined) next.visualizerMode = "waveform";
-  if (next.spectrogramHeight === undefined) next.spectrogramHeight = 80;
-  if (next.spectrogramGain === undefined) next.spectrogramGain = 1.5;
+  if (next.spectrogramHeight === undefined || (version < 6 && next.spectrogramHeight === 80)) next.spectrogramHeight = 120;
+  if (next.spectrogramGain === undefined || (version < 6 && next.spectrogramGain === 1.5)) next.spectrogramGain = 2;
+  if (next.defaultZoom === undefined || (version < 6 && next.defaultZoom === 100)) next.defaultZoom = 280;
+  if (next.defaultRowHeight === undefined || (version < 6 && next.defaultRowHeight === 44)) next.defaultRowHeight = 64;
   return next;
 }
 

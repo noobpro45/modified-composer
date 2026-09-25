@@ -17,7 +17,7 @@ import { scrollToInstanceHeader } from "@/views/timeline/scroll-helpers";
 import { adjacentSnapPoint } from "@/views/timeline/snap-marker-math";
 import { normalizeTimes, snapPointTimes } from "@/domain/snap-point/model";
 import { splitLinesIntoWords } from "@/views/timeline/split-lines-into-words";
-import { mergeWordText } from "@/utils/word-merge";
+
 import type { WordSelection } from "@/domain/selection/model";
 import { GUTTER_WIDTH, useTimelineStore, getVisualizerHeight } from "@/views/timeline/timeline-store";
 import { useTimelineClipboard } from "@/views/timeline/use-timeline-clipboard";
@@ -426,7 +426,7 @@ function useTimelineKeyboard(
           e.preventDefault();
           const firstIdx = run.indices[0];
           const lastIdx = run.indices[run.indices.length - 1];
-          const mergedText = mergeWordText(run.indices.map((idx) => mWords[idx].text));
+          const mergedText = run.indices.map((idx) => mWords[idx].text).reduce((acc, text, i, arr) => acc + (i === arr.length - 1 ? text : text.trimEnd()), "");
           const merged = { text: mergedText, begin: mWords[firstIdx].begin, end: mWords[lastIdx].end };
           const updatedWords = [...mWords.slice(0, firstIdx), merged, ...mWords.slice(lastIdx + 1)];
           if (run.type === "word") {

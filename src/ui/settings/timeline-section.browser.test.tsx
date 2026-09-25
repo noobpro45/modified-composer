@@ -66,4 +66,49 @@ describe("TimelineSection", () => {
     await expect.poll(() => useSettingsStore.getState().timelineHorizontalScroll).toBe(true);
     await expect.element(toggle).toHaveAttribute("aria-checked", "true");
   });
+
+  it("auto-applies zoom when defaultZoom setting changes", async () => {
+    useTimelineStore.setState({ zoom: 100 });
+    useSettingsStore.setState({ defaultZoom: 100 });
+    const screen = await render(<TimelineSection />);
+    const slider = screen.getByRole("slider", { name: "Default zoom" });
+    await slider.fill("240");
+    await expect.poll(() => useTimelineStore.getState().zoom).toBe(240);
+  });
+
+  it("auto-applies row height when defaultRowHeight setting changes", async () => {
+    useTimelineStore.setState({ defaultRowHeight: 44 });
+    useSettingsStore.setState({ defaultRowHeight: 44 });
+    const screen = await render(<TimelineSection />);
+    const slider = screen.getByRole("slider", { name: "Default row height" });
+    await slider.fill("60");
+    await expect.poll(() => useTimelineStore.getState().defaultRowHeight).toBe(60);
+  });
+
+  it("auto-applies followEnabled when followPlayhead toggle is clicked", async () => {
+    useTimelineStore.setState({ followEnabled: false });
+    useSettingsStore.setState({ followPlayhead: false });
+    const screen = await render(<TimelineSection />);
+    const toggle = screen.getByRole("switch", { name: "Follow playhead" });
+    await toggle.click();
+    await expect.poll(() => useTimelineStore.getState().followEnabled).toBe(true);
+  });
+
+  it("auto-applies rollingEditMode when defaultRollingEdit toggle is clicked", async () => {
+    useTimelineStore.setState({ rollingEditMode: false });
+    useSettingsStore.setState({ defaultRollingEdit: false });
+    const screen = await render(<TimelineSection />);
+    const toggle = screen.getByRole("switch", { name: "Default rolling edit mode" });
+    await toggle.click();
+    await expect.poll(() => useTimelineStore.getState().rollingEditMode).toBe(true);
+  });
+
+  it("auto-applies previewSidebarOpen when defaultPreviewSidebar toggle is clicked", async () => {
+    useTimelineStore.setState({ previewSidebarOpen: false });
+    useSettingsStore.setState({ defaultPreviewSidebar: false });
+    const screen = await render(<TimelineSection />);
+    const toggle = screen.getByRole("switch", { name: "Default preview sidebar" });
+    await toggle.click();
+    await expect.poll(() => useTimelineStore.getState().previewSidebarOpen).toBe(true);
+  });
 });

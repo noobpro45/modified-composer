@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
 import { computeSyllableGroups, getSyllablePositions } from "@/domain/word/syllable-groups";
 import type { WordTiming } from "@/domain/word/timing";
 import { splitWordIntoWords } from "@/utils/word-split";
+import { describe, expect, it } from "vitest";
 
 describe("splitWordIntoWords", () => {
   const source: WordTiming = { text: "everyday", begin: 1, end: 2 };
@@ -21,6 +21,11 @@ describe("splitWordIntoWords", () => {
   it("aligns whitespace-delimited romaji with the new words", () => {
     const out = splitWordIntoWords({ ...source, romaji: "e ve ry" }, [5, 6]);
     expect(out.map((w) => w.romaji)).toEqual(["e ", "ve ", "ry"]);
+  });
+
+  it("splits romaji using the same boundaries if lengths match exactly", () => {
+    const out = splitWordIntoWords({ ...source, romaji: "everyday" }, [5, 6]);
+    expect(out.map((w) => w.romaji)).toEqual(["every ", "d ", "ay"]);
   });
 
   it("does not add separators when splitting CJK text", () => {

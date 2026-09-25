@@ -1,4 +1,4 @@
-import { nanoid } from "nanoid";
+
 import { describe, expect, it } from "vitest";
 import { createLine } from "@/test/factories";
 import { findIdenticalWords } from "@/utils/identical-word-matcher";
@@ -53,7 +53,7 @@ describe("findIdenticalWords", () => {
       createLine({ id: "l1", words: [{ text: "running", begin: 0, end: 1 }] }),
       createLine({
         id: "l2",
-        words: [{ text: "running", begin: 2, end: 3, syllableGroupId: nanoid(8) }],
+        words: [{ text: "running", begin: 2, end: 3, syllableGroupId: crypto.randomUUID().slice(0, 8) }],
       }),
     ];
     expect(

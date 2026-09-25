@@ -61,7 +61,9 @@ interface TimelineActions {
   zoomIn: () => void;
   zoomOut: () => void;
   toggleFollow: () => void;
+  setFollowEnabled: (followEnabled: boolean) => void;
   togglePreviewSidebar: () => void;
+  setPreviewSidebarOpen: (previewSidebarOpen: boolean) => void;
   setSelectedWords: (selections: WordSelection[]) => void;
 
   toggleSelection: (selection: WordSelection) => void;
@@ -70,6 +72,7 @@ interface TimelineActions {
   setPasteMode: (mode: PasteMode) => void;
   setScrollLeft: (scrollLeft: number) => void;
   setRowHeight: (lineId: string, height: number) => void;
+  setDefaultRowHeight: (height: number) => void;
   setDraggingPlayhead: (isDragging: boolean, time?: number) => void;
   setDragTime: (time: number) => void;
   setContextMenu: (menu: ContextMenuState | null) => void;
@@ -77,6 +80,7 @@ interface TimelineActions {
   setEditingWord: (editing: EditingWord | null) => void;
   clearEditingWord: () => void;
   toggleRollingEditMode: () => void;
+  setRollingEditMode: (rollingEditMode: boolean) => void;
   toggleMarkerMode: () => void;
   setHoveredSnapPointId: (id: string | null) => void;
   setInstanceCollapsed: (key: string, isCollapsed: boolean) => void;
@@ -101,7 +105,7 @@ const MAX_ZOOM = 500;
 const ZOOM_STEP = 20;
 const MIN_ROW_HEIGHT = 32;
 const MAX_ROW_HEIGHT = 120;
-const DEFAULT_ROW_HEIGHT = 44;
+
 
 // -- Store ---------------------------------------------------------------------
 
@@ -141,7 +145,9 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     zoomIn: () => set((s) => ({ zoom: Math.min(MAX_ZOOM, s.zoom + ZOOM_STEP) })),
     zoomOut: () => set((s) => ({ zoom: Math.max(MIN_ZOOM, s.zoom - ZOOM_STEP) })),
     toggleFollow: () => set((s) => ({ followEnabled: !s.followEnabled })),
+    setFollowEnabled: (followEnabled) => set({ followEnabled }),
     togglePreviewSidebar: () => set((s) => ({ previewSidebarOpen: !s.previewSidebarOpen })),
+    setPreviewSidebarOpen: (previewSidebarOpen) => set({ previewSidebarOpen }),
     setSelectedWords: (selectedWords) => set({ selectedWords }),
 
     toggleSelection: (selection) => set((s) => ({ selectedWords: toggleWordSelection(s.selectedWords, selection) })),
@@ -156,6 +162,8 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
           [lineId]: Math.max(MIN_ROW_HEIGHT, Math.min(MAX_ROW_HEIGHT, height)),
         },
       })),
+    setDefaultRowHeight: (defaultRowHeight) =>
+      set({ defaultRowHeight: Math.max(MIN_ROW_HEIGHT, Math.min(MAX_ROW_HEIGHT, defaultRowHeight)) }),
     setDraggingPlayhead: (isDraggingPlayhead, time) => set({ isDraggingPlayhead, dragTime: time ?? get().dragTime }),
     setDragTime: (dragTime) => set({ dragTime }),
     setContextMenu: (contextMenu) => set({ contextMenu }),
@@ -163,6 +171,7 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     setEditingWord: (editingWord) => set({ editingWord }),
     clearEditingWord: () => set({ editingWord: null }),
     toggleRollingEditMode: () => set((s) => ({ rollingEditMode: !s.rollingEditMode })),
+    setRollingEditMode: (rollingEditMode) => set({ rollingEditMode }),
     toggleMarkerMode: () => set((s) => ({ markerMode: !s.markerMode })),
     setHoveredSnapPointId: (hoveredSnapPointId) => set({ hoveredSnapPointId }),
     setInstanceCollapsed: (key, isCollapsed) =>
@@ -187,6 +196,25 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
   };
 });
 
+// Auto-apply timeline settings when changed in Settings
+useSettingsStore.subscribe((state, prevState) => {
+  if (state.defaultZoom !== prevState.defaultZoom) {
+    useTimelineStore.getState().setZoom(state.defaultZoom);
+  }
+  if (state.defaultRowHeight !== prevState.defaultRowHeight) {
+    useTimelineStore.getState().setDefaultRowHeight(state.defaultRowHeight);
+  }
+  if (state.followPlayhead !== prevState.followPlayhead) {
+    useTimelineStore.getState().setFollowEnabled(state.followPlayhead);
+  }
+  if (state.defaultRollingEdit !== prevState.defaultRollingEdit) {
+    useTimelineStore.getState().setRollingEditMode(state.defaultRollingEdit);
+  }
+  if (state.defaultPreviewSidebar !== prevState.defaultPreviewSidebar) {
+    useTimelineStore.getState().setPreviewSidebarOpen(state.defaultPreviewSidebar);
+  }
+});
+
 // -- Exports -------------------------------------------------------------------
 
 export function useVisualizerHeight() {
@@ -201,4 +229,4 @@ export function getVisualizerHeight() {
   return mode === "spectrogram" ? specHeight : WAVEFORM_HEIGHT;
 }
 
-export { useTimelineStore, GUTTER_WIDTH, WAVEFORM_HEIGHT, MIN_ZOOM, MAX_ZOOM, DEFAULT_ROW_HEIGHT, ZOOM_STEP };
+export { useTimelineStore, GUTTER_WIDTH, WAVEFORM_HEIGHT, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP };

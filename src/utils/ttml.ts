@@ -1,11 +1,11 @@
 import type { Agent } from "@/domain/agent/model";
 import type { LinkGroup } from "@/domain/group/template";
+import { effectiveBounds } from "@/domain/line/bounds";
 import type { LyricLine } from "@/domain/line/model";
 import type { ProjectMetadata } from "@/domain/project/metadata";
 import { formatTime } from "@/utils/format-time";
-import { stripSplitCharacter } from "@/utils/split-character";
 import { COMPOSER_NS } from "@/utils/lyrics-parsers/composer-namespace";
-import { effectiveBounds } from "@/domain/line/bounds";
+import { stripSplitCharacter } from "@/utils/split-character";
 
 // -- Helpers ------------------------------------------------------------------
 
@@ -43,8 +43,9 @@ function generateTTML({ metadata, agents, lines, groups, granularity, minify = f
 
   const parts: string[] = [];
 
-  const hasRomaji = lines.some((l) =>
-    l.words?.some((w) => w.romaji?.trim()) || l.backgroundWords?.some((w) => w.romaji?.trim()) || l.romaji?.trim()
+  const hasRomaji = lines.some(
+    (l) =>
+      l.words?.some((w) => w.romaji?.trim()) || l.backgroundWords?.some((w) => w.romaji?.trim()) || l.romaji?.trim(),
   );
 
   const itunesNs = hasRomaji ? ' xmlns:itunes="http://music.apple.com/lyric-ttml-internal"' : "";
@@ -74,24 +75,32 @@ function generateTTML({ metadata, agents, lines, groups, granularity, minify = f
     parts.push(`${ind(3)}<iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal">`);
     parts.push(`${ind(4)}<transliterations>`);
     parts.push(`${ind(5)}<transliteration>`);
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!effectiveBounds(line)) continue;
-      
-      const hasLineRomaji = line.romaji?.trim() || line.words?.some((w) => w.romaji?.trim()) || line.backgroundWords?.some((w) => w.romaji?.trim());
+
+      const hasLineRomaji =
+        line.romaji?.trim() ||
+        line.words?.some((w) => w.romaji?.trim()) ||
+        line.backgroundWords?.some((w) => w.romaji?.trim());
       if (!hasLineRomaji) continue;
-      
+
       let transliterationContent = "";
-      
+
       if (granularity === "word" && line.words?.length) {
         const words = line.words;
-        for (let j = 0; j < words.length; j++) {
-          const word = words[j];
-          const text = word.romaji ? stripSplitCharacter(word.romaji.trimEnd()) : "";
-          const needsSpace = j < words.length - 1 && (word.romaji?.endsWith(" ") || word.text.endsWith(" "));
-          const explicitAttr = word.explicit ? ' composer:explicit="true"' : "";
-          transliterationContent += `<span begin="${formatTime(word.begin)}" end="${formatTime(word.end)}"${explicitAttr}>${escapeXml(text)}</span>${needsSpace ? " " : ""}`;
+        const hasAlignedRomaji = words.every((word) => word.romaji?.trim());
+        if (hasAlignedRomaji) {
+          for (let j = 0; j < words.length; j++) {
+            const word = words[j];
+            const text = stripSplitCharacter(word.romaji!.trimEnd());
+            const needsSpace = j < words.length - 1 && (word.romaji!.endsWith(" ") || word.text.endsWith(" "));
+            const explicitAttr = word.explicit ? ' composer:explicit="true"' : "";
+            transliterationContent += `<span begin="${formatTime(word.begin)}" end="${formatTime(word.end)}"${explicitAttr}>${escapeXml(text)}</span>${needsSpace ? " " : ""}`;
+          }
+        } else if (line.romaji) {
+          transliterationContent = escapeXml(stripSplitCharacter(line.romaji));
         }
       } else if (line.romaji) {
         transliterationContent = escapeXml(stripSplitCharacter(line.romaji));
@@ -101,7 +110,7 @@ function generateTTML({ metadata, agents, lines, groups, granularity, minify = f
         parts.push(`${ind(6)}<text for="L${i + 1}">${transliterationContent}</text>`);
       }
     }
-    
+
     parts.push(`${ind(5)}</transliteration>`);
     parts.push(`${ind(4)}</transliterations>`);
     parts.push(`${ind(3)}</iTunesMetadata>`);

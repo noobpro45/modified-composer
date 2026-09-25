@@ -1,7 +1,7 @@
+import { reconstructLineRomaji, reconstructLineText, wordContentSpans } from "@/domain/line/reconstruct-text";
 import type { WordTiming } from "@/domain/word/timing";
 import { splitIntoWordsWithMeta } from "@/utils/sync-helpers";
 import { describe, expect, it } from "vitest";
-import { reconstructLineText, wordContentSpans } from "@/domain/line/reconstruct-text";
 
 // -- Helpers ------------------------------------------------------------------
 
@@ -38,6 +38,37 @@ describe("reconstructLineText", () => {
 
   it("never appends a split character after the final word", () => {
     expect(reconstructLineText([w("foo"), w("bar")], "|")).toBe("foo|bar");
+  });
+});
+
+describe("reconstructLineRomaji", () => {
+  it("uses split characters when Timeline romaji fields have no separating space", () => {
+    expect(
+      reconstructLineRomaji(
+        [
+          { text: "a ", romaji: "ay", begin: 0, end: 1 },
+          { text: "b ", romaji: "bee", begin: 1, end: 2 },
+          { text: "c", romaji: "see", begin: 2, end: 3 },
+        ],
+        "|",
+      ),
+    ).toBe("ay|bee|see");
+  });
+
+  it("honours explicit romaji spaces for source lyrics without spaces", () => {
+    expect(
+      reconstructLineRomaji(
+        [
+          { text: "こ", romaji: "ko ", begin: 0, end: 1 },
+          { text: "ん", romaji: "n", begin: 1, end: 2 },
+        ],
+        "|",
+      ),
+    ).toBe("ko n");
+  });
+
+  it("clears the line-level fallback when its word transliteration is incomplete", () => {
+    expect(reconstructLineRomaji([{ text: "a", begin: 0, end: 1 }], "|")).toBeUndefined();
   });
 });
 
