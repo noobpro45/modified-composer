@@ -332,6 +332,8 @@ func pickTrayIcon(s bridgestate.State, isMac bool) (template, regular []byte) {
 		tmpl, reg = icons.MacDownloading, icons.DefaultDownloading
 	case s.LastError != "" && s.Download == bridgestate.DownloadIdle:
 		tmpl, reg = icons.MacError, icons.DefaultError
+	case s.UpdatePending:
+		tmpl, reg = icons.MacUpdate, icons.DefaultUpdate
 	default:
 		tmpl, reg = icons.MacIdle, icons.DefaultIdle
 	}

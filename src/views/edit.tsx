@@ -1,4 +1,10 @@
+import { getAgentColor } from "@/domain/agent/colors";
+import type { LinkGroup } from "@/domain/group/template";
 import { isLinked } from "@/domain/instance/predicates";
+import { backgroundFields } from "@/domain/line/background";
+import type { LyricLine } from "@/domain/line/model";
+import { remapWordTextsPreservingTiming } from "@/domain/word/remap-text";
+import type { WordTiming } from "@/domain/word/timing";
 import { useDualClickImport } from "@/hooks/useDualClickImport";
 import { useAudioStore } from "@/stores/audio";
 import { useConfirm } from "@/stores/confirm-store";
@@ -6,31 +12,30 @@ import { useImportModal, useImportModalStore, useLastImportResult } from "@/stor
 import { isAnyModalOpen } from "@/stores/modal-stack";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
-import { getAgentColor } from "@/domain/agent/colors";
-import { backgroundFields } from "@/domain/line/background";
-import type { LinkGroup } from "@/domain/group/template";
-import type { LyricLine } from "@/domain/line/model";
-import type { WordTiming } from "@/domain/word/timing";
 import { Button } from "@/ui/button";
 import { Popover } from "@/ui/popover";
-import { Select } from "@/ui/select";
 import { Scroll } from "@/ui/scroll";
+import { Select } from "@/ui/select";
 import { classifyLine, extractBackgroundVocals, extractInlineFromLine } from "@/utils/background-vocal-extraction";
 import { type ParseResult, parseLyricsFile } from "@/utils/lyrics-parsers";
-import { remapWordTextsPreservingTiming } from "@/domain/word/remap-text";
 import { stripSplitCharacter } from "@/utils/split-character";
+import { splitIntoWordsWithMeta } from "@/utils/sync-helpers";
 import { AgentManager } from "@/views/edit/agent-manager";
 import { decideEditTextAction } from "@/views/edit/decide-edit-text-action";
-import { detachInstancesFromLines } from "@/views/edit/diff-edit-text";
+import { detachInstancesFromLines, diffEditTextChange, propagateContentUpdates } from "@/views/edit/diff-edit-text";
+import { MetadataEditor } from "@/views/edit/metadata-editor";
 import { parseLyrics } from "@/views/edit/parse-lyrics";
 import type { ParsedLine } from "@/views/edit/parse-lyrics";
 import {
-  importParsedLyrics,
   type ImportParsedLyricsContext,
+  importParsedLyrics,
 } from "@/views/lyrics-import-modal/use-import-modal-actions";
-import { IconAlertTriangle, IconFileImport, IconMicrophone, IconX, IconLanguage } from "@tabler/icons-react";
+import { IconAlertTriangle, IconFileImport, IconMicrophone, IconX } from "@tabler/icons-react";
+
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+
+type EditorMode = "lyrics" | "romaji" | "background";
 
 // -- Constants ----------------------------------------------------------------
 
@@ -80,287 +85,255 @@ const ImportSuccessBanner: React.FC<{
   );
 };
 
-const LinePreview = memo(({
-  line,
-  agents,
-  isSelected,
-  isHovered,
-  hasMultipleSelected,
-  groupColor,
-  groupTooltip,
-  onSelect,
-  onAgentChange,
-  onBulkAgentChange,
-  onBackgroundChange,
-  onRomajiChange,
-  onExtractLine,
-  onHoverChange,
-  onGutterMouseDown,
-  onGutterMouseEnter,
-  didDragRef,
-}: {
-  line: ParsedLine;
-  agents: { id: string; name?: string }[];
-  isSelected: boolean;
-  isHovered: boolean;
-  hasMultipleSelected: boolean;
-  groupColor?: string;
-  groupTooltip?: string;
-  onSelect: (lineNumber: number, shiftKey: boolean) => void;
-  onAgentChange: (lineId: string, agentId: string) => void;
-  onBulkAgentChange: (agentId: string) => void;
-  onBackgroundChange: (lineId: string, text: string) => void;
-  onRomajiChange: (lineId: string, text: string) => void;
-  onExtractLine: (lineId: string) => void;
-  onHoverChange: (lineNumber: number | null, clientY?: number) => void;
-  onGutterMouseDown: (lineNumber: number, e: React.MouseEvent) => void;
-  onGutterMouseEnter: (lineNumber: number, e: React.MouseEvent) => void;
-  didDragRef: React.MutableRefObject<boolean>;
-}) => {
-  const [bgInput, setBgInput] = useState(line.backgroundText ?? "");
-  const [romajiInput, setRomajiInput] = useState(line.romaji ?? "");
-  const agentColor = getAgentColor(line.agentId);
+const LinePreview = memo(
+  ({
+    line,
+    agents,
+    isSelected,
+    isHovered,
+    hasMultipleSelected,
+    groupColor,
+    groupTooltip,
+    onSelect,
+    onAgentChange,
+    onBulkAgentChange,
+    onBackgroundChange,
+    onExtractLine,
+    onHoverChange,
+    onGutterMouseDown,
+    onGutterMouseEnter,
+    didDragRef,
+  }: {
+    line: ParsedLine;
+    agents: { id: string; name?: string }[];
+    isSelected: boolean;
+    isHovered: boolean;
+    hasMultipleSelected: boolean;
+    groupColor?: string;
+    groupTooltip?: string;
+    onSelect: (lineNumber: number, shiftKey: boolean) => void;
+    onAgentChange: (lineId: string, agentId: string) => void;
+    onBulkAgentChange: (agentId: string) => void;
+    onBackgroundChange: (lineId: string, text: string) => void;
+    onExtractLine: (lineId: string) => void;
+    onHoverChange: (lineNumber: number | null, clientY?: number) => void;
+    onGutterMouseDown: (lineNumber: number, e: React.MouseEvent) => void;
+    onGutterMouseEnter: (lineNumber: number, e: React.MouseEvent) => void;
+    didDragRef: React.MutableRefObject<boolean>;
+  }) => {
+    const [bgInput, setBgInput] = useState(line.backgroundText ?? "");
+    const agentColor = getAgentColor(line.agentId);
 
-  const handleBgBlur = useCallback(() => {
-    if (line.lineId) {
-      onBackgroundChange(line.lineId, bgInput);
-    }
-  }, [line.lineId, bgInput, onBackgroundChange]);
-
-  const handleRomajiBlur = useCallback(() => {
-    if (line.lineId) {
-      onRomajiChange(line.lineId, romajiInput);
-    }
-  }, [line.lineId, romajiInput, onRomajiChange]);
-
-  const selectLineForBulkEdit = useCallback(
-    (e: React.MouseEvent) => {
-      if ((e.target as HTMLElement).closest("select, button")) return;
-      if (e.shiftKey) window.getSelection()?.removeAllRanges();
-      onSelect(line.lineNumber, e.shiftKey);
-    },
-    [line.lineNumber, onSelect],
-  );
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!e.shiftKey) return;
-    if ((e.target as HTMLElement).closest("select, button")) return;
-    e.preventDefault();
-  }, []);
-
-  const handleGutterClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (didDragRef.current) {
-        didDragRef.current = false;
-        e.stopPropagation();
+    const handleBgBlur = useCallback(() => {
+      if (line.lineId) {
+        onBackgroundChange(line.lineId, bgInput);
       }
-    },
-    [didDragRef],
-  );
+    }, [line.lineId, bgInput, onBackgroundChange]);
 
-  if (line.isEmpty) {
+    const selectLineForBulkEdit = useCallback(
+      (e: React.MouseEvent) => {
+        if ((e.target as HTMLElement).closest("select, button")) return;
+        if (e.shiftKey) window.getSelection()?.removeAllRanges();
+        onSelect(line.lineNumber, e.shiftKey);
+      },
+      [line.lineNumber, onSelect],
+    );
+
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+      if (!e.shiftKey) return;
+      if ((e.target as HTMLElement).closest("select, button")) return;
+      e.preventDefault();
+    }, []);
+
+    const handleGutterClick = useCallback(
+      (e: React.MouseEvent) => {
+        if (didDragRef.current) {
+          didDragRef.current = false;
+          e.stopPropagation();
+        }
+      },
+      [didDragRef],
+    );
+
+    if (line.isEmpty) {
+      return (
+        <div className="flex items-baseline gap-2 px-3 py-0.5 opacity-50">
+          <span
+            className="w-8 font-mono text-xs text-right shrink-0 text-composer-text-muted tabular-nums select-none"
+            onMouseEnter={(e) => onGutterMouseEnter(line.lineNumber, e)}
+          >
+            {line.lineNumber}
+          </span>
+          <span className="flex-1 text-sm italic text-composer-text-muted">(empty line)</span>
+        </div>
+      );
+    }
+
     return (
-      <div className="flex items-baseline gap-2 px-3 py-0.5 opacity-50">
+      <div
+        role="button"
+        tabIndex={-1}
+        className={`relative flex items-center gap-2 px-3 py-0.5 group cursor-pointer ${
+          isSelected
+            ? "bg-composer-accent/15"
+            : line.hasBrackets
+              ? "bg-composer-error/5"
+              : isHovered
+                ? "bg-composer-button/30"
+                : "hover:bg-composer-button/30"
+        }`}
+        onMouseDown={handleMouseDown}
+        onClick={selectLineForBulkEdit}
+        onMouseEnter={(e) => onHoverChange(line.lineNumber, e.clientY)}
+        onMouseLeave={() => onHoverChange(null)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onSelect(line.lineNumber, e.shiftKey);
+        }}
+        title={groupTooltip}
+      >
+        {groupColor && (
+          <span
+            aria-hidden
+            className="absolute top-0 bottom-0 left-0 w-0.5 pointer-events-none"
+            style={{ backgroundColor: groupColor }}
+          />
+        )}
         <span
-          className="w-8 font-mono text-xs text-right shrink-0 text-composer-text-muted tabular-nums select-none"
+          role="button"
+          tabIndex={-1}
+          className="w-8 font-mono text-xs text-right shrink-0 text-composer-text-muted tabular-nums select-none cursor-pointer"
+          onMouseDown={(e) => onGutterMouseDown(line.lineNumber, e)}
           onMouseEnter={(e) => onGutterMouseEnter(line.lineNumber, e)}
+          onClick={handleGutterClick}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleGutterClick(e as unknown as React.MouseEvent);
+          }}
         >
           {line.lineNumber}
         </span>
-        <span className="flex-1 text-sm italic text-composer-text-muted">(empty line)</span>
+
+        <span
+          data-testid="line-preview-text"
+          className={`text-sm ${line.hasBrackets ? "text-composer-error" : "text-composer-text"}`}
+          style={{ borderLeft: `2px solid ${agentColor}`, paddingLeft: "6px" }}
+        >
+          {stripSplitCharacter(line.text)}
+        </span>
+
+        {line.backgroundText && (
+          <span data-testid="line-preview-background" className="text-xs italic text-composer-text-muted">
+            {line.backgroundText}
+          </span>
+        )}
+
+        {line.romaji && (
+          <span data-testid="line-preview-romaji" className="text-xs text-composer-accent opacity-80 ml-2">
+            {stripSplitCharacter(line.romaji)}
+          </span>
+        )}
+
+        <div className="flex items-center gap-1.5 ml-auto transition-opacity opacity-0 group-hover:opacity-100">
+          {agents.length > 1 && line.lineId && (
+            <Select
+              value={line.agentId}
+              onChange={(val) => {
+                if (isSelected && hasMultipleSelected) {
+                  onBulkAgentChange(val);
+                } else {
+                  onAgentChange(line.lineId!, val);
+                }
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="min-w-0 h-5 px-1 text-xs border rounded bg-composer-input border-composer-border gap-1"
+              style={{ borderLeftColor: agentColor, borderLeftWidth: "2px" }}
+              options={agents.map((agent) => ({
+                value: agent.id,
+                label: agent.name || agent.id,
+              }))}
+              popoverWidth="w-32"
+            />
+          )}
+
+          {line.lineId && (
+            <Popover
+              placement="bottom-start"
+              trigger={
+                <button
+                  type="button"
+                  className="flex items-center gap-1 px-1.5 h-5 text-xs rounded cursor-pointer bg-composer-button hover:bg-composer-button-hover text-composer-text-muted hover:text-composer-text"
+                >
+                  <IconMicrophone className="size-3" />
+                  BG
+                </button>
+              }
+            >
+              {(close) => (
+                <div className="p-2 w-48">
+                  <p className="mb-1 text-xs text-composer-text-secondary">Background vocals</p>
+                  {classifyLine(line.text).kind === "inline" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (line.lineId) onExtractLine(line.lineId);
+                        close();
+                      }}
+                      className="mb-1 flex w-full items-center gap-1 text-xs cursor-pointer text-composer-accent-text hover:text-composer-accent"
+                    >
+                      Pull from ( )
+                    </button>
+                  )}
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    aria-autocomplete="none"
+                    aria-label="Background vocals text"
+                    value={bgInput}
+                    onChange={(e) => setBgInput(e.target.value)}
+                    onBlur={handleBgBlur}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === "Enter") {
+                        handleBgBlur();
+                        close();
+                      }
+                    }}
+                    placeholder="ooh, ah, etc."
+                    className="w-full px-2 py-1 text-sm border rounded bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent"
+                  />
+                </div>
+              )}
+            </Popover>
+          )}
+
+          {line.hasTiming && <span className="text-xs text-composer-accent-text">synced</span>}
+          {line.hasBrackets && <IconAlertTriangle className="size-4 text-composer-error" />}
+        </div>
       </div>
     );
-  }
-
-  return (
-    <div
-      role="button"
-      tabIndex={-1}
-      className={`relative flex items-center gap-2 px-3 py-0.5 group cursor-pointer ${
-        isSelected ? "bg-composer-accent/15" : line.hasBrackets ? "bg-composer-error/5" : isHovered ? "bg-composer-button/30" : "hover:bg-composer-button/30"
-      }`}
-      onMouseDown={handleMouseDown}
-      onClick={selectLineForBulkEdit}
-      onMouseEnter={(e) => onHoverChange(line.lineNumber, e.clientY)}
-      onMouseLeave={() => onHoverChange(null)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") onSelect(line.lineNumber, e.shiftKey);
-      }}
-      title={groupTooltip}
-    >
-      {groupColor && (
-        <span
-          aria-hidden
-          className="absolute top-0 bottom-0 left-0 w-0.5 pointer-events-none"
-          style={{ backgroundColor: groupColor }}
-        />
-      )}
-      <span
-        role="button"
-        tabIndex={-1}
-        className="w-8 font-mono text-xs text-right shrink-0 text-composer-text-muted tabular-nums select-none cursor-pointer"
-        onMouseDown={(e) => onGutterMouseDown(line.lineNumber, e)}
-        onMouseEnter={(e) => onGutterMouseEnter(line.lineNumber, e)}
-        onClick={handleGutterClick}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") handleGutterClick(e as unknown as React.MouseEvent);
-        }}
-      >
-        {line.lineNumber}
-      </span>
-
-      <span
-        data-testid="line-preview-text"
-        className={`text-sm ${line.hasBrackets ? "text-composer-error" : "text-composer-text"}`}
-        style={{ borderLeft: `2px solid ${agentColor}`, paddingLeft: "6px" }}
-      >
-        {stripSplitCharacter(line.text)}
-      </span>
-
-      {line.backgroundText && (
-        <span data-testid="line-preview-background" className="text-xs italic text-composer-text-muted">
-          {line.backgroundText}
-        </span>
-      )}
-
-      {line.romaji && (
-        <span data-testid="line-preview-romaji" className="text-xs text-composer-accent opacity-80 ml-2">
-          {line.romaji}
-        </span>
-      )}
-
-      <div className="flex items-center gap-1.5 ml-auto transition-opacity opacity-0 group-hover:opacity-100">
-        {agents.length > 1 && line.lineId && (
-          <Select
-            value={line.agentId}
-            onChange={(val) => {
-              if (isSelected && hasMultipleSelected) {
-                onBulkAgentChange(val);
-              } else {
-                onAgentChange(line.lineId!, val);
-              }
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="min-w-0 h-5 px-1 text-xs border rounded bg-composer-input border-composer-border gap-1"
-            style={{ borderLeftColor: agentColor, borderLeftWidth: "2px" }}
-            options={agents.map((agent) => ({
-              value: agent.id,
-              label: agent.name || agent.id,
-            }))}
-            popoverWidth="w-32"
-          />
-        )}
-
-        {line.lineId && (
-          <Popover
-            placement="bottom-start"
-            trigger={
-              <button
-                type="button"
-                className="flex items-center gap-1 px-1.5 h-5 text-xs rounded cursor-pointer bg-composer-button hover:bg-composer-button-hover text-composer-text-muted hover:text-composer-text"
-              >
-                <IconMicrophone className="size-3" />
-                BG
-              </button>
-            }
-          >
-            {(close) => (
-              <div className="p-2 w-48">
-                <p className="mb-1 text-xs text-composer-text-secondary">Background vocals</p>
-                {classifyLine(line.text).kind === "inline" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (line.lineId) onExtractLine(line.lineId);
-                      close();
-                    }}
-                    className="mb-1 flex w-full items-center gap-1 text-xs cursor-pointer text-composer-accent-text hover:text-composer-accent"
-                  >
-                    Pull from ( )
-                  </button>
-                )}
-                <input
-                  type="text"
-                  aria-label="Background vocals text"
-                  value={bgInput}
-                  onChange={(e) => setBgInput(e.target.value)}
-                  onBlur={handleBgBlur}
-                  onKeyDown={(e) => {
-                    e.stopPropagation();
-                    if (e.key === "Enter") {
-                      handleBgBlur();
-                      close();
-                    }
-                  }}
-                  placeholder="ooh, ah, etc."
-                  className="w-full px-2 py-1 text-sm border rounded bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent"
-                />
-              </div>
-            )}
-          </Popover>
-        )}
-
-        {line.lineId && (
-          <Popover
-            placement="bottom-start"
-            trigger={
-              <button
-                type="button"
-                className="flex items-center gap-1 px-1.5 h-5 text-xs rounded cursor-pointer bg-composer-button hover:bg-composer-button-hover text-composer-text-muted hover:text-composer-text"
-              >
-                <IconLanguage className="size-3" />
-                RMJ
-              </button>
-            }
-          >
-            {(close) => (
-              <div className="p-2 w-48">
-                <p className="mb-1 text-xs text-composer-text-secondary">Romaji</p>
-                <input
-                  type="text"
-                  aria-label="Romaji text"
-                  value={romajiInput}
-                  onChange={(e) => setRomajiInput(e.target.value)}
-                  onBlur={handleRomajiBlur}
-                  onKeyDown={(e) => {
-                    e.stopPropagation();
-                    if (e.key === "Enter") {
-                      handleRomajiBlur();
-                      close();
-                    }
-                  }}
-                  placeholder="Kimi wa..."
-                  className="w-full px-2 py-1 text-sm border rounded bg-composer-input border-composer-border focus:outline-none focus:border-composer-accent"
-                />
-              </div>
-            )}
-          </Popover>
-        )}
-
-        {line.hasTiming && <span className="text-xs text-composer-accent-text">synced</span>}
-        {line.hasBrackets && <IconAlertTriangle className="size-4 text-composer-error" />}
-      </div>
-    </div>
-  );
-}, (prev, next) => {
-  return (
-    prev.isSelected === next.isSelected &&
-    prev.hasMultipleSelected === next.hasMultipleSelected &&
-    prev.groupColor === next.groupColor &&
-    prev.groupTooltip === next.groupTooltip &&
-    prev.line.text === next.line.text &&
-    prev.line.agentId === next.line.agentId &&
-    prev.line.backgroundText === next.line.backgroundText &&
-    prev.line.romaji === next.line.romaji &&
-    prev.line.hasBrackets === next.line.hasBrackets &&
-    prev.line.isEmpty === next.line.isEmpty &&
-    prev.line.hasTiming === next.line.hasTiming &&
-    prev.line.groupId === next.line.groupId &&
-    prev.line.instanceIdx === next.line.instanceIdx &&
-    prev.line.lineNumber === next.line.lineNumber &&
-    prev.agents === next.agents
-  );
-});
+  },
+  (prev, next) => {
+    return (
+      prev.isSelected === next.isSelected &&
+      prev.hasMultipleSelected === next.hasMultipleSelected &&
+      prev.groupColor === next.groupColor &&
+      prev.groupTooltip === next.groupTooltip &&
+      prev.line.text === next.line.text &&
+      prev.line.agentId === next.line.agentId &&
+      prev.line.backgroundText === next.line.backgroundText &&
+      prev.line.romaji === next.line.romaji &&
+      prev.line.hasBrackets === next.line.hasBrackets &&
+      prev.line.isEmpty === next.line.isEmpty &&
+      prev.line.hasTiming === next.line.hasTiming &&
+      prev.line.groupId === next.line.groupId &&
+      prev.line.instanceIdx === next.line.instanceIdx &&
+      prev.line.lineNumber === next.line.lineNumber &&
+      prev.agents === next.agents
+    );
+  },
+);
 
 const EditPanel: React.FC = () => {
   const textareaId = useId();
@@ -376,9 +349,10 @@ const EditPanel: React.FC = () => {
   const mergeStandaloneBackgroundLines = useSettingsStore((s) => s.mergeStandaloneBackgroundLines);
   const preserveBracketsOnExtraction = useSettingsStore((s) => s.preserveBracketsOnExtraction);
 
-  const [rawText, setRawText] = useState(() => (lines.length > 0 ? lines.map((l) => l.text).join("\n") : ""));
-  const rawTextRef = useRef(rawText);
-  rawTextRef.current = rawText;
+  const [editorMode, setEditorMode] = useState<EditorMode>("lyrics");
+  const [editorText, setEditorText] = useState(() => (lines.length > 0 ? lines.map((l) => l.text).join("\n") : ""));
+  const editorTextRef = useRef(editorText);
+  editorTextRef.current = editorText;
   const linesSetByUs = useRef<LyricLine[] | null>(null);
   const modalPendingRef = useRef(false);
   const pastedRef = useRef(false);
@@ -389,6 +363,11 @@ const EditPanel: React.FC = () => {
   const lastSelectedLineRef = useRef<number | null>(null);
   const dragAnchorRef = useRef<number | null>(null);
   const didDragRef = useRef(false);
+
+  // rawText tracks only the committed lyrics text (not romaji/bg modes) for snap-back.
+  const [rawText, setRawText] = useState(() => (lines.length > 0 ? lines.map((l) => l.text).join("\n") : ""));
+  const rawTextRef = useRef(rawText);
+  rawTextRef.current = rawText;
   const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null);
   const scrollViewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -410,17 +389,31 @@ const EditPanel: React.FC = () => {
 
   const groupsById = useMemo(() => new Map((groups ?? []).map((g) => [g.id, g])), [groups]);
 
-  // Sync rawText when lines change externally (persistence restore, project import, etc.)
+  // Sync editorText when lines change externally
   useEffect(() => {
     if (linesSetByUs.current === lines) {
       linesSetByUs.current = null;
       return;
     }
-    setRawText(lines.length > 0 ? lines.map((l) => l.text).join("\n") : "");
-  }, [lines]);
+    const nextLyrics = lines.length > 0 ? lines.map((l) => l.text).join("\n") : "";
+    rawTextRef.current = nextLyrics;
+    setRawText(nextLyrics);
+    if (editorMode === "lyrics") {
+      setEditorText(nextLyrics);
+    } else if (editorMode === "romaji") {
+      setEditorText(lines.length > 0 ? lines.map((l) => l.romaji || "").join("\n") : "");
+    } else if (editorMode === "background") {
+      setEditorText(lines.length > 0 ? lines.map((l) => l.backgroundText || "").join("\n") : "");
+    }
+  }, [lines, editorMode]);
 
   const defaultAgentId = agents?.[0]?.id ?? "v1";
-  const parsed = useMemo(() => parseLyrics(rawText, lines, defaultAgentId), [rawText, lines, defaultAgentId]);
+  const textForParsing =
+    editorMode === "lyrics" ? editorText : lines.length > 0 ? lines.map((l) => l.text).join("\n") : "";
+  const parsed = useMemo(
+    () => parseLyrics(textForParsing, lines, defaultAgentId),
+    [textForParsing, lines, defaultAgentId],
+  );
   const bracketCount = useMemo(() => parsed.filter((p) => p.hasBrackets).length, [parsed]);
   const nonEmptyCount = useMemo(() => parsed.filter((p) => !p.isEmpty).length, [parsed]);
   const instanceCountByGroup = useMemo(() => {
@@ -470,23 +463,17 @@ const EditPanel: React.FC = () => {
     useProjectStore.getState().updateLineWithHistory(lineId, { agentId });
   }, []);
 
-  const handleBackgroundChange = useCallback((lineId: string, text: string) => {
-    const newBgText = text || undefined;
+  const handleBackgroundChange = useCallback((lineId: string, bgText: string) => {
     const target = useProjectStore.getState().lines.find((l) => l.id === lineId);
 
     let words: WordTiming[] | undefined;
-    if (newBgText && target?.backgroundWords?.length) {
-      words = remapWordTextsPreservingTiming(target.backgroundWords, newBgText) ?? undefined;
+    if (bgText && target?.backgroundWords?.length) {
+      words = remapWordTextsPreservingTiming(target.backgroundWords, bgText) ?? undefined;
     }
 
     useProjectStore
       .getState()
-      .updateLineWithHistory(lineId, backgroundFields({ text: newBgText, words, source: "manual" }));
-  }, []);
-
-  const handleRomajiChange = useCallback((lineId: string, text: string) => {
-    const newRomaji = text || undefined;
-    useProjectStore.getState().updateLineWithHistory(lineId, { romaji: newRomaji });
+      .updateLineWithHistory(lineId, backgroundFields({ text: bgText, words, source: "manual" }));
   }, []);
 
   const handleExtractLine = useCallback((lineId: string) => {
@@ -593,6 +580,21 @@ const EditPanel: React.FC = () => {
     }, RUN_DEBOUNCE_MS);
   }, [finalizeRun]);
 
+  const handleModeChange = useCallback(
+    (mode: EditorMode) => {
+      finalizeRun();
+      setEditorMode(mode);
+      if (mode === "lyrics") {
+        setEditorText(lines.length > 0 ? lines.map((l) => l.text).join("\n") : "");
+      } else if (mode === "romaji") {
+        setEditorText(lines.length > 0 ? lines.map((l) => l.romaji || "").join("\n") : "");
+      } else if (mode === "background") {
+        setEditorText(lines.length > 0 ? lines.map((l) => l.backgroundText || "").join("\n") : "");
+      }
+    },
+    [finalizeRun, lines],
+  );
+
   const handleTextareaBlur = useCallback(() => {
     finalizeRun();
     if (!useSettingsStore.getState().autoExtractBackgroundVocals) return;
@@ -634,6 +636,61 @@ const EditPanel: React.FC = () => {
       pastedRef.current = false;
 
       const text = e.target.value;
+      setEditorText(text);
+      useImportModalStore.getState().clearImportResult();
+
+      if (editorMode !== "lyrics") {
+        const textLines = text.split("\n");
+        const newLines = [...lines];
+
+        for (let i = 0; i < Math.max(textLines.length, lines.length); i++) {
+          if (!newLines[i]) {
+            newLines[i] = { id: crypto.randomUUID(), text: "", agentId: defaultAgentId };
+          }
+
+          if (editorMode === "romaji") {
+            const romajiStr = textLines[i] || "";
+            newLines[i] = { ...newLines[i], romaji: romajiStr.trim() ? romajiStr : undefined };
+            if (newLines[i].words && newLines[i].words!.length > 0) {
+              if (romajiStr.trim()) {
+                const { parts, trailingSpace } = splitIntoWordsWithMeta(romajiStr);
+                newLines[i].words =
+                  parts.length === newLines[i].words!.length
+                    ? newLines[i].words!.map((w, index) => ({
+                        ...w,
+                        romaji: `${parts[index]}${trailingSpace[index] ? " " : ""}`,
+                      }))
+                    : newLines[i].words!.map((w) => ({ ...w, romaji: undefined }));
+              } else {
+                newLines[i].words = newLines[i].words!.map((w) => ({ ...w, romaji: undefined }));
+              }
+            }
+          } else if (editorMode === "background") {
+            const bgStr = textLines[i] || "";
+            newLines[i] = { ...newLines[i], backgroundText: bgStr };
+            if (newLines[i].backgroundWords && newLines[i].backgroundWords!.length > 0) {
+              const remapped = remapWordTextsPreservingTiming(newLines[i].backgroundWords!, bgStr);
+              if (remapped) {
+                newLines[i].backgroundWords = remapped;
+              } else if (!bgStr.trim()) {
+                newLines[i].backgroundWords = undefined;
+              }
+            }
+          }
+        }
+
+        if (runBaselineRef.current === null) {
+          const projectState = useProjectStore.getState();
+          runBaselineRef.current = { lines: projectState.lines, wasDirty: projectState.isDirtySinceHistory };
+        }
+        const diff = diffEditTextChange(lines, newLines);
+        const finalLines = diff.contentUpdates.length > 0 ? propagateContentUpdates(lines, newLines, diff.contentUpdates) : newLines;
+        linesSetByUs.current = finalLines;
+        setLines(finalLines);
+        scheduleRunFinalize();
+        return;
+      }
+
       const action = decideEditTextAction({
         text,
         defaultAgentId,
@@ -687,10 +744,10 @@ const EditPanel: React.FC = () => {
         return;
       }
 
-      setRawText(text);
-      useImportModalStore.getState().clearImportResult();
-
       if (action.kind === "noop") return;
+
+      rawTextRef.current = text;
+      setRawText(text);
 
       let finalLines = action.finalLines;
 
@@ -714,7 +771,17 @@ const EditPanel: React.FC = () => {
       setLines(finalLines);
       scheduleRunFinalize();
     },
-    [confirm, defaultAgentId, groups, lines, setLines, scheduleRunFinalize, commitLinesWithHistory, finalizeRun],
+    [
+      confirm,
+      defaultAgentId,
+      groups,
+      lines,
+      setLines,
+      scheduleRunFinalize,
+      commitLinesWithHistory,
+      finalizeRun,
+      editorMode,
+    ],
   );
 
   const handleDroppedFile = useCallback(
@@ -810,37 +877,70 @@ const EditPanel: React.FC = () => {
 
       <BracketWarning count={bracketCount} />
 
+      <MetadataEditor />
       <AgentManager />
 
       <div className="flex flex-1 min-h-0 gap-4">
         {/* Input */}
         <div className="flex flex-col flex-1 min-w-0">
-          <label htmlFor={textareaId} className="mb-2 text-sm font-medium select-none text-composer-text-secondary">
-            Paste or type lyrics
-          </label>
+          <div className="flex items-center gap-1 mb-2">
+            <button
+              type="button"
+              onClick={() => handleModeChange("lyrics")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                editorMode === "lyrics"
+                  ? "bg-composer-button text-composer-text"
+                  : "text-composer-text-muted hover:text-composer-text"
+              }`}
+            >
+              Lyrics
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange("romaji")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                editorMode === "romaji"
+                  ? "bg-composer-button text-composer-text"
+                  : "text-composer-text-muted hover:text-composer-text"
+              }`}
+            >
+              Romaji
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange("background")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                editorMode === "background"
+                  ? "bg-composer-button text-composer-text"
+                  : "text-composer-text-muted hover:text-composer-text"
+              }`}
+            >
+              Background Vocals
+            </button>
+          </div>
           <div className="flex flex-1 min-h-0 border rounded-lg bg-composer-input border-composer-border focus-within:border-composer-accent transition-colors overflow-hidden">
             {/* Gutter */}
-            <div 
+            <div
               ref={gutterRef}
               className="py-3 pl-3 pr-2 text-sm text-right text-composer-text-muted/50 select-none overflow-hidden font-mono bg-composer-bg-dark/30 border-r border-composer-border/50"
               style={{ minWidth: "3.5rem" }}
               aria-hidden="true"
             >
-              {Array.from({ length: Math.max(1, rawText.split("\n").length) }).map((_, i) => (
-                <div 
-                  key={i} 
+              {Array.from({ length: Math.max(1, editorText.split("\n").length) }).map((_, i) => (
+                <div
+                  key={i}
                   className={`leading-6 transition-colors ${hoveredLine === i + 1 ? "text-composer-text bg-composer-button/30 rounded-sm" : ""}`}
                 >
                   {i + 1}
                 </div>
               ))}
             </div>
-            
+
             {/* react-doctor-disable-next-line react-doctor/control-has-associated-label */}
             <textarea
               id={textareaId}
               ref={textareaRef}
-              value={rawText}
+              value={editorText}
               onChange={handleTextChange}
               onBlur={handleTextareaBlur}
               onScroll={handleScroll}
@@ -855,7 +955,12 @@ const EditPanel: React.FC = () => {
                     setHoveredLine(newLine);
                     // Match the exact vertical height on the screen by using an offset
                     // offset: -relativeY puts the top of the line at exactly relativeY from the top of the container
-                    virtuosoRef.current?.scrollToIndex({ index: lineIndex, behavior: "smooth", align: "start", offset: -Math.max(0, relativeY - 12) });
+                    virtuosoRef.current?.scrollToIndex({
+                      index: lineIndex,
+                      behavior: "smooth",
+                      align: "start",
+                      offset: -Math.max(0, relativeY - 12),
+                    });
                   }
                 }
               }}
@@ -863,9 +968,13 @@ const EditPanel: React.FC = () => {
               onPaste={() => {
                 pastedRef.current = true;
               }}
-              placeholder="Paste your lyrics here, one line at a time...
-
-Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
+              placeholder={
+                editorMode === "lyrics"
+                  ? "Paste your lyrics here, one line at a time...\n\nOr drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
+                  : editorMode === "romaji"
+                    ? "Paste Romaji here. Line 1 matches Line 1 of lyrics."
+                    : "Paste Background Vocals here. Line 1 matches Line 1 of lyrics."
+              }
               className="flex-1 w-full p-3 text-sm resize-none bg-transparent focus:outline-none placeholder:text-composer-text-muted native-textarea-scrollbar whitespace-pre leading-6"
               spellCheck={false}
             />
@@ -908,7 +1017,11 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
               </button>
             </div>
           </div>
-          <Scroll viewportRef={scrollViewportRef} className="flex-1 border rounded-lg border-composer-border bg-composer-bg-dark">
+          <Scroll
+            viewportRef={scrollViewportRef}
+            onInitialized={setScrollParent}
+            className="flex-1 border rounded-lg border-composer-border bg-composer-bg-dark"
+          >
             {parsed.length === 0 || (parsed.length === 1 && parsed[0].isEmpty) ? (
               <div className="flex items-center justify-center h-full text-sm text-composer-text-muted">
                 Lyrics will appear here
@@ -917,12 +1030,14 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
               <Virtuoso
                 ref={virtuosoRef}
                 data={parsed}
+                initialItemCount={parsed.length}
                 context={{ hoveredLine }}
                 className="py-2"
                 style={{ height: "100%", width: "100%" }}
                 customScrollParent={scrollParent ?? undefined}
                 overscan={200}
                 itemContent={(index, line, context) => {
+                  if (!line) return null;
                   const prev = index > 0 ? parsed[index - 1] : null;
                   const next = index < parsed.length - 1 ? parsed[index + 1] : null;
                   const isFirstOfInstance =
@@ -965,11 +1080,15 @@ Or drag and drop a lyrics file (.txt, .lrc, .srt, .ttml)"
                         onAgentChange={handleAgentChange}
                         onBulkAgentChange={handleBulkAgentChange}
                         onBackgroundChange={handleBackgroundChange}
-                        onRomajiChange={handleRomajiChange}
                         onExtractLine={handleExtractLine}
                         onHoverChange={(lineNum, clientY) => {
                           setHoveredLine(lineNum);
-                          if (lineNum !== null && textareaRef.current && scrollViewportRef.current && clientY !== undefined) {
+                          if (
+                            lineNum !== null &&
+                            textareaRef.current &&
+                            scrollViewportRef.current &&
+                            clientY !== undefined
+                          ) {
                             const rightRect = scrollViewportRef.current.getBoundingClientRect();
                             const relativeY = clientY - rightRect.top;
                             const lineTop = (lineNum - 1) * 24 + 12; // 24px line height, 12px padding top

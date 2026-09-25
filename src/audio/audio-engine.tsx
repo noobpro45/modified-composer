@@ -17,6 +17,7 @@ const SLOW_DECODE_MS = 800;
 const AudioEngine: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const originalUrlRef = useRef<string | null>(null);
+  const lastCommandTimeRef = useRef<number>(0);
 
   const source = useAudioStore((s) => s.source);
   const isPlaying = useAudioStore((s) => s.isPlaying);
@@ -131,7 +132,10 @@ const AudioEngine: React.FC = () => {
       originalUrlRef.current = objectUrl;
       registerAudioElement(audio);
       if (stripped !== null) useProjectStore.getState().setPrimingStripped(stripped);
-      if (initialIsPlaying) audio.play().catch(() => undefined);
+      if (initialIsPlaying) {
+        lastCommandTimeRef.current = Date.now();
+        audio.play().catch(() => undefined);
+      }
 
       const handleLoadedMetadata = () => setDuration(audio.duration);
       const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
@@ -144,7 +148,12 @@ const AudioEngine: React.FC = () => {
       audio.addEventListener("timeupdate", handleTimeUpdate);
       audio.addEventListener("ended", handleEnded);
       audio.addEventListener("error", handleError);
-      const unbindStateEvents = bindAudioStateEvents(audio, () => useAudioStore.getState().isPlaying, setIsPlaying);
+      const unbindStateEvents = bindAudioStateEvents(
+        audio,
+        () => useAudioStore.getState().isPlaying,
+        setIsPlaying,
+        () => lastCommandTimeRef.current,
+      );
 
       teardown = () => {
         audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
@@ -177,8 +186,20 @@ const AudioEngine: React.FC = () => {
     if (!audio) return;
 
     if (isPlaying) {
-      audio.play().catch(() => undefined);
+      lastCommandTimeRef.current = Date.now();
+      const promise = audio.play();
+      if (promise !== undefined) {
+        promise
+          .then(() => {
+            if (!useAudioStore.getState().isPlaying) {
+              lastCommandTimeRef.current = Date.now();
+              audio.pause();
+            }
+          })
+          .catch(() => undefined);
+      }
     } else {
+      lastCommandTimeRef.current = Date.now();
       audio.pause();
     }
   }, [isPlaying]);
@@ -209,7 +230,10 @@ const AudioEngine: React.FC = () => {
     audio.playbackRate = currentPlaybackRate;
     audio.volume = currentVolume;
     audio.muted = currentIsMuted;
-    if (wasPlaying) audio.play().catch(() => {});
+    if (wasPlaying) {
+      lastCommandTimeRef.current = Date.now();
+      audio.play().catch(() => {});
+    }
   }, [currentStem, stemUrls, audioElement]);
 
   useEffect(() => {

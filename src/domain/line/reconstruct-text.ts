@@ -18,6 +18,24 @@ function reconstructLineText(words: WordTiming[], splitChar: string): string {
   return result;
 }
 
+// Rebuild a line-level transliteration from its timed words. A trailing space
+// is meaningful user input: without it, adjacent entries are syllables and
+// must be rejoined using the configured split character.
+function reconstructLineRomaji(words: WordTiming[], splitChar: string): string | undefined {
+  if (words.length === 0 || words.some((word) => !word.romaji?.trim())) return undefined;
+
+  let result = "";
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const romaji = word.romaji!;
+    result += romaji.trimEnd();
+    if (i < words.length - 1) {
+      result += /\s$/.test(romaji) ? " " : splitChar;
+    }
+  }
+  return result;
+}
+
 // -- Word content spans -------------------------------------------------------
 
 interface WordContentSpan {
@@ -48,14 +66,15 @@ function wordContentSpans(words: WordTiming[], splitChar: string): WordContentSp
 // when nothing changes, so untouched lines stay reference-stable.
 function withDerivedText(line: LyricLine, splitChar: string): LyricLine {
   const text = line.words && line.words.length > 0 ? reconstructLineText(line.words, splitChar) : line.text;
+  const romaji = line.words && line.words.length > 0 ? reconstructLineRomaji(line.words, splitChar) ?? line.romaji : line.romaji;
   const backgroundText =
     line.backgroundWords && line.backgroundWords.length > 0
       ? reconstructLineText(line.backgroundWords, splitChar)
       : line.backgroundText;
-  if (text === line.text && backgroundText === line.backgroundText) return line;
-  return { ...line, text, backgroundText };
+  if (text === line.text && romaji === line.romaji && backgroundText === line.backgroundText) return line;
+  return { ...line, text, romaji, backgroundText };
 }
 
 // -- Exports ------------------------------------------------------------------
 
-export { reconstructLineText, withDerivedText, wordContentSpans };
+export { reconstructLineText, reconstructLineRomaji, withDerivedText, wordContentSpans };

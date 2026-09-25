@@ -10,6 +10,8 @@ import {activity} from '../models';
 import {bridge} from '../models';
 import {ytdlp} from '../models';
 
+export function AudioCacheDir():Promise<string>;
+
 export function AutoDownloadToLibrary():Promise<boolean>;
 
 export function BridgeStatus():Promise<bridgestate.State>;
@@ -29,6 +31,8 @@ export function Ctx():Promise<context.Context>;
 export function DownloadAudio(arg1:string):Promise<library.Track>;
 
 export function DownloadDir():Promise<string>;
+
+export function ExportTrack(arg1:string,arg2:string):Promise<void>;
 
 export function ForceYtdlpUpdate():Promise<string>;
 

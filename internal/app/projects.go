@@ -22,10 +22,6 @@ func (a *App) ShowSaveFileDialog(suggestedName string, defaultDir string) (strin
 		Title:            "Save Project",
 		Filters: []wailsRuntime.FileFilter{
 			{
-				DisplayName: "Composer Projects (*.composer)",
-				Pattern:     "*.composer",
-			},
-			{
 				DisplayName: "JSON Files (*.json)",
 				Pattern:     "*.json",
 			},
@@ -62,8 +58,8 @@ func (a *App) ShowOpenFileDialog() (string, error) {
 		Title: "Open Project",
 		Filters: []wailsRuntime.FileFilter{
 			{
-				DisplayName: "Composer Projects (*.composer, *.json)",
-				Pattern:     "*.composer;*.json",
+				DisplayName: "Composer Projects (*.json, *.composer)",
+				Pattern:     "*.json;*.composer",
 			},
 		},
 	})

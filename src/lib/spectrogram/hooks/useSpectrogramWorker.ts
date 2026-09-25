@@ -23,6 +23,9 @@ import SpectrogramWorkerImpl from "../workers/spectrogram.worker.ts?worker";
 class SpectrogramWorkerClient {
 	private worker: SpectrogramWorker;
 	private reqIdCounter = 0;
+	private audioReady: Promise<void>;
+	private resolveAudioReady: (() => void) | null = null;
+	private rejectAudioReady: ((error: Error) => void) | null = null;
 	private pendingRequests = new Map<
 		number,
 		{
@@ -34,6 +37,9 @@ class SpectrogramWorkerClient {
 	constructor() {
 		this.worker = new SpectrogramWorkerImpl() as unknown as SpectrogramWorker;
 		this.worker.onmessage = this.handleMessage.bind(this);
+		this.audioReady = new Promise((resolve) => {
+			this.resolveAudioReady = resolve;
+		});
 	}
 
 	private handleMessage(event: MessageEvent<WorkerResponse>) {
@@ -47,28 +53,39 @@ class SpectrogramWorkerClient {
 				msg.imageBitmap.close();
 			}
 		} else if (msg.type === "ERROR") {
+			if (msg.reqId === -1) {
+				this.rejectAudioReady?.(new Error(msg.message));
+				this.rejectAudioReady = null;
+				return;
+			}
 			const request = this.pendingRequests.get(msg.reqId);
 			if (request) {
 				console.warn(`Worker Error req ${msg.reqId}:`, msg.message);
 				request.reject(new Error(msg.message));
 				this.pendingRequests.delete(msg.reqId);
 			}
+		} else if (msg.type === "INIT_COMPLETE") {
+			this.resolveAudioReady?.();
+			this.resolveAudioReady = null;
 		}
 	}
 
 	public getTile(params: TileGenerationParams): Promise<ImageBitmap> {
 		const reqId = this.reqIdCounter++;
-		return new Promise((resolve, reject) => {
-			this.pendingRequests.set(reqId, { resolve, reject });
-			this.worker.postMessage({
-				type: "GET_TILE",
-				reqId,
-				params,
-			});
-		});
+		return this.audioReady.then(
+			() =>
+				new Promise((resolve, reject) => {
+					this.pendingRequests.set(reqId, { resolve, reject });
+					this.worker.postMessage({ type: "GET_TILE", reqId, params });
+				}),
+		);
 	}
 
 	public initAudio(audioData: Float32Array, sampleRate: number) {
+		this.audioReady = new Promise((resolve, reject) => {
+			this.resolveAudioReady = resolve;
+			this.rejectAudioReady = reject;
+		});
 		this.worker.postMessage({ type: "INIT", audioData, sampleRate }, [
 			audioData.buffer,
 		]);

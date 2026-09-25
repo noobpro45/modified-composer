@@ -65,6 +65,30 @@ describe("ttml export · groups registry", () => {
   });
 });
 
+describe("ttml export · romaji fallback", () => {
+  it("preserves line-level romaji when word-level romaji is not aligned", () => {
+    const ttml = generateTTML({
+      metadata: baseMetadata,
+      agents: baseAgents,
+      granularity: "word",
+      lines: [
+        {
+          id: "line-1",
+          text: "hello world",
+          agentId: "v1",
+          romaji: "he ro",
+          words: [
+            { text: "hello ", begin: 0, end: 0.5 },
+            { text: "world", begin: 0.5, end: 1 },
+          ],
+        },
+      ],
+    });
+
+    expect(ttml).toContain('<text for="L1">he ro</text>');
+  });
+});
+
 describe("ttml export · per-line group attrs", () => {
   const groups: LinkGroup[] = [{ id: "g1", label: "Chorus", color: "#f472b6", templateVersion: 1 }];
 

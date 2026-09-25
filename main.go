@@ -44,9 +44,14 @@ var assets embed.FS
 // `-ldflags "-X main.Version=$VERSION"` injection actually takes effect at
 // link time. Constants are inlined by the compiler and cannot be overridden,
 // which is why this stayed in sync with tags only through manual edits.
-var Version = "1.4.9"
+var Version = "1.34.0"
 
 func main() {
+	// Disable Edge/WebView2 autofill, "Saved info" popups, and inline text prediction.
+	if os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") == "" {
+		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-features=Autofill,AutofillServerCommunication,msEdgeInlineTextPrediction,msEdgePersonalizedTextPred --disable-autofill --disable-save-password-bubble")
+	}
+
 	// SingleInstanceLock handshake: when ApplyAndRelaunch spawns us with the
 	// RelaunchUpdatedFlag, the parent's flock file descriptor may still be open
 	// for a few microseconds after its os.Exit. Sleep before wails.Run so the
@@ -81,6 +86,7 @@ func main() {
 		fatal("ensure yt-dlp: %v", err)
 	}
 	bootstrapDeno(dataDir)
+	go bootstrapFfmpeg(dataDir)
 
 	lib, err := library.Open(filepath.Join(dataDir, "library.db"))
 	if err != nil {
@@ -125,7 +131,7 @@ func main() {
 		YtdlpVersion:       getYtdlpVersion,
 		CookiesPath:        a.CookiesPath,
 		PreferPremiumAudio: a.PreferPremiumAudio,
-		DownloadDir:        a.DownloadDir,
+		AudioCacheDir:      a.AudioCacheDir,
 		AutoDownload:       a.AutoDownloadToLibrary,
 		ThumbDir:           filepath.Join(dataDir, "thumbs"),
 		Bridge:             Version,

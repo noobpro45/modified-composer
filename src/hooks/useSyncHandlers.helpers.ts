@@ -1,4 +1,5 @@
 import type { LyricLine } from "@/domain/line/model";
+import type { WordTiming } from "@/domain/word/timing";
 import { createInitialBgWords, splitIntoWords, splitIntoWordsWithMeta, type SyncState } from "@/utils/sync-helpers";
 
 // -- Types --------------------------------------------------------------------
@@ -8,6 +9,7 @@ interface PreparedSyncWord {
   lineWords: string[];
   trailingSpace: boolean[];
   textWithSpace: string;
+  romajiWithSpace?: string;
 }
 
 type SetSyncState = React.Dispatch<React.SetStateAction<SyncState>>;
@@ -27,7 +29,12 @@ function prepareSyncWord(
   const wordText = lineWords[wordIndex];
   if (!wordText) return null;
   const textWithSpace = trailingSpace[wordIndex] ? `${wordText} ` : wordText;
-  return { line, lineWords, trailingSpace, textWithSpace };
+  const romajiMeta = line.romaji ? splitIntoWordsWithMeta(line.romaji) : null;
+  const romajiWithSpace =
+    romajiMeta && romajiMeta.parts.length === lineWords.length
+      ? `${romajiMeta.parts[wordIndex]}${romajiMeta.trailingSpace[wordIndex] ? " " : ""}`
+      : undefined;
+  return { line, lineWords, trailingSpace, textWithSpace, romajiWithSpace };
 }
 
 function withBgSeedIfNeeded<T extends Partial<LyricLine>>(updates: T, line: LyricLine, bgBegin: number): T {
@@ -42,8 +49,11 @@ function buildInitialWordUpdates(
   textWithSpace: string,
   begin: number,
   end: number,
+  romajiWithSpace?: string,
 ): Partial<LyricLine> {
-  return withBgSeedIfNeeded({ words: [{ text: textWithSpace, begin, end }] }, line, begin);
+  const word: WordTiming = { text: textWithSpace, begin, end };
+  if (romajiWithSpace) word.romaji = romajiWithSpace;
+  return withBgSeedIfNeeded({ words: [word] }, line, begin);
 }
 
 function isSyncableLine(line: LyricLine | undefined): boolean {

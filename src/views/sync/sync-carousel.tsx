@@ -4,6 +4,7 @@ import { syncCarouselTransition } from "@/utils/animationVariants";
 import { stripSplitCharacter } from "@/utils/split-character";
 import { splitIntoWords } from "@/utils/sync-helpers";
 import { readToken } from "@/utils/theme/read-token";
+import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { AnimatePresence, m } from "motion/react";
 import { useMemo } from "react";
 
@@ -39,6 +40,7 @@ interface SyncCarouselProps {
   lines: Array<{
     id: string;
     text: string;
+    romaji?: string;
     words?: WordTiming[];
     begin?: number;
   }>;
@@ -85,6 +87,7 @@ const WordGranularityLine: React.FC<WordGranularityLineProps> = ({
 }) => {
   const { accentColor, secondaryColor, disabledColor } = useCarouselColors();
   const lineWords = splitIntoWords(line.text);
+  const showRomaji = useTimelineStore((s) => s.showRomaji);
   return lineWords.map((word, widx) => {
     const isPrevLine = idx === lineIndex - 1;
     const holdActive = isHolding;
@@ -96,19 +99,36 @@ const WordGranularityLine: React.FC<WordGranularityLineProps> = ({
     const color = isCurrentHeld ? accentColor : isLastSynced ? accentColor : isCurrent ? secondaryColor : disabledColor;
 
     const hasRipple = rippleTarget !== null && rippleTarget.lineId === line.id && rippleTarget.wordIndex === widx;
+    const romaji =
+      lineWords.length === 1 && line.romaji
+        ? line.romaji
+        : line.words?.[widx]?.romaji ??
+          (line.romaji && splitIntoWords(line.romaji).length === lineWords.length
+            ? splitIntoWords(line.romaji)[widx]
+            : undefined);
 
     return (
-      <m.span
-        key={`${line.id}-${widx}`}
-        animate={{ color, scale: isCurrentHeld ? 0.95 : 1 }}
-        transition={syncCarouselTransition}
-        className="relative inline-flex items-center justify-center origin-center"
-      >
-        {word}
-        <AnimatePresence>
-          {hasRipple && rippleTarget && <RippleRing key={rippleTarget.nonce} onComplete={onRippleComplete} />}
-        </AnimatePresence>
-      </m.span>
+      <span key={`${line.id}-${widx}`} className="inline-flex flex-col items-center gap-1 mx-1">
+        {showRomaji && (
+          <div className={`text-sm leading-none text-center truncate rounded px-1.5 py-0.5 ${romaji?.trim() ? "bg-composer-button text-composer-text-muted" : "text-transparent"}`}>
+            {romaji?.trim() ? stripSplitCharacter(romaji) : "\u00A0"}
+          </div>
+        )}
+        <m.span
+          animate={{
+            color,
+            scale: isCurrentHeld ? 0.95 : 1,
+            textShadow: isCurrentHeld ? `0 0 24px ${accentColor}` : "0 0 0px transparent",
+          }}
+          transition={syncCarouselTransition}
+          className="relative inline-flex items-center justify-center origin-center whitespace-pre"
+        >
+          {stripSplitCharacter(word)}
+          <AnimatePresence>
+            {hasRipple && rippleTarget && <RippleRing key={rippleTarget.nonce} onComplete={onRippleComplete} />}
+          </AnimatePresence>
+        </m.span>
+      </span>
     );
   });
 };
@@ -123,6 +143,7 @@ const SyncCarousel: React.FC<SyncCarouselProps> = ({
   onRippleComplete,
 }) => {
   const { accentColor, secondaryColor, disabledColor } = useCarouselColors();
+  const showRomaji = useTimelineStore((s) => s.showRomaji);
 
   const containerHeight = LINE_HEIGHT * 3;
   const translateY = LINE_HEIGHT - lineIndex * LINE_HEIGHT;
@@ -154,14 +175,23 @@ const SyncCarousel: React.FC<SyncCarouselProps> = ({
             >
               <div className="flex flex-wrap items-center justify-center text-4xl font-medium gap-x-4 gap-y-3">
                 {granularity === "line" ? (
-                  <m.span
-                    animate={{
-                      color: idx === lineIndex - 1 ? accentColor : isCurrent ? secondaryColor : disabledColor,
-                    }}
-                    transition={syncCarouselTransition}
-                  >
-                    {stripSplitCharacter(line.text)}
-                  </m.span>
+                  <span className="relative inline-flex flex-col items-center gap-2">
+                    {showRomaji && line.romaji?.trim() && (
+                      <div className="text-xl leading-none text-composer-text-muted bg-composer-button px-3 py-1.5 rounded">
+                        {stripSplitCharacter(line.romaji.trim())}
+                      </div>
+                    )}
+                    <m.span
+                      animate={{
+                        color: isHolding && isCurrent ? accentColor : idx === lineIndex - 1 ? accentColor : isCurrent ? secondaryColor : disabledColor,
+                        scale: isHolding && isCurrent ? 0.95 : 1,
+                        textShadow: isHolding && isCurrent ? `0 0 24px ${accentColor}` : "0 0 0px transparent",
+                      }}
+                      transition={syncCarouselTransition}
+                    >
+                      {stripSplitCharacter(line.text)}
+                    </m.span>
+                  </span>
                 ) : (
                   <WordGranularityLine
                     line={line}

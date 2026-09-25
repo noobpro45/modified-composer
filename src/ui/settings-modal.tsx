@@ -9,6 +9,7 @@ import { StorageSection } from "@/ui/settings/storage-section";
 import { SyncSection } from "@/ui/settings/sync-section";
 import { ThemeSection } from "@/ui/settings/theme-section";
 import { TimelineSection } from "@/ui/settings/timeline-section";
+import { LibrarySection } from "@/ui/settings/library-section";
 import { ShortcutsSettingsSection } from "@/ui/shortcuts-settings-section";
 import {
   IconAlertTriangle,
@@ -20,6 +21,7 @@ import {
   IconPlayerPlay,
   IconPlugConnected,
   IconSettings,
+  IconMusic,
 } from "@tabler/icons-react";
 import { useState } from "react";
 
@@ -42,6 +44,7 @@ const SECTIONS: ModalNavSection[] = [
   { id: "shortcuts", label: "Shortcuts", icon: IconKeyboard },
   { id: "confirmations", label: "Confirmations", icon: IconAlertTriangle },
   { id: "storage", label: "Save & Storage", icon: IconDeviceFloppy },
+  { id: "library", label: "Audio Library", icon: IconMusic },
   { id: "advanced", label: "Advanced", icon: IconPlugConnected },
 ];
 
@@ -54,6 +57,7 @@ const SECTION_CONTENT: Record<string, React.FC<{ onResetTour: () => void; onClos
   shortcuts: ShortcutsSettingsSection,
   confirmations: ConfirmationsSection,
   storage: StorageSection,
+  library: LibrarySection,
   advanced: AdvancedSection,
   general: GeneralSection,
   theme: ThemeSection,

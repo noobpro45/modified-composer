@@ -79,8 +79,9 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
   const displayText = stripSplitCharacter(line.text);
   const hasBgWords = line.backgroundWords && line.backgroundWords.length > 0;
   const hasMainWords = line.words && line.words.length > 0;
+  const showRomaji = useTimelineStore((s) => s.showRomaji);
 
-  const rowHeight = useTimelineStore((s) => s.rowHeights[line.id] ?? s.defaultRowHeight);
+  const storeRowHeight = useTimelineStore((s) => s.rowHeights[line.id] ?? s.defaultRowHeight);
   const defaultRowHeight = useTimelineStore((s) => s.defaultRowHeight);
   const setRowHeight = useTimelineStore((s) => s.setRowHeight);
   const zoom = useTimelineStore((s) => s.zoom);
@@ -95,7 +96,11 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
   );
 
   const [isResizing, setIsResizing] = useState(false);
+  const [localHeight, setLocalHeight] = useState<number | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+
+  const rowHeight = localHeight !== null ? localHeight : storeRowHeight;
+  const scale = Math.max(1, rowHeight / 48);
 
   // react-doctor-disable-next-line react-doctor/exhaustive-deps
   useEffect(() => {
@@ -120,15 +125,19 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
       e.preventDefault();
       setIsResizing(true);
       const startY = e.clientY;
-      const startHeight = rowHeight;
+      const startHeight = storeRowHeight;
+      let currentHeight = startHeight;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
         const delta = moveEvent.clientY - startY;
-        setRowHeight(line.id, startHeight + delta);
+        currentHeight = Math.max(32, Math.min(120, startHeight + delta));
+        setLocalHeight(currentHeight);
       };
 
       const handleMouseUp = () => {
         setIsResizing(false);
+        setLocalHeight(null);
+        setRowHeight(line.id, currentHeight);
         cleanupRef.current = null;
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
@@ -142,7 +151,7 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [line.id, rowHeight, setRowHeight],
+    [line.id, storeRowHeight, setRowHeight],
   );
 
   return (
@@ -185,6 +194,7 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
               trackType="word"
               duration={duration}
               height={rowHeight}
+              lineRomaji={line.romaji}
               onUpdateWord={onUpdateWord}
             />
           ) : (
@@ -223,16 +233,28 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
               }}
             >
               <div
-                className="sticky left-[48px] z-10 inline-flex items-center gap-2 px-3 text-xs text-composer-text-muted italic bg-composer-bg/80 backdrop-blur-sm"
+                className="sticky left-[48px] z-10 inline-flex flex-col justify-center px-3 text-xs italic bg-composer-bg/80 backdrop-blur-sm"
                 style={{ height: rowHeight, maxWidth: "calc(100% - 48px)" }}
               >
-                <span className="truncate pr-0.5">
-                  {displayText.slice(0, 60)}
-                  {displayText.length > 60 ? "..." : ""}
-                </span>
-                {displayText.length > 0 && (
-                  <SyncLineButton lineId={line.id} wordCount={splitIntoWordsWithMeta(line.text).parts.length} />
-                )}
+                <div className="flex flex-col gap-0.5">
+                  {showRomaji && line.romaji?.trim() && (
+                    <div
+                      className="leading-none text-composer-text-muted bg-composer-button px-1.5 py-0.5 rounded w-max truncate max-w-full"
+                      style={{ fontSize: `${10 * scale}px` }}
+                    >
+                      {stripSplitCharacter(line.romaji)}
+                    </div>
+                  )}
+                  <div className="inline-flex items-center gap-2 text-composer-text-muted" style={{ fontSize: `${12 * scale}px` }}>
+                    <span className="truncate pr-0.5">
+                      {displayText.slice(0, 60)}
+                      {displayText.length > 60 ? "..." : ""}
+                    </span>
+                    {displayText.length > 0 && (
+                      <SyncLineButton lineId={line.id} wordCount={splitIntoWordsWithMeta(line.text).parts.length} />
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}

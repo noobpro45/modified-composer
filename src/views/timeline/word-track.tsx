@@ -26,6 +26,7 @@ interface WordTrackProps {
   trackType: "word" | "bg";
   duration: number;
   height: number;
+  lineRomaji?: string;
   onUpdateWord: (
     index: number,
     updates: Partial<WordTiming>,
@@ -58,6 +59,7 @@ const WordTrack: React.FC<WordTrackProps> = ({
   trackType,
   duration,
   height,
+  lineRomaji,
   onUpdateWord,
 }) => {
   const zoom = useTimelineStore((s) => s.zoom);
@@ -300,7 +302,7 @@ const WordTrack: React.FC<WordTrackProps> = ({
     setSelectedWords([]);
   };
 
-  const handleSelect = (wordIndex: number, e: React.MouseEvent) => {
+  const handleSelect = useCallback((wordIndex: number, e: React.MouseEvent) => {
     if (justResizedRef.current) return;
     if (e.shiftKey) {
       const pos = syllablePositions[wordIndex];
@@ -331,19 +333,19 @@ const WordTrack: React.FC<WordTrackProps> = ({
         setSelectedWords([selection]);
       }
     }
-  };
+  }, [justResizedRef, syllablePositions, words, lineId, lineIndex, trackType, setSelectedWords, toggleSelection, selectedWords]);
 
-  const handleWordDoubleClick = (wordIndex: number) => {
+  const handleWordDoubleClick = useCallback((wordIndex: number) => {
     useTimelineStore.getState().setEditingWord({ lineId, wordIndex, type: trackType });
-  };
+  }, [lineId, trackType]);
 
-  const handleWordContextMenu = (wordIndex: number, e: React.MouseEvent) => {
+  const handleWordContextMenu = useCallback((wordIndex: number, e: React.MouseEvent) => {
     useTimelineStore.getState().setContextMenu({
       x: e.clientX,
       y: e.clientY,
       target: { kind: "word", lineId, lineIndex, wordIndex, type: trackType },
     });
-  };
+  }, [lineId, lineIndex, trackType]);
 
   const handleTrackDoubleClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("[data-word-block]")) return;
@@ -412,8 +414,9 @@ const WordTrack: React.FC<WordTrackProps> = ({
             wordIndex={wordIndex}
             trackType={trackType}
             text={word.text}
-            romaji={word.romaji}
+            romaji={words.length === 1 && lineRomaji ? lineRomaji : word.romaji}
             showRomaji={showRomaji}
+            height={height}
             begin={display.begin}
             end={display.end}
             color={color}
@@ -427,11 +430,11 @@ const WordTrack: React.FC<WordTrackProps> = ({
             rightHighlighted={hoveredBoundary === wordIndex && isBoundaryConjoined(wordIndex)}
             leftConjoined={isBoundaryConjoined(wordIndex - 1)}
             rightConjoined={isBoundaryConjoined(wordIndex)}
-            onClick={(e) => handleSelect(wordIndex, e)}
-            onResizeStart={(edge, startX) => handleResizeStart(wordIndex, edge, startX)}
-            onEdgeHover={(edge, hovering) => handleEdgeHover(wordIndex, edge, hovering)}
-            onDoubleClick={() => handleWordDoubleClick(wordIndex)}
-            onContextMenu={(e) => handleWordContextMenu(wordIndex, e)}
+            onClick={handleSelect}
+            onResizeStart={handleResizeStart}
+            onEdgeHover={handleEdgeHover}
+            onDoubleClick={handleWordDoubleClick}
+            onContextMenu={handleWordContextMenu}
           />
         );
       })}

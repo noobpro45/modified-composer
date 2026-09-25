@@ -55,7 +55,7 @@ func TestDownloadToFile_PassesCookiesFlag(t *testing.T) {
 	}
 	dest := filepath.Join(dir, "out.opus")
 	script := writeFakeYtdlp(t, `printf '%s\n' "$@" > `+argvFile+` ; : > `+dest)
-	if _, err := DownloadToFile(context.Background(), script, "ZEcqHA7dbwM", "opus", dest, cookies, false); err != nil {
+	if _, err := DownloadToFile(context.Background(), script, "ZEcqHA7dbwM", "opus", dest, cookies, "", false); err != nil {
 		t.Fatalf("DownloadToFile: %v", err)
 	}
 	argv, err := os.ReadFile(argvFile)
@@ -72,7 +72,7 @@ func TestDownloadToFile_EmptyCookiesPath_NoFlag(t *testing.T) {
 	argvFile := filepath.Join(dir, "argv.txt")
 	dest := filepath.Join(dir, "out.opus")
 	script := writeFakeYtdlp(t, `printf '%s\n' "$@" > `+argvFile+` ; : > `+dest)
-	if _, err := DownloadToFile(context.Background(), script, "ZEcqHA7dbwM", "opus", dest, "", false); err != nil {
+	if _, err := DownloadToFile(context.Background(), script, "ZEcqHA7dbwM", "opus", dest, "", "", false); err != nil {
 		t.Fatalf("DownloadToFile: %v", err)
 	}
 	argv, err := os.ReadFile(argvFile)
@@ -89,7 +89,7 @@ func TestDownloadToFile_PreferPremiumPrependsWebMusic(t *testing.T) {
 	argvFile := filepath.Join(dir, "argv.txt")
 	dest := filepath.Join(dir, "out.opus")
 	script := writeFakeYtdlp(t, `printf '%s\n' "$@" > `+argvFile+` ; : > `+dest)
-	if _, err := DownloadToFile(context.Background(), script, "ZEcqHA7dbwM", "opus", dest, "", true); err != nil {
+	if _, err := DownloadToFile(context.Background(), script, "ZEcqHA7dbwM", "opus", dest, "", "", true); err != nil {
 		t.Fatalf("DownloadToFile: %v", err)
 	}
 	argv, err := os.ReadFile(argvFile)
@@ -106,7 +106,7 @@ func TestDownloadToFile_DefaultExcludesWebMusic(t *testing.T) {
 	argvFile := filepath.Join(dir, "argv.txt")
 	dest := filepath.Join(dir, "out.opus")
 	script := writeFakeYtdlp(t, `printf '%s\n' "$@" > `+argvFile+` ; : > `+dest)
-	if _, err := DownloadToFile(context.Background(), script, "ZEcqHA7dbwM", "opus", dest, "", false); err != nil {
+	if _, err := DownloadToFile(context.Background(), script, "ZEcqHA7dbwM", "opus", dest, "", "", false); err != nil {
 		t.Fatalf("DownloadToFile: %v", err)
 	}
 	argv, err := os.ReadFile(argvFile)

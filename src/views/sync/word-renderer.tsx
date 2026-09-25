@@ -1,5 +1,7 @@
 import type { WordTiming } from "@/domain/word/timing";
 import { Tooltip } from "@/ui/tooltip";
+import { useTimelineStore } from "@/views/timeline/timeline-store";
+import { stripSplitCharacter } from "@/utils/split-character";
 import { SyllableSplitter } from "@/views/sync/syllable-splitter";
 import { TimeNudgeInput } from "@/views/sync/time-nudge-input";
 import { IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
@@ -17,6 +19,8 @@ interface WordHandlers {
 interface WordRendererProps {
   lineId: string;
   word: string;
+  romaji?: string;
+  lineRomaji?: string;
   idx: number;
   timing: WordTiming | undefined;
   allWords: WordTiming[] | undefined;
@@ -28,14 +32,14 @@ interface WordRendererProps {
 
 // -- Helper -------------------------------------------------------------------
 
-function renderWordContent(word: string, timing: WordTiming | undefined, isBackground: boolean, editMode: boolean) {
+function renderWordContent(word: string, timing: WordTiming | undefined, isBackground: boolean) {
   const isSynced = !!timing;
   const baseClass = isBackground ? "italic" : "";
   const syncedClass = isBackground ? "text-composer-text-muted/70" : "text-composer-text-muted";
   const unsyncedClass = isBackground ? "text-composer-text-muted/50" : "text-composer-text";
   const activeClass = isBackground ? "text-composer-accent-text/80" : "text-composer-accent-text";
 
-  if (editMode && isSynced) {
+  if (isSynced) {
     return (
       <span className={`relative inline-block whitespace-pre ${baseClass}`}>
         <span className={syncedClass}>{word}</span>
@@ -50,7 +54,7 @@ function renderWordContent(word: string, timing: WordTiming | undefined, isBackg
       </span>
     );
   }
-  return <span className={`whitespace-pre ${baseClass} ${isSynced ? syncedClass : unsyncedClass}`}>{word}</span>;
+  return <span className={`whitespace-pre ${baseClass} ${unsyncedClass}`}>{word}</span>;
 }
 
 // -- Component ----------------------------------------------------------------
@@ -58,15 +62,17 @@ function renderWordContent(word: string, timing: WordTiming | undefined, isBackg
 const WordRenderer: React.FC<WordRendererProps> = ({
   lineId,
   word,
+  romaji,
+  lineRomaji,
   idx,
   timing,
   allWords,
   handlers,
   isBackground = false,
-  editMode,
   currentTime = 0,
 }) => {
   const isSynced = !!timing;
+  const showRomaji = useTimelineStore((s) => s.showRomaji);
 
   const prevWord = allWords?.[idx - 1];
   const nextWord = allWords?.[idx + 1];
@@ -74,11 +80,24 @@ const WordRenderer: React.FC<WordRendererProps> = ({
   const maxBegin = timing?.end ?? 0;
   const minEnd = timing?.begin ?? 0;
   const maxEnd = nextWord?.begin ?? Number.POSITIVE_INFINITY;
+  
+  const effectiveRomaji = allWords?.length === 1 && lineRomaji ? lineRomaji : romaji;
 
   return (
     <span className={`inline-flex flex-col items-start ${isBackground ? "italic" : ""}`}>
       <span className="flex items-center gap-1 group/word">
-        {renderWordContent(word, timing, isBackground, editMode)}
+        <span className="flex flex-col items-center gap-0.5">
+          {showRomaji && (
+            <div
+              className={`px-1.5 text-[11px] leading-none text-center truncate rounded ${
+                effectiveRomaji?.trim() ? "bg-composer-button text-composer-text-muted" : "text-transparent"
+              }`}
+            >
+              {effectiveRomaji?.trim() ? stripSplitCharacter(effectiveRomaji) : "\u00A0"}
+            </div>
+          )}
+          {renderWordContent(word, timing, isBackground)}
+        </span>
         {isSynced && timing && timing.end === timing.begin && (
           <Tooltip content="No duration - sync the next word to close this one or increase the end time">
             <span className="text-composer-warning">

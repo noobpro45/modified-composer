@@ -105,7 +105,7 @@ const AppContent: React.FC = () => {
     }
   }, [isDirty]);
 
-  // Handle double-clicked .composer files on startup
+  // Handle double-clicked .json files on startup
   useEffect(() => {
     if (typeof window.go === "undefined" || !window.go.app?.App) return;
     
@@ -197,7 +197,11 @@ const AppContent: React.FC = () => {
         </div>
       </main>
       {source && <AudioEngine />}
-      {showPlayer && <AudioPlayer />}
+      {showPlayer && (
+        <div className="relative shrink-0 z-50">
+          <AudioPlayer />
+        </div>
+      )}
       <div className="absolute top-0 left-0 right-0 h-8" style={{ "--wails-draggable": "drag" } as React.CSSProperties} />
       <GuideCard state={guideCard} onSkip={skipGuideCard} />
 

@@ -1,4 +1,4 @@
-import { nanoid } from "nanoid";
+
 
 // -- Types --------------------------------------------------------------------
 
@@ -10,7 +10,7 @@ interface SnapPoint {
 // -- Functions ----------------------------------------------------------------
 
 function createSnapPoint(time: number): SnapPoint {
-  return { id: nanoid(8), time };
+  return { id: crypto.randomUUID().slice(0, 8), time };
 }
 
 function hasValidId(point: SnapPoint): boolean {
@@ -21,7 +21,7 @@ function toSnapPoints(points: ReadonlyArray<SnapPoint | number>): SnapPoint[] {
   return points.map((point) => {
     if (typeof point === "number") return createSnapPoint(point);
     if (hasValidId(point)) return { id: point.id, time: point.time };
-    return { id: nanoid(8), time: point.time };
+    return { id: crypto.randomUUID().slice(0, 8), time: point.time };
   });
 }
 

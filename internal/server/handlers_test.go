@@ -297,7 +297,7 @@ func TestAudio_ArgvRegressionFlags(t *testing.T) {
 	wantSubstrs := []string{
 		"-f", "bestaudio[acodec=opus][ext=webm]/bestaudio[ext=webm]/bestaudio[protocol!*=m3u8]/best[protocol!*=m3u8]/bestaudio/best",
 		"-o", "--quiet", "--no-warnings", "--no-playlist",
-		"--extractor-args", "youtube:player_client=android_vr,web_safari;player_skip=configs,initial_data",
+		"--extractor-args", "youtube:player_client=tv_embedded;player_skip=configs,initial_data",
 		"https://www.youtube.com/watch?v=RgKAFK5djSk",
 	}
 	for _, s := range wantSubstrs {
@@ -699,7 +699,7 @@ func TestAudio_YtdlpFailsAfterFirstByteClosesWithoutJSONError(t *testing.T) {
 // -- Audio cache-first ---------------------------------------------------------
 
 // seedDownloadedTrack writes audioBytes to a file under env's per-test download
-// directory (also wired into env.handlers.DownloadDir), inserts a matching
+// directory (also wired into env.handlers.AudioCacheDir), inserts a matching
 // library row whose AudioPath points at that file, and returns the absolute
 // path on disk. ext drives both the filename suffix and the on-disk extension
 // the cache-hit branch infers Content-Type from. Helper exists because every
@@ -711,7 +711,7 @@ func seedDownloadedTrack(t *testing.T, env *testEnv, videoID, ext string, audioB
 	if err := os.MkdirAll(dlDir, 0o755); err != nil {
 		t.Fatalf("mkdir downloads: %v", err)
 	}
-	env.handlers.DownloadDir = func() string { return dlDir }
+	env.handlers.AudioCacheDir = func() string { return dlDir }
 	dest := filepath.Join(dlDir, videoID+"."+ext)
 	if err := os.WriteFile(dest, audioBytes, 0o644); err != nil {
 		t.Fatalf("write cached audio: %v", err)
@@ -848,13 +848,13 @@ func TestAudio_BypassesMpegTSCacheAndStreamsLeavingFileIntact(t *testing.T) {
 	}
 }
 
-func TestAudio_FallsThroughWhenAudioPathOutsideDownloadDir(t *testing.T) {
+func TestAudio_FallsThroughWhenAudioPathOutsideAudioCacheDir(t *testing.T) {
 	env := newTestEnv(t, writeFakeYtdlp(t, `printf 'stream payload'`))
 	dlDir := filepath.Join(t.TempDir(), "downloads")
 	if err := os.MkdirAll(dlDir, 0o755); err != nil {
 		t.Fatalf("mkdir downloads: %v", err)
 	}
-	env.handlers.DownloadDir = func() string { return dlDir }
+	env.handlers.AudioCacheDir = func() string { return dlDir }
 
 	outsideDir := filepath.Join(t.TempDir(), "elsewhere")
 	if err := os.MkdirAll(outsideDir, 0o755); err != nil {
@@ -879,13 +879,13 @@ func TestAudio_FallsThroughWhenAudioPathOutsideDownloadDir(t *testing.T) {
 
 	body, _ := io.ReadAll(resp.Body)
 	if string(body) != "stream payload" {
-		t.Errorf("body: got %q, want stream payload (DB row pointing outside DownloadDir must NOT be served)", body)
+		t.Errorf("body: got %q, want stream payload (DB row pointing outside AudioCacheDir must NOT be served)", body)
 	}
 }
 
-func TestAudio_FallsThroughWhenDownloadDirCallbackNil(t *testing.T) {
+func TestAudio_FallsThroughWhenAudioCacheDirCallbackNil(t *testing.T) {
 	env := newTestEnv(t, writeFakeYtdlp(t, `printf 'stream payload'`))
-	// Seed a track with AudioPath set, but never wire DownloadDir.
+	// Seed a track with AudioPath set, but never wire AudioCacheDir.
 	dest := filepath.Join(t.TempDir(), "RgKAFK5djSk.opus")
 	if err := os.WriteFile(dest, []byte("cached"), 0o644); err != nil {
 		t.Fatalf("write cached: %v", err)
@@ -905,7 +905,7 @@ func TestAudio_FallsThroughWhenDownloadDirCallbackNil(t *testing.T) {
 
 	body, _ := io.ReadAll(resp.Body)
 	if string(body) != "stream payload" {
-		t.Errorf("body: got %q, want stream payload (nil DownloadDir must disable cache-first)", body)
+		t.Errorf("body: got %q, want stream payload (nil AudioCacheDir must disable cache-first)", body)
 	}
 }
 
@@ -1304,13 +1304,13 @@ func TestAudio_CacheHit_ConcurrentRequestsRespondUnderDeadline(t *testing.T) {
 // -- Audio auto-download to library --------------------------------------------
 
 // seedTrackForAutoDL writes a library row for videoID with the given title and
-// no AudioPath set, configures env.handlers.DownloadDir + AudioFormat + the
+// no AudioPath set, configures env.handlers.AudioCacheDir + AudioFormat + the
 // AutoDownload callback, and returns the configured download directory. Helper
 // exists because every auto-download test wants the same three-step setup.
 func seedTrackForAutoDL(t *testing.T, env *testEnv, videoID, title, format string, enabled bool) string {
 	t.Helper()
 	dlDir := filepath.Join(t.TempDir(), "downloads")
-	env.handlers.DownloadDir = func() string { return dlDir }
+	env.handlers.AudioCacheDir = func() string { return dlDir }
 	env.handlers.AutoDownload = func() bool { return enabled }
 	env.handlers.AudioFormat = format
 	seedTrack(t, env.lib, library.Track{
@@ -1483,7 +1483,7 @@ func TestAudio_AutoDownload_CollisionResolvedByVideoID(t *testing.T) {
 	const payload = "tee-stream payload bytes"
 	env := newTestEnv(t, writeFakeYtdlp(t, `printf 'tee-stream payload bytes'`))
 	dlDir := filepath.Join(t.TempDir(), "downloads")
-	env.handlers.DownloadDir = func() string { return dlDir }
+	env.handlers.AudioCacheDir = func() string { return dlDir }
 	env.handlers.AutoDownload = func() bool { return true }
 	env.handlers.AudioFormat = "opus"
 

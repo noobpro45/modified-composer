@@ -1,5 +1,5 @@
 import type { WordTiming } from "@/domain/word/timing";
-import { nanoid } from "nanoid";
+
 
 // -- Types --------------------------------------------------------------------
 
@@ -154,7 +154,7 @@ function inferSyllableGroupIds(words: WordTiming[]): WordTiming[] {
   if (groups.length === 0) return words;
   const result = words.slice();
   for (const group of groups) {
-    const groupId = nanoid(8);
+    const groupId = crypto.randomUUID().slice(0, 8);
     for (let i = group.startIndex; i <= group.endIndex; i++) {
       result[i] = { ...result[i], syllableGroupId: groupId };
     }

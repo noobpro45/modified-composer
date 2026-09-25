@@ -49,3 +49,15 @@ func bootstrapDeno(dataDir string) {
 			"err", err, "dataDir", dataDir)
 	}
 }
+
+// bootstrapFfmpeg downloads ffmpeg on first run so that ExportTrack can embed
+// metadata and album art into downloaded files. Like deno, a failure here is
+// non-fatal: the rest of the app (including downloads) still works, the
+// exported file just won't have embedded metadata/thumbnail.
+func bootstrapFfmpeg(dataDir string) {
+	if _, err := ytdlp.EnsureFfmpeg(dataDir); err != nil {
+		slog.Warn("ensure ffmpeg failed; metadata embedding will be skipped",
+			"err", err, "dataDir", dataDir)
+	}
+}
+

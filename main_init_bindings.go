@@ -14,3 +14,5 @@ func bootstrapYtdlp(_ context.Context, _, _, _ string) error { return nil }
 func scheduleYtdlpRefresh(_ context.Context, _ string, _, _ func() string, _ func(string)) {}
 
 func bootstrapDeno(_ string) {}
+
+func bootstrapFfmpeg(_ string) {}

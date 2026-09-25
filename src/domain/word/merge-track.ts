@@ -1,6 +1,6 @@
 import type { WordTiming } from "@/domain/word/timing";
 import { trimTrailingSpaceFromLast } from "@/utils/word-spaces";
-import { nanoid } from "nanoid";
+
 
 // -- Functions ----------------------------------------------------------------
 
@@ -11,7 +11,7 @@ function regenerateSyllableGroupIds(words: WordTiming[]): WordTiming[] {
     if (word.syllableGroupId === undefined) return word;
     let fresh = remapped.get(word.syllableGroupId);
     if (fresh === undefined) {
-      fresh = nanoid(8);
+      fresh = crypto.randomUUID().slice(0, 8);
       remapped.set(word.syllableGroupId, fresh);
     }
     changed = true;

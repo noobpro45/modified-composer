@@ -6,7 +6,7 @@ import { SelectSetting } from "@/ui/settings/setting-controls";
 const AdvancedSection: React.FC = () => {
 
   return (
-    <div>
+    <div className="divide-y divide-composer-border">
       <SelectSetting
         label="Preview renderer"
         description="Which engine renders synced lyrics in the Preview tab."

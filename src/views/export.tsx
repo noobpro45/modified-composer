@@ -16,6 +16,7 @@ import {
   IconEdit,
   IconFolderOpen,
   IconRefresh,
+  IconSparkles,
   IconTrash,
   IconUpload,
 } from "@tabler/icons-react";
@@ -40,6 +41,7 @@ const ExportPanel: React.FC = () => {
   const confirm = useConfirm();
 
   const [copied, setCopied] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
   const [editState, setEditState] = useState<{ source: string; content: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,6 +62,27 @@ const ExportPanel: React.FC = () => {
   const isEditing = editedContent !== null;
   const displayContent = editedContent ?? generatedTtml;
   const exportContent = editedContent ?? minifiedTtml;
+
+  const aiPronunciationPrompt = useMemo(
+    () => `Add accurate pronunciation/transliteration to this already word-split TTML.
+
+Rules:
+- Preserve every lyric text, timing value, XML namespace, line order, and word order.
+- Do not merge, split, reorder, translate, or rewrite any lyric text.
+- Add pronunciation for every word in the iTunes transliteration metadata.
+- Keep pronunciation spans aligned one-to-one with the existing lyric spans.
+- Write all pronunciation/transliteration text in lowercase.
+- Update the TTML file attached to this message.
+- Return the complete updated document as a downloadable file.
+- The file must use the .ttml extension and contain valid TTML XML, not a Markdown code block.
+
+Reference pronunciation from the user (optional):
+--- BEGIN REFERENCE PRONUNCIATION ---
+[Paste reference pronunciation here]
+--- END REFERENCE PRONUNCIATION ---
+`,
+    [],
+  );
 
   const handleDownload = useCallback(async () => {
     if (!exportContent) return;
@@ -95,6 +118,14 @@ const ExportPanel: React.FC = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [exportContent]);
+
+  const handleCopyAiPrompt = useCallback(async () => {
+    if (!exportContent) return;
+
+    await navigator.clipboard.writeText(aiPronunciationPrompt);
+    setPromptCopied(true);
+    setTimeout(() => setPromptCopied(false), 2000);
+  }, [aiPronunciationPrompt, exportContent]);
 
   const handleEdit = useCallback(() => {
     setEditState((prev) => (prev ? null : { source: generatedTtml, content: displayContent }));
@@ -262,6 +293,10 @@ const ExportPanel: React.FC = () => {
           <Button hasIcon onClick={handleCopy}>
             {copied ? <IconCheck className="size-4" /> : <IconCopy className="size-4" />}
             {copied ? "Copied" : "Copy"}
+          </Button>
+          <Button hasIcon variant="secondary" onClick={handleCopyAiPrompt}>
+            {promptCopied ? <IconCheck className="size-4" /> : <IconSparkles className="size-4" />}
+            {promptCopied ? "Prompt Copied" : "Copy AI Prompt"}
           </Button>
           <Button hasIcon variant="primary" onClick={handleDownload}>
             <IconDownload className="size-4" />

@@ -578,9 +578,9 @@ func TestResolveAppBundle(t *testing.T) {
 	}{
 		{
 			name:     "valid bundle path",
-			exe:      "/Applications/Composer Bridge.app/Contents/MacOS/composer-bridge",
+			exe:      filepath.FromSlash("/Applications/Composer Bridge.app/Contents/MacOS/composer-bridge"),
 			wantOK:   true,
-			wantPath: "/Applications/Composer Bridge.app",
+			wantPath: filepath.FromSlash("/Applications/Composer Bridge.app"),
 		},
 		{
 			name:   "not under a .app",

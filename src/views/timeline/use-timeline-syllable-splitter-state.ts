@@ -9,7 +9,7 @@ import { splitWordIntoSyllables } from "@/utils/single-word-syllable-split";
 import { splitWordIntoWords } from "@/utils/word-split";
 import { splitSourceWord } from "@/utils/word-timing";
 import { handleWordChangeWithDivergenceCheck } from "@/utils/word-divergence-flow";
-import { nanoid } from "nanoid";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 // -- Types --------------------------------------------------------------------
@@ -91,7 +91,7 @@ function useTimelineSyllableSplitterState({
       const playheadOnWord = currentTime > word.begin && currentTime < word.end;
 
       if (playheadOnWord && splitPoints.length === 1) {
-        const groupId = word.syllableGroupId ?? nanoid(8);
+        const groupId = word.syllableGroupId ?? crypto.randomUUID().slice(0, 8);
         const sourceForSplit: WordTiming = { ...word, syllableGroupId: groupId };
         const partitions = [
           { text: trimmedText.slice(0, splitPoints[0]), begin: word.begin, end: currentTime },

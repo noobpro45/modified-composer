@@ -25,10 +25,14 @@ func CookiesPath(dataDir string) string {
 // extractor-args string for yt-dlp. When preferPremium is true, web_music
 // is prepended so YouTube Music's high-quality tier is tried first; this
 // costs latency when Premium isn't actually available, hence the opt-in.
-// player_skip=configs,initial_data eliminates redundant Innertube round
-// trips and is always applied.
+// tv_embedded currently exposes direct DASH audio formats without requiring a
+// PO token, so it is used as the default client. The older Android and Safari
+// clients can expose URLs that return 403 or no media at all. When premium
+// audio is enabled, web_music is tried before tv_embedded. player_skip=
+// configs,initial_data eliminates redundant Innertube round trips and is
+// always applied.
 func BuildExtractorArgs(preferPremium bool) string {
-	clients := "android_vr,web_safari"
+	clients := "tv_embedded"
 	if preferPremium {
 		clients = "web_music," + clients
 	}

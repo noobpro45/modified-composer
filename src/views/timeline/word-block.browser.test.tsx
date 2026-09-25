@@ -53,7 +53,7 @@ describe("WordBlock", () => {
     await render(
       <WordBlock
         {...DEFAULT_PROPS}
-        onResizeStart={(e, x) => {
+        onResizeStart={(_index, e, x) => {
           edge = e;
           startX = x;
         }}
@@ -71,7 +71,7 @@ describe("WordBlock", () => {
     await render(
       <WordBlock
         {...DEFAULT_PROPS}
-        onResizeStart={(e) => {
+        onResizeStart={(_index, e) => {
           edge = e;
         }}
       />,
@@ -87,7 +87,7 @@ describe("WordBlock", () => {
     await render(
       <WordBlock
         {...DEFAULT_PROPS}
-        onResizeStart={(e) => {
+        onResizeStart={(_index, e) => {
           edge = e;
         }}
       />,
@@ -100,7 +100,7 @@ describe("WordBlock", () => {
 
   it("dispatches onEdgeHover when the right edge is hovered and unhovered", async () => {
     const events: Array<{ edge: string; hovering: boolean }> = [];
-    await render(<WordBlock {...DEFAULT_PROPS} onEdgeHover={(edge, hovering) => events.push({ edge, hovering })} />, {
+    await render(<WordBlock {...DEFAULT_PROPS} onEdgeHover={(_index, edge, hovering) => events.push({ edge, hovering })} />, {
       dndContext: true,
     });
     const rightEdge = document.querySelector('[data-edge="right"]') as HTMLElement;
@@ -124,7 +124,7 @@ describe("WordBlock", () => {
     await render(
       <WordBlock
         {...DEFAULT_PROPS}
-        onContextMenu={(e) => {
+        onContextMenu={(_index, e) => {
           contexts++;
           defaultPrevented = e.defaultPrevented;
         }}

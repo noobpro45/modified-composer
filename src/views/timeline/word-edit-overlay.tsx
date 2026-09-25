@@ -1,7 +1,9 @@
-import { useProjectStore } from "@/stores/project";
-import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { manualBackgroundWordEdit } from "@/domain/line/background";
 import { getEffectiveLines } from "@/domain/line/effective-words";
+import { reconstructLineRomaji } from "@/domain/line/reconstruct-text";
+import { useProjectStore } from "@/stores/project";
+import { getSplitCharacter } from "@/utils/split-character";
+import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { FloatingPortal } from "@floating-ui/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -56,7 +58,7 @@ const WordEditOverlay: React.FC<WordEditOverlayProps> = ({ lineId, wordIndex, ty
       if (!findAndPosition()) clearEditingWord();
     });
     return () => cancelAnimationFrame(raf);
-  }, [lineId, wordIndex, type, word, scrollContainerRef, clearEditingWord]);
+  }, [lineId, wordIndex, type, word, scrollContainerRef, clearEditingWord, showRomaji]);
 
   useEffect(() => {
     if (!pos) return;
@@ -82,11 +84,15 @@ const WordEditOverlay: React.FC<WordEditOverlayProps> = ({ lineId, wordIndex, ty
         updatedWords[wordIndex] = {
           ...word,
           text: hasTextChanged ? (hadTrailingSpace ? `${trimmed} ` : trimmed) : word.text,
-          romaji: showRomaji ? (rawRomaji || undefined) : word.romaji,
+          romaji: showRomaji ? rawRomaji || undefined : word.romaji,
         };
+        const updates =
+          type === "word"
+            ? { words: updatedWords, romaji: reconstructLineRomaji(updatedWords, getSplitCharacter()) }
+            : manualBackgroundWordEdit(updatedWords);
         updateLineWithHistory(
           lineId,
-          type === "word" ? { words: updatedWords } : manualBackgroundWordEdit(updatedWords),
+          updates,
         );
       }
       clearEditingWord();
@@ -140,6 +146,14 @@ const WordEditOverlay: React.FC<WordEditOverlayProps> = ({ lineId, wordIndex, ty
           <input
             name="romaji"
             type="text"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            aria-autocomplete="none"
+            data-form-type="other"
+            data-lpignore="true"
+            data-1p-ignore="true"
             aria-label="Edit romaji"
             defaultValue={word.romaji || ""}
             onKeyDown={handleKeyDown}
@@ -151,6 +165,14 @@ const WordEditOverlay: React.FC<WordEditOverlayProps> = ({ lineId, wordIndex, ty
           ref={inputRef}
           name="text"
           type="text"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          aria-autocomplete="none"
+          data-form-type="other"
+          data-lpignore="true"
+          data-1p-ignore="true"
           aria-label="Edit word"
           defaultValue={word.text.trimEnd()}
           onKeyDown={handleKeyDown}

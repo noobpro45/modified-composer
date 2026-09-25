@@ -163,6 +163,7 @@ export namespace library {
 	    title: string;
 	    artist: string;
 	    album: string;
+	    language?: string;
 	    release_year: number;
 	    duration_sec: number;
 	    thumbnail_url: string;
@@ -185,6 +186,7 @@ export namespace library {
 	        this.title = source["title"];
 	        this.artist = source["artist"];
 	        this.album = source["album"];
+	        this.language = source["language"];
 	        this.release_year = source["release_year"];
 	        this.duration_sec = source["duration_sec"];
 	        this.thumbnail_url = source["thumbnail_url"];

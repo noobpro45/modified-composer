@@ -31,6 +31,7 @@ interface BridgeAudio {
   title?: string;
   artist?: string;
   album?: string;
+  language?: string;
 }
 
 class BridgeError extends Error {
@@ -76,7 +77,16 @@ async function getAudioFromBridge(baseUrl: string, videoId: string, signal?: Abo
     const res = await fetch(targetUrl, {
       signal: composed,
     });
-    if (!res.ok) throw new BridgeError("http", `bridge audio: ${res.status}`, res.status);
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const body = (await res.json()) as { error?: unknown };
+        if (typeof body.error === "string") detail = `: ${body.error}`;
+      } catch {
+        // Keep the status-only error when the bridge returned a non-JSON body.
+      }
+      throw new BridgeError("http", `bridge audio: ${res.status}${detail}`, res.status);
+    }
     const buffer = await res.arrayBuffer();
     if (buffer.byteLength === 0) throw new BridgeError("empty", "bridge returned empty audio");
     return {
@@ -85,6 +95,7 @@ async function getAudioFromBridge(baseUrl: string, videoId: string, signal?: Abo
       title: decodeHeader(res.headers.get("x-track-title")),
       artist: decodeHeader(res.headers.get("x-track-artist")),
       album: decodeHeader(res.headers.get("x-track-album")),
+      language: decodeHeader(res.headers.get("x-track-language")),
     };
   } catch (err) {
     if (err instanceof BridgeError) throw err;

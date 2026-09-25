@@ -29,7 +29,8 @@ import { Scroll } from "@/ui/scroll";
 import { ScrollableLine } from "@/views/sync/scrollable-line";
 import { type RippleTarget, SyncCarousel } from "@/views/sync/sync-carousel";
 import { TimingDisplay } from "@/views/sync/timing-display";
-import { IconLock, IconLockOpen, IconPlayerPlayFilled, IconRefresh, IconWand } from "@tabler/icons-react";
+import { useTimelineStore } from "@/views/timeline/timeline-store";
+import { IconLanguage, IconLock, IconLockOpen, IconPlayerPlayFilled, IconRefresh, IconWand } from "@tabler/icons-react";
 import { m } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
@@ -49,6 +50,9 @@ const SyncPanel: React.FC = () => {
   const currentTime = useAudioStore((s) => s.currentTime);
   const isPlaying = useAudioStore((s) => s.isPlaying);
   const setIsPlaying = useAudioStore((s) => s.setIsPlaying);
+
+  const showRomaji = useTimelineStore((s) => s.showRomaji);
+  const setShowRomaji = useTimelineStore((s) => s.setShowRomaji);
 
   const instanceCountByGroup = useMemo(() => {
     const indices = new Map<string, Set<number>>();
@@ -81,11 +85,13 @@ const SyncPanel: React.FC = () => {
   const scrollViewportRef = useRef<HTMLDivElement | null>(null);
   const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null);
 
+  // Track the scroll parent DOM node for Virtuoso
   useEffect(() => {
-    if (scrollViewportRef.current && scrollViewportRef.current !== scrollParent) {
-      setScrollParent(scrollViewportRef.current);
+    const showScroll = !isPlaying || editMode;
+    if (!showScroll) {
+      setScrollParent(null);
     }
-  });
+  }, [isPlaying, editMode]);
 
   const rafRef = useRef<number | null>(null);
   const heldKeyCodeRef = useRef<string | null>(null);
@@ -161,18 +167,10 @@ const SyncPanel: React.FC = () => {
 
   // RAF animation loop for smooth word progress updates (reads audioElement.currentTime directly)
   useEffect(() => {
-    if (!editMode) {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      return;
-    }
 
     const update = () => {
-      // The DOM nodes we need are inside the viewport container
-      const container = scrollViewportRef.current;
-      if (!container) {
-        rafRef.current = requestAnimationFrame(update);
-        return;
-      }
+      // Query the whole document since elements might be in the Carousel or the Scrollable View
+      const container = document;
 
       const audioEl = useAudioStore.getState().audioElement;
       const time = audioEl?.currentTime ?? useAudioStore.getState().currentTime;
@@ -190,7 +188,7 @@ const SyncPanel: React.FC = () => {
         let progress = 0;
         if (isActive && duration > 0) {
           progress = (time - begin) / duration;
-        } else if (isComplete) {
+        } else if (isComplete || (isActive && isOpen)) {
           progress = 1;
         }
 
@@ -238,14 +236,21 @@ const SyncPanel: React.FC = () => {
             const splitPoints = getAutoSplitPoints(word.text.trimEnd());
             if (splitPoints.length > 0) {
               hasChanges = true;
-              newWords.push(...splitWordIntoWords(word, splitPoints));
+              // CJK characters are not whitespace-delimited words. Preserve the
+              // source spacing instead of adding English-style separators.
+              newWords.push(...splitWordIntoWords(word, splitPoints, false));
             } else {
               newWords.push(word);
             }
           }
 
           if (newWords.length !== line.words.length) {
-            return { ...line, words: newWords };
+            const hasAlignedRomaji = newWords.every((word) => word.romaji !== undefined);
+            return {
+              ...line,
+              words: newWords,
+              ...(hasAlignedRomaji ? { romaji: newWords.map((word) => word.romaji).join("").trimEnd() } : {}),
+            };
           }
           return line;
         });
@@ -431,6 +436,16 @@ const SyncPanel: React.FC = () => {
         <div className="flex items-center gap-2">
           <Button
             hasIcon
+            variant={showRomaji ? "primary" : "secondary"}
+            onClick={() => setShowRomaji(!showRomaji)}
+            title="Toggle Romaji display"
+            className={showRomaji ? "" : "text-composer-text-muted"}
+          >
+            <IconLanguage className="size-4" />
+            Romaji
+          </Button>
+          <Button
+            hasIcon
             variant="secondary"
             onClick={handleBulkAutoSegment}
             title="Auto-split all unsegmented Japanese/Korean/Chinese characters in the project"
@@ -489,60 +504,64 @@ const SyncPanel: React.FC = () => {
 
       {/* Main sync area */}
       {showScrollableView ? (
-        <Scroll viewportRef={scrollViewportRef} className="flex-1 bg-composer-bg-dark">
+        <Scroll viewportRef={scrollViewportRef} onInitialized={setScrollParent} className="flex-1 bg-composer-bg-dark">
           <div ref={scrollContainerRef} className="h-full">
-            <Virtuoso
+            {scrollParent && (
+              <Virtuoso
               data={lines}
               className="py-2"
               style={{ height: "100%", width: "100%" }}
               customScrollParent={scrollParent ?? undefined}
               overscan={200}
-            computeItemKey={(_, line) => line.id}
-            itemContent={(index, line) => {
-              const timing = effectiveBounds(line);
-              const linkedGroup = line.groupId ? groupsById.get(line.groupId) : undefined;
-              const totalInstances = linkedGroup ? (instanceCountByGroup.get(linkedGroup.id) ?? 0) : 0;
-              const linkInfo =
-                linkedGroup && line.instanceIdx !== undefined
-                  ? {
-                      color: linkedGroup.color,
-                      label: linkedGroup.label,
-                      instanceIdx: line.instanceIdx,
-                      totalInstances,
-                    }
-                  : undefined;
-              return (
-                <ScrollableLine
-                  lineId={line.id}
-                  lineNumber={index + 1}
-                  text={line.text}
-                  isCurrent={editMode ? index === playingLineIndex : index === lineIndex}
-                  agentId={line.agentId}
-                  backgroundText={line.backgroundText}
-                  backgroundWords={line.backgroundWords}
-                  words={line.words}
-                  lineBegin={timing?.begin}
-                  lineEnd={timing?.end}
-                  granularity={granularity}
-                  currentTime={currentTime}
-                  editMode={editMode}
-                  linkInfo={linkInfo}
-                  onClick={() => handleJumpToLine(index)}
-                  onNudgeWord={(wordIdx, delta) => handleNudgeWord(index, wordIdx, delta)}
-                  onSetWordTime={(wordIdx, newBegin) => handleSetWordTime(index, wordIdx, newBegin)}
-                  onNudgeWordEnd={(wordIdx, delta) => handleNudgeWordEnd(index, wordIdx, delta)}
-                  onSetWordEndTime={(wordIdx, newEnd) => handleSetWordEndTime(index, wordIdx, newEnd)}
-                  onNudgeLine={(delta) => handleNudgeLine(index, delta)}
-                  onSetLineTime={(newBegin) => handleSetLineTime(index, newBegin)}
-                  onSplitWord={(wordIdx, newWords) => handleSplitWord(index, wordIdx, newWords)}
-                  onNudgeBgWord={(wordIdx, delta) => handleNudgeBgWord(index, wordIdx, delta)}
-                  onSetBgWordTime={(wordIdx, newBegin) => handleSetBgWordTime(index, wordIdx, newBegin)}
-                  onNudgeBgWordEnd={(wordIdx, delta) => handleNudgeBgWordEnd(index, wordIdx, delta)}
-                  onSetBgWordEndTime={(wordIdx, newEnd) => handleSetBgWordEndTime(index, wordIdx, newEnd)}
-                />
-              );
-            }}
-          />
+              initialTopMostItemIndex={Math.max(0, Math.min(editMode ? playingLineIndex : lineIndex, lines.length - 1))}
+              computeItemKey={(_, line) => line.id}
+              itemContent={(index, line) => {
+                const timing = effectiveBounds(line);
+                const linkedGroup = line.groupId ? groupsById.get(line.groupId) : undefined;
+                const totalInstances = linkedGroup ? (instanceCountByGroup.get(linkedGroup.id) ?? 0) : 0;
+                const linkInfo =
+                  linkedGroup && line.instanceIdx !== undefined
+                    ? {
+                        color: linkedGroup.color,
+                        label: linkedGroup.label,
+                        instanceIdx: line.instanceIdx,
+                        totalInstances,
+                      }
+                    : undefined;
+                return (
+                  <ScrollableLine
+                    lineId={line.id}
+                    lineNumber={index + 1}
+                    text={line.text}
+                    isCurrent={editMode ? index === playingLineIndex : index === lineIndex}
+                    agentId={line.agentId}
+                    romaji={line.romaji}
+                    backgroundText={line.backgroundText}
+                    backgroundWords={line.backgroundWords}
+                    words={line.words}
+                    lineBegin={timing?.begin}
+                    lineEnd={timing?.end}
+                    granularity={granularity}
+                    currentTime={currentTime}
+                    editMode={editMode}
+                    linkInfo={linkInfo}
+                    onClick={() => handleJumpToLine(index)}
+                    onNudgeWord={(wordIdx, delta) => handleNudgeWord(index, wordIdx, delta)}
+                    onSetWordTime={(wordIdx, newBegin) => handleSetWordTime(index, wordIdx, newBegin)}
+                    onNudgeWordEnd={(wordIdx, delta) => handleNudgeWordEnd(index, wordIdx, delta)}
+                    onSetWordEndTime={(wordIdx, newEnd) => handleSetWordEndTime(index, wordIdx, newEnd)}
+                    onNudgeLine={(delta) => handleNudgeLine(index, delta)}
+                    onSetLineTime={(newBegin) => handleSetLineTime(index, newBegin)}
+                    onSplitWord={(wordIdx, newWords) => handleSplitWord(index, wordIdx, newWords)}
+                    onNudgeBgWord={(wordIdx, delta) => handleNudgeBgWord(index, wordIdx, delta)}
+                    onSetBgWordTime={(wordIdx, newBegin) => handleSetBgWordTime(index, wordIdx, newBegin)}
+                    onNudgeBgWordEnd={(wordIdx, delta) => handleNudgeBgWordEnd(index, wordIdx, delta)}
+                    onSetBgWordEndTime={(wordIdx, newEnd) => handleSetBgWordEndTime(index, wordIdx, newEnd)}
+                  />
+                );
+              }}
+            />
+            )}
           </div>
         </Scroll>
       ) : (

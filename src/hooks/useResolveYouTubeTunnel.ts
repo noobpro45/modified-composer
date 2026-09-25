@@ -12,6 +12,7 @@ import {
   formatBridgeErrorForToast,
   getAudioFromBridge,
 } from "@/utils/composer-bridge-api";
+import { detectLanguageFromText } from "@/utils/language-detection";
 
 // -- Constants ----------------------------------------------------------------
 
@@ -24,6 +25,7 @@ interface TunnelResult {
   title?: string;
   artist?: string;
   album?: string;
+  language?: string;
   instanceLabel: string;
   instanceId: string;
   wasDefault: boolean;
@@ -52,7 +54,7 @@ class TunnelError extends Error {
 async function fetchViaBridge(videoId: string, signal: AbortSignal): Promise<TunnelResult> {
   const baseUrl = useSettingsStore.getState().composerBridgeUrl;
   try {
-    const { buffer, mimeType, title, artist, album } = await getAudioFromBridge(baseUrl, videoId, signal);
+    const { buffer, mimeType, title, artist, album, language } = await getAudioFromBridge(baseUrl, videoId, signal);
     if (signal.aborted) throw new DOMException("aborted", "AbortError");
     const filename = [artist, title].filter(Boolean).join(" - ") || title;
     return {
@@ -61,6 +63,7 @@ async function fetchViaBridge(videoId: string, signal: AbortSignal): Promise<Tun
       title,
       artist,
       album,
+      language,
       instanceLabel: BRIDGE_INSTANCE_LABEL,
       instanceId: BRIDGE_INSTANCE_ID,
       wasDefault: false,
@@ -118,11 +121,16 @@ function useResolveYouTubeTunnel(): void {
 
       const project = useProjectStore.getState();
       const currentTitle = project.metadata.title;
+      const detectedLang = data.language || detectLanguageFromText(data.title || "") || detectLanguageFromText(data.artist || "");
       if (!currentTitle || currentTitle === videoId) {
-        const metadataPatch: Partial<typeof project.metadata> = { title: data.filename || videoId };
+        const metadataPatch: Partial<typeof project.metadata> = { title: data.title || data.filename || videoId };
         if (data.artist) metadataPatch.artist = data.artist;
         if (data.album) metadataPatch.album = data.album;
+        if (detectedLang) metadataPatch.language = detectedLang;
         project.setMetadata(metadataPatch);
+        flushPendingSave();
+      } else if (detectedLang && !project.metadata.language) {
+        project.setMetadata({ language: detectedLang });
         flushPendingSave();
       }
     });
@@ -148,7 +156,9 @@ function useResolveYouTubeTunnel(): void {
 
     const current = useAudioStore.getState().source;
     if (current?.type === "youtube" && current.videoId === videoId) {
+      useAudioStore.getState().setYouTubeLoadError(message);
       useAudioStore.getState().setSource(previousSourceRef.current);
+      return;
     }
     useAudioStore.getState().setYouTubeLoadError(message);
   }, [query.error, videoId]);

@@ -53,6 +53,11 @@ const BackgroundTextEditor: React.FC<{ lineId: string; backgroundText?: string }
     <input
       ref={focusOnMount}
       type="text"
+      autoComplete="off"
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck={false}
+      aria-autocomplete="none"
       aria-label="Background vocals text"
       value={value}
       onChange={(e) => setValue(e.target.value)}

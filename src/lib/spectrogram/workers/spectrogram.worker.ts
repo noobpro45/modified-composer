@@ -1,6 +1,5 @@
 import init, {
 	generate_spectrogram_image,
-	initThreadPool,
 	SpectrogramConfig,
 } from "../vendor";
 import type { SpectrogramWorkerScope } from "./types";
@@ -16,7 +15,6 @@ async function initializeWasm() {
 	if (!wasmInitialized) {
 		wasmInitialized = (async () => {
 			await init();
-			await initThreadPool(navigator.hardwareConcurrency);
 		})();
 	}
 	await wasmInitialized;

@@ -101,7 +101,7 @@ func TestDownloadToFile_ChildEnvHasDenoBinDir(t *testing.T) {
 	// stat succeeds and we observe the PATH log.
 	script := writeFakeYtdlp(t, `printf "%s" "$PATH" > "`+logFile+`"
 touch "`+dest+`"`)
-	if _, err := DownloadToFile(context.Background(), script, "ZEcqHA7dbwM", "opus", dest, "", false); err != nil {
+	if _, err := DownloadToFile(context.Background(), script, "ZEcqHA7dbwM", "opus", dest, "", "", false); err != nil {
 		t.Fatalf("DownloadToFile: %v", err)
 	}
 	assertPATHStartsWithSentinel(t, logFile, sentinel)

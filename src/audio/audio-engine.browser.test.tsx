@@ -291,4 +291,25 @@ describe("AudioEngine", () => {
     await waitFor(() => useAudioStore.getState().audioElement !== null, 5000);
     expect(useProjectStore.getState().primingStripped).toBe(true);
   });
+
+  it("settles cleanly without ghost toggles when play/pause is spammed", async () => {
+    await render(<AudioEngine />);
+    useAudioStore.setState({ source: { type: "file", file: createAudioFile() } });
+    await waitFor(() => useAudioStore.getState().audioElement !== null);
+    const audio = useAudioStore.getState().audioElement as HTMLAudioElement;
+
+    // Rapidly toggle play/pause 6 times ending on paused (false)
+    for (let i = 0; i < 6; i++) {
+      useAudioStore.getState().setIsPlaying(i % 2 === 0);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    useAudioStore.getState().setIsPlaying(false);
+
+    // Wait past the grace window to verify no delayed DOM events revive playback
+    await new Promise((resolve) => setTimeout(resolve, 450));
+
+    expect(useAudioStore.getState().isPlaying).toBe(false);
+    expect(audio.paused).toBe(true);
+  });
 });
+

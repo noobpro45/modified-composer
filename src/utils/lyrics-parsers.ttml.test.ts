@@ -124,4 +124,10 @@ describe("parseLyricsFile - TTML background provenance", () => {
     expect(result.lines[0].backgroundText).toBeUndefined();
     expect(result.lines[0].backgroundTextSource).toBeUndefined();
   });
+
+  it("extracts xml:lang into metadata.language", () => {
+    const content = `<tt xmlns="http://www.w3.org/ns/ttml" xml:lang="ja"><head><metadata><title>Song</title></metadata></head><body><div><p begin="00:01.000" end="00:03.000">こんにちは</p></div></body></tt>`;
+    const result = parseLyricsFile("song.ttml", content);
+    expect(result.metadata.language).toBe("ja");
+  });
 });

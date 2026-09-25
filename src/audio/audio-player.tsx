@@ -1,4 +1,5 @@
 import { useAudioStore } from "@/stores/audio";
+import { useProjectStore } from "@/stores/project";
 import { Button } from "@/ui/button";
 import { Popover } from "@/ui/popover";
 import { Slider } from "@/ui/slider";
@@ -144,21 +145,52 @@ const AudioPlayer: React.FC = () => {
   const setPlaybackRate = useAudioStore((s) => s.setPlaybackRate);
   const setVolume = useAudioStore((s) => s.setVolume);
   const toggleMute = useAudioStore((s) => s.toggleMute);
+  const metadata = useProjectStore((s) => s.metadata);
 
   if (!source) return null;
 
+  const displayTitle = metadata?.title || (source.type === "file" ? source.file.name : "Unknown Track");
+  const displayArtist = metadata?.artist || "Unknown Artist";
+  
+  const thumbnailUrl = source.type === "youtube" 
+    ? `https://img.youtube.com/vi/${source.videoId}/mqdefault.jpg`
+    : null;
+
   return (
-    <div className="flex items-center gap-4 p-4 border-t select-none border-composer-border bg-composer-bg-dark">
+    <div className="flex items-center gap-4 p-2 pr-4 w-full select-none bg-composer-bg-dark/80 backdrop-blur-xl border-t border-white/10 z-50">
+      {/* Metadata Section */}
+      <div className="flex items-center gap-3 w-48 overflow-hidden shrink-0">
+        <div className="size-10 rounded-sm bg-composer-bg overflow-hidden flex items-center justify-center shrink-0 border border-white/5">
+          {thumbnailUrl ? (
+            <img src={thumbnailUrl} alt="Cover" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-composer-accent/20 to-composer-accent/5" />
+          )}
+        </div>
+        <div className="flex flex-col min-w-0 pr-2">
+          <span className="text-sm font-medium text-composer-text truncate">{displayTitle}</span>
+          <span className="text-xs text-composer-text-muted truncate">{displayArtist}</span>
+        </div>
+      </div>
+
+      <div className="w-px h-8 bg-composer-border/50 shrink-0 mx-1" />
+
+      {/* Controls Section */}
       <PlayButton isPlaying={isPlaying} onClick={() => setIsPlaying(!isPlaying)} />
-      <Slider
-        value={currentTime}
-        min={0}
-        max={duration}
-        onChange={seekTo}
-        aria-label="Audio progress"
-        className="flex-1"
-      />
+      
       <TimeDisplay current={currentTime} duration={duration} />
+      
+      <div className="flex-1 px-2">
+        <Slider
+          value={currentTime}
+          min={0}
+          max={duration}
+          onChange={seekTo}
+          aria-label="Audio progress"
+          className="w-full"
+        />
+      </div>
+
       <VolumeControl volume={volume} isMuted={isMuted} onChangeVolume={setVolume} onToggleMute={toggleMute} />
       <PlaybackRateControl rate={playbackRate} onChangeRate={setPlaybackRate} />
       <VocalSeparationDropdown />
