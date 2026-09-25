@@ -23,6 +23,7 @@ type Info struct {
 	Thumbnails  []Thumbnail `json:"thumbnails"`
 	WebpageURL  string      `json:"webpage_url"`
 	UploaderID  string      `json:"uploader_id,omitempty"`
+	Language    string      `json:"language,omitempty"`
 }
 
 func Parse(raw []byte) (*Info, error) {

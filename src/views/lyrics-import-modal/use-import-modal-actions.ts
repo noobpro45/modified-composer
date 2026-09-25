@@ -2,6 +2,7 @@ import type { Agent } from "@/domain/agent/model";
 import type { ConfirmOptions } from "@/stores/confirm-store";
 import { useProjectStore } from "@/stores/project";
 import { extractBackgroundVocals } from "@/utils/background-vocal-extraction";
+import { detectLanguageFromText } from "@/utils/language-detection";
 import type { ParseResult } from "@/utils/lyrics-parsers/shared";
 import { distributeLinesTiming } from "@/views/timeline/utils";
 
@@ -77,6 +78,14 @@ async function importParsedLyrics(parsed: ParseResult, ctx: ImportParsedLyricsCo
 
   if (Object.keys(parsed.metadata).length > 0) {
     store.setMetadata(parsed.metadata);
+  }
+
+  if (!store.metadata.language && !parsed.metadata.language) {
+    const sampleText = workingLines.slice(0, 30).map((l) => l.text).join(" ");
+    const detected = detectLanguageFromText(sampleText);
+    if (detected) {
+      store.setMetadata({ language: detected });
+    }
   }
 
   reconcileAgents(ctx.agents, parsed.agents);

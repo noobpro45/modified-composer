@@ -53,6 +53,10 @@ function parseTtml(content: string, _fallbackDuration?: number): ParseResult {
   const albumEl = doc.querySelector('[type="album"]');
   if (albumEl?.textContent) metadata.album = albumEl.textContent;
 
+  const ttEl = doc.documentElement;
+  const lang = ttEl?.getAttribute("xml:lang") || ttEl?.getAttribute("lang");
+  if (lang) metadata.language = lang;
+
   // Extract agents from metadata
   const agents: Agent[] = [];
   const agentEls = doc.getElementsByTagName("ttm:agent");

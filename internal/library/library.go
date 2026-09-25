@@ -18,6 +18,7 @@ type Track struct {
 	Title        string `json:"title"`
 	Artist       string `json:"artist"`
 	Album        string `json:"album"`
+	Language     string `json:"language,omitempty"`
 	ReleaseYear  int    `json:"release_year"`
 	DurationSec  int    `json:"duration_sec"`
 	ThumbnailURL string `json:"thumbnail_url"`

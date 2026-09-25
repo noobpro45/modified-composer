@@ -352,7 +352,7 @@ func (h *Handlers) writeAudioHeaders(w http.ResponseWriter, contentType string, 
 	}
 	// HTTP headers are Latin-1 by spec; raw UTF-8 gets mojibake'd in the browser.
 	// Percent-encode so the client can decodeURIComponent it back to the original string.
-	w.Header().Set("Access-Control-Expose-Headers", "X-Track-Title, X-Track-Artist, X-Track-Album, X-Bridge-Version")
+	w.Header().Set("Access-Control-Expose-Headers", "X-Track-Title, X-Track-Artist, X-Track-Album, X-Track-Language, X-Bridge-Version")
 	if track.Title != "" {
 		w.Header().Set("X-Track-Title", url.PathEscape(track.Title))
 	}
@@ -361,6 +361,9 @@ func (h *Handlers) writeAudioHeaders(w http.ResponseWriter, contentType string, 
 	}
 	if track.Album != "" {
 		w.Header().Set("X-Track-Album", url.PathEscape(track.Album))
+	}
+	if track.Language != "" {
+		w.Header().Set("X-Track-Language", url.PathEscape(track.Language))
 	}
 }
 
@@ -656,6 +659,7 @@ func trackFromInfo(info *ytdlp.Info) library.Track {
 	}
 	return library.Track{
 		VideoID: info.ID, Title: title, Artist: info.Artist, Album: info.Album,
+		Language: info.Language,
 		ReleaseYear: info.ReleaseYear, DurationSec: info.Duration,
 		ThumbnailURL: thumb, IsMusic: isMusic, MusicType: musicType,
 		SourceURL: source, ImportedAt: time.Now().UnixMilli(),

@@ -55,7 +55,8 @@ describe("WordEditOverlay", () => {
   });
 
   it("disables browser autocomplete and inline predictions on word edit inputs", async () => {
-    const line = createLine({ id: "line-1", words: [createWord({ text: "hello", romaji: "konnichiwa", begin: 0, end: 1 })] });
+    const word = { ...createWord({ text: "hello", begin: 0, end: 1 }), romaji: "konnichiwa" };
+    const line = createLine({ id: "line-1", words: [word] });
     useProjectStore.setState({ lines: [line] });
     useTimelineStore.setState({ zoom: 100, showRomaji: true });
     const screen = await render(<PositionedHarness lineId={line.id} wordKey={`${line.id}-word-0`} />);
