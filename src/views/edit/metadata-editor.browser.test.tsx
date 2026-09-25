@@ -22,4 +22,17 @@ describe("MetadataEditor", () => {
     await userEvent.type(languageInput, "ja");
     expect(useProjectStore.getState().metadata.language).toBe("ja");
   });
+
+  it("opens dropdown and selects a preset on click", async () => {
+    const screen = await render(<MetadataEditor />);
+    const toggleButton = screen.getByRole("button", { name: "Show presets" });
+    await userEvent.click(toggleButton);
+
+    const japaneseOption = screen.getByRole("button", { name: /Japanese/i });
+    await expect.element(japaneseOption).toBeInTheDocument();
+
+    await userEvent.click(japaneseOption);
+    expect(useProjectStore.getState().metadata.language).toBe("ja");
+  });
 });
+
