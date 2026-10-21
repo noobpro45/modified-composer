@@ -12,7 +12,8 @@ const StorageUsageSetting: React.FC = () => {
   const { entries } = useProjectIndex();
   const report = useStorageReport();
   const keepYouTubeAudio = useSettingsStore((s) => s.keepYouTubeAudio);
-  const bridgeEnabled = useSettingsStore((s) => s.experiments.youtubeBridge);
+  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
+  const bridgeEnabled = isDesktop || useSettingsStore((s) => s.experiments.youtubeBridge);
 
   if (entries === undefined || report === undefined) return null;
 

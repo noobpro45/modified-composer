@@ -38,7 +38,8 @@ function formatDuration(seconds: number): string {
 // -- Sub-components -----------------------------------------------------------
 
 const YouTubeSourceThumb: React.FC<{ videoId: string; loading: boolean }> = ({ videoId, loading }) => {
-  const bridgeEnabled = useSettingsStore((s) => s.experiments.youtubeBridge);
+  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
+  const bridgeEnabled = isDesktop || useSettingsStore((s) => s.experiments.youtubeBridge);
   const persistedThumb = useProjectStore((s) => s.metadata.thumbnailDataUrl);
   const persistedFor = useProjectStore((s) => s.metadata.thumbnailForVideoId);
   const hasMatchingPersistedThumb = Boolean(persistedThumb && persistedFor === videoId);

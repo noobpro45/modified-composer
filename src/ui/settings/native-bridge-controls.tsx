@@ -15,8 +15,9 @@ import {
   IconTrash,
   IconUpload,
 } from "@tabler/icons-react";
+import { useSettingsStore } from "@/stores/settings";
 import type React from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export const NativeBridgeControls: React.FC = () => {
@@ -38,16 +39,16 @@ export const NativeBridgeControls: React.FC = () => {
   const [updatingYtdlp, setUpdatingYtdlp] = useState(false);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
 
-  if (!loaded || !config) {
-    return (
-      <div className="py-4 text-xs text-composer-text-muted flex items-center gap-2">
-        <IconLoader2 size={14} className="animate-spin" />
-        Connecting to Composer Bridge backend…
-      </div>
-    );
-  }
-
   const isServerRunning = serverStatus === "running";
+
+  useEffect(() => {
+    if (loaded && isServerRunning !== useSettingsStore.getState().experiments.youtubeBridge) {
+      useSettingsStore.getState().set("experiments", {
+        ...useSettingsStore.getState().experiments,
+        youtubeBridge: isServerRunning,
+      });
+    }
+  }, [loaded, isServerRunning]);
 
   const handleCookieFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -74,6 +75,15 @@ export const NativeBridgeControls: React.FC = () => {
       setUpdatingYtdlp(false);
     }
   };
+
+  if (!loaded || !config) {
+    return (
+      <div className="py-4 text-xs text-composer-text-muted flex items-center gap-2">
+        <IconLoader2 size={14} className="animate-spin" />
+        Connecting to Composer Bridge backend…
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col text-composer-text">

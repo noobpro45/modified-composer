@@ -19,6 +19,13 @@ export default defineConfig({
     },
     conditions: ["onnxruntime-web-use-extern-wasm", "import", "module", "browser", "default"],
   },
+  server: {
+    proxy: {
+      "/audio": "http://localhost:7777",
+      "/thumb": "http://localhost:7777",
+      "/health": "http://localhost:7777",
+    },
+  },
   worker: {
     format: "es",
   },
