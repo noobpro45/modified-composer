@@ -71,7 +71,7 @@
     "playwright": "^1.63.0",
     "react-router-dom": "^6.30.6",
     "tailwindcss": "^4.3.3",
-    "typescript": "~5.7.0",
+    "typescript": "~7.0.2",
     "vite": "^6.4.4",
     "vite-react-ssg": "0.9.2",
     "vitest": "^4.1.11",
