@@ -64,7 +64,7 @@ const Modal: React.FC<ModalProps> = ({
           ref={overlayRef}
           role="presentation"
           onMouseDown={handleOverlayMouseDown}
-          className="fixed inset-0 layer-floating flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 layer-floating flex items-center justify-center bg-black/60"
         >
           <dialog
             ref={refs.setFloating as unknown as React.Ref<HTMLDialogElement>}
