@@ -852,6 +852,18 @@ func (a *App) BridgeStatus() bridgestate.State {
 	return state.Snapshot()
 }
 
+// BridgePort returns the active port the HTTP bridge is listening on,
+// or 0 if stopped.
+func (a *App) BridgePort() int {
+	a.mu.RLock()
+	br := a.bridge
+	a.mu.RUnlock()
+	if br == nil {
+		return 0
+	}
+	return br.Port()
+}
+
 // StartServer starts the HTTP bridge on the configured listen port and
 // persists cfg.ServerEnabled=true so the choice survives a restart. Errors
 // when no bridge has been wired or the underlying Start fails. Writes the

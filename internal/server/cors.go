@@ -47,6 +47,13 @@ func WithCORS(next http.Handler, allowedFn func() []string) http.Handler {
 var firstPartyOrigins = []string{
 	"https://composer.boidu.dev",
 	"https://composer.betterlyrics.org",
+	"http://wails.localhost",
+	"https://wails.localhost",
+	"wails://localhost",
+	"http://localhost:5173",
+	"http://localhost:5174",
+	"http://127.0.0.1:5173",
+	"http://127.0.0.1:5174",
 }
 
 func originAllowed(origin string, allowed []string) bool {

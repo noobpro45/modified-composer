@@ -132,7 +132,8 @@ async function fetchViaCobalt(
 }
 
 function fetchTunnel(videoId: string, signal: AbortSignal, ensureAuth: () => Promise<string>): Promise<TunnelResult> {
-  if (useSettingsStore.getState().experiments.youtubeBridge) {
+  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
+  if (isDesktop || useSettingsStore.getState().experiments.youtubeBridge) {
     return fetchViaBridge(videoId, signal);
   }
   return fetchViaCobalt(videoId, signal, ensureAuth);
@@ -146,7 +147,8 @@ function useResolveYouTubeTunnel(): void {
   ensureRef.current = ensureAuth;
 
   const source = useAudioStore((s) => s.source);
-  const bridgeEnabled = useSettingsStore((s) => s.experiments.youtubeBridge);
+  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
+  const bridgeEnabled = isDesktop || useSettingsStore((s) => s.experiments.youtubeBridge);
   const bridgeUrl = useSettingsStore((s) => s.composerBridgeUrl);
   const videoId = source?.type === "youtube" && !source.file ? source.videoId : null;
 

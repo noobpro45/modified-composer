@@ -276,16 +276,8 @@ func main() {
 
 						// Intercept API routes and serve them directly from Wails AssetServer
 						// instead of requiring the frontend to hit localhost:7777
-						if len(r.URL.Path) > 7 && r.URL.Path[:7] == "/audio/" {
-							handlers.Router().ServeHTTP(w, r)
-							return
-						}
-						if len(r.URL.Path) > 7 && r.URL.Path[:7] == "/thumb/" {
-							handlers.Router().ServeHTTP(w, r)
-							return
-						}
-						if r.URL.Path == "/health" {
-							handlers.Router().ServeHTTP(w, r)
+						if strings.HasPrefix(r.URL.Path, "/audio/") || strings.HasPrefix(r.URL.Path, "/thumb/") || r.URL.Path == "/health" {
+							server.WithCORS(handlers.Router(), func() []string { return a.GetConfig().AllowedOrigins }).ServeHTTP(w, r)
 							return
 						}
 						next.ServeHTTP(w, r)

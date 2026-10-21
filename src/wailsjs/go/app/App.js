@@ -10,6 +10,10 @@ export function AutoDownloadToLibrary() {
   return window['go']['app']['App']['AutoDownloadToLibrary']();
 }
 
+export function BridgePort() {
+  return window['go']['app']['App']['BridgePort']();
+}
+
 export function BridgeStatus() {
   return window['go']['app']['App']['BridgeStatus']();
 }

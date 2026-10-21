@@ -14,6 +14,8 @@ export function AudioCacheDir():Promise<string>;
 
 export function AutoDownloadToLibrary():Promise<boolean>;
 
+export function BridgePort():Promise<number>;
+
 export function BridgeStatus():Promise<bridgestate.State>;
 
 export function BridgeVersion():Promise<string>;

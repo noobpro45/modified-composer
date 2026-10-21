@@ -14,7 +14,8 @@ const QUERY_KEY = "composer-bridge-thumb";
 
 function useBridgeThumb(): UseQueryResult<string | null, Error> {
   const source = useAudioStore((s) => s.source);
-  const bridgeEnabled = useSettingsStore((s) => s.experiments.youtubeBridge);
+  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
+  const bridgeEnabled = isDesktop || useSettingsStore((s) => s.experiments.youtubeBridge);
   const bridgeUrl = useSettingsStore((s) => s.composerBridgeUrl);
   const persistedThumb = useProjectStore((s) => s.metadata.thumbnailDataUrl);
   const persistedFor = useProjectStore((s) => s.metadata.thumbnailForVideoId);

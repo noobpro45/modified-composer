@@ -60,7 +60,19 @@ async function checkBridgeHealth(baseUrl: string, signal?: AbortSignal): Promise
   try {
     const isWails = typeof window !== "undefined" && typeof window.go !== "undefined";
     const targetUrl = isWails ? "/health" : `${normalizeBaseUrl(baseUrl)}/health`;
-    const res = await fetch(targetUrl, { signal: composed });
+    let res: Response;
+    try {
+      res = await fetch(targetUrl, { signal: composed });
+      if (!res.ok && isWails && baseUrl) {
+        res = await fetch(`${normalizeBaseUrl(baseUrl)}/health`, { signal: composed });
+      }
+    } catch (err) {
+      if (isWails && baseUrl) {
+        res = await fetch(`${normalizeBaseUrl(baseUrl)}/health`, { signal: composed });
+      } else {
+        throw err;
+      }
+    }
     if (!res.ok) throw new BridgeError("http", `health: ${res.status}`, res.status);
     return (await res.json()) as BridgeHealth;
   } catch (err) {
@@ -80,12 +92,23 @@ async function getAudioFromBridge(baseUrl: string, videoId: string, signal?: Abo
   const composed = composeAbortSignals(signal, controller.signal);
   try {
     const isWails = typeof window !== "undefined" && typeof window.go !== "undefined";
-    const targetUrl = isWails
-      ? `/audio/${encodeURIComponent(videoId)}`
-      : `${normalizeBaseUrl(baseUrl)}/audio/${encodeURIComponent(videoId)}`;
-    const res = await fetch(targetUrl, {
-      signal: composed,
-    });
+    const audioPath = `/audio/${encodeURIComponent(videoId)}`;
+    const targetUrl = isWails ? audioPath : `${normalizeBaseUrl(baseUrl)}${audioPath}`;
+    let res: Response;
+    try {
+      res = await fetch(targetUrl, {
+        signal: composed,
+      });
+      if (!res.ok && isWails && baseUrl) {
+        res = await fetch(`${normalizeBaseUrl(baseUrl)}${audioPath}`, { signal: composed });
+      }
+    } catch (err) {
+      if (isWails && baseUrl) {
+        res = await fetch(`${normalizeBaseUrl(baseUrl)}${audioPath}`, { signal: composed });
+      } else {
+        throw err;
+      }
+    }
     if (!res.ok) throw new BridgeError("http", `bridge audio: ${res.status}`, res.status);
     const buffer = await res.arrayBuffer();
     if (buffer.byteLength === 0) throw new BridgeError("empty", "bridge returned empty audio");
@@ -114,10 +137,25 @@ async function getThumbFromBridge(baseUrl: string, videoId: string, signal?: Abo
   const composed = composeAbortSignals(signal, controller.signal);
   try {
     const isWails = typeof window !== "undefined" && typeof window.go !== "undefined";
-    const targetUrl = isWails
-      ? `/thumb/${encodeURIComponent(videoId)}`
-      : `${normalizeBaseUrl(baseUrl)}/thumb/${encodeURIComponent(videoId)}`;
-    const res = await fetch(targetUrl, { signal: composed });
+    const thumbPath = `/thumb/${encodeURIComponent(videoId)}`;
+    const targetUrl = isWails ? thumbPath : `${normalizeBaseUrl(baseUrl)}${thumbPath}`;
+    let res: Response;
+    try {
+      res = await fetch(targetUrl, { signal: composed });
+      if (!res.ok && isWails && baseUrl) {
+        res = await fetch(`${normalizeBaseUrl(baseUrl)}${thumbPath}`, { signal: composed });
+      }
+    } catch {
+      if (isWails && baseUrl) {
+        try {
+          res = await fetch(`${normalizeBaseUrl(baseUrl)}${thumbPath}`, { signal: composed });
+        } catch {
+          return undefined;
+        }
+      } else {
+        return undefined;
+      }
+    }
     if (!res.ok) return undefined;
     const blob = await res.blob();
     return await new Promise<string>((resolve, reject) => {
