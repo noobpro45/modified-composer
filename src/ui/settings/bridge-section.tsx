@@ -1,3 +1,4 @@
+import { NativeBridgeControls } from "@/ui/settings/native-bridge-controls";
 import { useSettingsStore } from "@/stores/settings";
 import { settingEntry } from "@/stores/settings-catalog";
 import { BridgeInstallGuide } from "@/ui/settings/bridge-install-guide";
@@ -97,6 +98,8 @@ const BridgeStoppedHint: React.FC = () => (
 // -- Section ------------------------------------------------------------------
 
 const BridgeSection: React.FC = () => {
+  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
+
   const enabled = useSettingsStore((s) => s.experiments.youtubeBridge);
   const bridgeUrl = useSettingsStore((s) => s.composerBridgeUrl);
   const setSetting = useSettingsStore((s) => s.set);
@@ -115,10 +118,10 @@ const BridgeSection: React.FC = () => {
   const health = useQuery({
     queryKey: [HEALTH_QUERY_KEY, bridgeUrl],
     queryFn: ({ signal }) => checkBridgeHealth(bridgeUrl, signal),
-    enabled,
+    enabled: enabled && !isDesktop,
     staleTime: 0,
     gcTime: 0,
-    refetchInterval: enabled ? HEALTH_REFETCH_INTERVAL : false,
+    refetchInterval: enabled && !isDesktop ? HEALTH_REFETCH_INTERVAL : false,
     retry: false,
   });
 
@@ -129,6 +132,27 @@ const BridgeSection: React.FC = () => {
   const state: "checking" | "ok" | "error" =
     health.isFetching && !health.data ? "checking" : health.data ? "ok" : "error";
   const errorMessage = health.error instanceof Error ? health.error.message : undefined;
+
+  if (isDesktop) {
+    return (
+      <div data-testid="bridge-section" className="py-2 flex flex-col gap-3">
+        <div className="flex items-start justify-between pb-2 border-b border-composer-border/50">
+          <div className="flex flex-col gap-0.5 pr-4">
+            <span className="text-sm font-medium text-composer-text flex items-center gap-2">
+              Composer Bridge
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-composer-accent/20 text-composer-accent-text">
+                Desktop Native
+              </span>
+            </span>
+            <span className="text-xs text-composer-text-muted">
+              Embedded engine managing YouTube audio downloads, yt-dlp updates, and local audio caching.
+            </span>
+          </div>
+        </div>
+        <NativeBridgeControls />
+      </div>
+    );
+  }
 
   return (
     <div data-testid="bridge-section" className="py-3">
