@@ -121,11 +121,15 @@ const ExportPanel: React.FC = () => {
     return false;
   }, [editedContent]);
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     if (!exportContent || !isExportable()) return;
 
-    downloadText(exportContent, `${sanitizeFileName(title, "lyrics")}.ttml`, "application/ttml+xml;charset=utf-8");
-    useProjectStore.getState().clearUnexportedImport();
+    const saved = await downloadText(
+      exportContent,
+      `${sanitizeFileName(title, "lyrics")}.ttml`,
+      "application/ttml+xml;charset=utf-8",
+    );
+    if (saved) useProjectStore.getState().clearUnexportedImport();
   }, [exportContent, isExportable, title]);
 
   const handleCopy = useCallback(async () => {

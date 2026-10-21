@@ -44,7 +44,7 @@ function* walk(dir: string): Generator<string> {
     const full = join(dir, entry);
     const stat = statSync(full);
     if (stat.isDirectory()) {
-      if (entry === "node_modules" || entry === "dist" || entry === ".git") continue;
+      if (entry === "node_modules" || entry === "dist" || entry === ".git" || entry === "wailsjs") continue;
       yield* walk(full);
     } else if (entry.endsWith(".ts") || entry.endsWith(".tsx")) {
       yield full;

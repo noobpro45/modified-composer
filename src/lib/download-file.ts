@@ -25,12 +25,42 @@ function downloadBlob(blob: Blob, fileName: string): void {
   URL.revokeObjectURL(url);
 }
 
-function downloadText(text: string, fileName: string, type: string): void {
+async function downloadText(text: string, fileName: string, type: string): Promise<boolean> {
+  const app = typeof window !== "undefined" ? window.go?.app?.App : undefined;
+  if (app?.ShowTTMLSaveFileDialog) {
+    try {
+      const defaultDir = await app.DownloadDir();
+      const targetPath = await app.ShowTTMLSaveFileDialog(fileName, defaultDir);
+      if (targetPath) {
+        await app.WriteProjectFile(targetPath, text);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("Wails export failed:", e);
+    }
+  }
   downloadBlob(new Blob([text], { type }), fileName);
+  return true;
 }
 
-function downloadJson(value: unknown, fileName: string): void {
-  downloadText(JSON.stringify(value, null, 2), fileName, "application/json");
+async function downloadJson(value: unknown, fileName: string): Promise<boolean> {
+  const json = JSON.stringify(value, null, 2);
+  const app = typeof window !== "undefined" ? window.go?.app?.App : undefined;
+  if (app?.ShowSaveFileDialog) {
+    try {
+      const defaultDir = await app.DownloadDir();
+      const targetPath = await app.ShowSaveFileDialog(fileName, defaultDir);
+      if (targetPath) {
+        await app.WriteProjectFile(targetPath, json);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("Wails project save failed:", e);
+    }
+  }
+  return downloadText(json, fileName, "application/json");
 }
 
 export { sanitizeFileName, localDateStamp, downloadBlob, downloadText, downloadJson };

@@ -58,7 +58,9 @@ async function checkBridgeHealth(baseUrl: string, signal?: AbortSignal): Promise
   const timeoutId = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
   const composed = composeAbortSignals(signal, controller.signal);
   try {
-    const res = await fetch(`${normalizeBaseUrl(baseUrl)}/health`, { signal: composed });
+    const isWails = typeof window !== "undefined" && typeof window.go !== "undefined";
+    const targetUrl = isWails ? "/health" : `${normalizeBaseUrl(baseUrl)}/health`;
+    const res = await fetch(targetUrl, { signal: composed });
     if (!res.ok) throw new BridgeError("http", `health: ${res.status}`, res.status);
     return (await res.json()) as BridgeHealth;
   } catch (err) {
@@ -77,7 +79,11 @@ async function getAudioFromBridge(baseUrl: string, videoId: string, signal?: Abo
   const timeoutId = setTimeout(() => controller.abort(), AUDIO_TIMEOUT_MS);
   const composed = composeAbortSignals(signal, controller.signal);
   try {
-    const res = await fetch(`${normalizeBaseUrl(baseUrl)}/audio/${encodeURIComponent(videoId)}`, {
+    const isWails = typeof window !== "undefined" && typeof window.go !== "undefined";
+    const targetUrl = isWails
+      ? `/audio/${encodeURIComponent(videoId)}`
+      : `${normalizeBaseUrl(baseUrl)}/audio/${encodeURIComponent(videoId)}`;
+    const res = await fetch(targetUrl, {
       signal: composed,
     });
     if (!res.ok) throw new BridgeError("http", `bridge audio: ${res.status}`, res.status);
@@ -107,7 +113,11 @@ async function getThumbFromBridge(baseUrl: string, videoId: string, signal?: Abo
   const timeoutId = setTimeout(() => controller.abort(), THUMB_TIMEOUT_MS);
   const composed = composeAbortSignals(signal, controller.signal);
   try {
-    const res = await fetch(`${normalizeBaseUrl(baseUrl)}/thumb/${encodeURIComponent(videoId)}`, { signal: composed });
+    const isWails = typeof window !== "undefined" && typeof window.go !== "undefined";
+    const targetUrl = isWails
+      ? `/thumb/${encodeURIComponent(videoId)}`
+      : `${normalizeBaseUrl(baseUrl)}/thumb/${encodeURIComponent(videoId)}`;
+    const res = await fetch(targetUrl, { signal: composed });
     if (!res.ok) return undefined;
     const blob = await res.blob();
     return await new Promise<string>((resolve, reject) => {

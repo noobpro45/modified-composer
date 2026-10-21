@@ -158,3 +158,14 @@ htdemucs-onnx-out/
 
 # JetBrains IDEs
 .idea/
+
+# Bloat / Scratch
+build/bin/
+*.exe
+*.exe~
+*.m4a
+*.mp3
+*.opus
+scratch/
+dump_db.go
+package.json.md5

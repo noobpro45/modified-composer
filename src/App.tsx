@@ -104,6 +104,33 @@ const AppShell: React.FC = () => {
     [],
   );
 
+  const isDirty = useProjectStore((s) => s.isDirty);
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.go?.app?.App?.SetHasUnsavedChanges) {
+      window.go.app.App.SetHasUnsavedChanges(isDirty);
+    }
+  }, [isDirty]);
+
+  useEffect(() => {
+    const app = typeof window !== "undefined" ? window.go?.app?.App : undefined;
+    if (!app?.GetStartupProjectFilePath) return;
+    app.GetStartupProjectFilePath().then(async (path: string) => {
+      if (!path) return;
+      try {
+        const text = await app.ReadProjectFile(path);
+        const { parseProjectFileContents } = await import("@/lib/project-file-read");
+        const { importProjectContents } = await import("@/lib/project-import");
+        const contents = parseProjectFileContents(text);
+        const id = await importProjectContents(contents);
+        if (id) {
+          navigate(EDITOR_PATH);
+        }
+      } catch (e) {
+        console.error("Failed to load startup project:", e);
+      }
+    });
+  }, [navigate]);
+
   usePersistence();
   useStorageMaintenance();
   useLanguageAutoRefresh();

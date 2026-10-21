@@ -11,6 +11,7 @@ const SRC_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function* walkSourceFiles(root: string): Generator<string> {
   for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (entry.name === "wailsjs") continue;
     const full = join(root, entry.name);
     if (entry.isDirectory()) yield* walkSourceFiles(full);
     else if (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx")) yield full;
