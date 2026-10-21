@@ -1,16 +1,19 @@
 import { useBridgeConfig } from "@/hooks/use-bridge-config";
 import { Button } from "@/ui/button";
+import { IconButton } from "@/ui/icon-button";
 import { Select } from "@/ui/select";
+import { BridgeLogModal } from "@/ui/settings/bridge-log-modal";
 import { SettingRow, ToggleSwitch } from "@/ui/settings/native-bridge-row";
+import { SettingsGroup } from "@/ui/settings/setting-controls";
 import { cn } from "@/utils/cn";
 import {
   IconCheck,
+  IconFileText,
   IconFolder,
   IconLoader2,
   IconRefresh,
   IconTrash,
   IconUpload,
-  IconFileText,
 } from "@tabler/icons-react";
 import type React from "react";
 import { useRef, useState } from "react";
@@ -28,12 +31,12 @@ export const NativeBridgeControls: React.FC = () => {
     chooseDownloadDir,
     uploadCookies,
     removeCookies,
-    openLogFile,
     forceUpdateYtdlp,
   } = useBridgeConfig();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [updatingYtdlp, setUpdatingYtdlp] = useState(false);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
 
   if (!loaded || !config) {
     return (
@@ -73,180 +76,197 @@ export const NativeBridgeControls: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-1 text-composer-text">
-      <SettingRow
-        title="Bridge Server"
-        description={isServerRunning ? "Server is listening on localhost" : "Server is currently stopped"}
-      >
-        <div className="flex items-center gap-3">
-          <span
-            className={cn(
-              "text-xs px-2 py-0.5 rounded font-mono",
-              isServerRunning
-                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                : "bg-composer-bg text-composer-text-muted",
-            )}
-          >
-            {isServerRunning ? `port ${config.listen_port}` : "stopped"}
-          </span>
-          <ToggleSwitch checked={isServerRunning} onChange={toggleServer} label="Toggle bridge server" />
-        </div>
-      </SettingRow>
+    <div className="flex flex-col text-composer-text">
+      <SettingsGroup title="Bridge Service">
+        <SettingRow
+          title="Bridge Server"
+          description={
+            isServerRunning
+              ? "Background service is active and listening on localhost."
+              : "Background service is currently stopped."
+          }
+        >
+          <div className="flex items-center gap-3">
+            <span
+              className={cn(
+                "text-xs px-2 py-0.5 rounded-md font-mono transition-colors",
+                isServerRunning
+                  ? "bg-composer-positive/15 text-composer-positive border border-composer-positive/30"
+                  : "bg-composer-input text-composer-text-muted border border-composer-border",
+              )}
+            >
+              {isServerRunning ? `port ${config.listen_port}` : "stopped"}
+            </span>
+            <ToggleSwitch checked={isServerRunning} onChange={toggleServer} label="Toggle bridge server" />
+          </div>
+        </SettingRow>
 
-      <SettingRow
-        title="Listen Port"
-        description="Port for external tools and browser extensions to connect to the Bridge."
-      >
-        <input
-          type="number"
-          min={1}
-          max={65535}
-          value={config.listen_port}
-          onChange={(e) => update("listen_port", Number(e.target.value))}
-          className="h-7 w-20 px-2 text-xs rounded bg-composer-bg border border-composer-border text-composer-text text-right"
-        />
-      </SettingRow>
-
-      <SettingRow
-        title="Use random port if busy"
-        description="Avoid startup failures if another program occupies the preferred port."
-      >
-        <ToggleSwitch
-          checked={config.use_random_if_busy}
-          onChange={() => update("use_random_if_busy", !config.use_random_if_busy)}
-          label="Random port fallback"
-        />
-      </SettingRow>
-
-      <SettingRow
-        title="yt-dlp update channel"
-        description="Which release track to track for automated yt-dlp binary updates."
-      >
-        <div className="flex items-center gap-2">
-          <Select
-            value={config.ytdlp_channel || "stable"}
-            onChange={(val) => update("ytdlp_channel", val)}
-            options={[
-              { value: "stable", label: "Stable" },
-              { value: "nightly", label: "Nightly" },
-              { value: "off", label: "Disabled" },
-            ]}
+        <SettingRow
+          title="Listen Port"
+          description="Port for external tools and browser extensions to connect to the Bridge."
+        >
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            value={config.listen_port}
+            onChange={(e) => update("listen_port", Number(e.target.value))}
+            className="h-7.5 w-20 px-2.5 text-xs font-mono rounded-lg bg-composer-input border border-composer-border text-composer-text text-right focus:outline-none focus:border-composer-border-hover transition-colors"
           />
+        </SettingRow>
+
+        <SettingRow
+          title="Use random port if busy"
+          description="Avoid startup failures if another program occupies the preferred port."
+        >
+          <ToggleSwitch
+            checked={config.use_random_if_busy}
+            onChange={() => update("use_random_if_busy", !config.use_random_if_busy)}
+            label="Random port fallback"
+          />
+        </SettingRow>
+      </SettingsGroup>
+
+      <SettingsGroup title="YouTube & Audio Downloads">
+        <SettingRow
+          title="yt-dlp update channel"
+          description="Which release track to track for automated yt-dlp binary updates."
+        >
+          <div className="flex items-center gap-2">
+            <Select
+              value={config.ytdlp_channel || "stable"}
+              onChange={(val) => update("ytdlp_channel", val)}
+              options={[
+                { value: "stable", label: "Stable" },
+                { value: "nightly", label: "Nightly" },
+                { value: "off", label: "Disabled" },
+              ]}
+            />
+            <IconButton
+              label="Check for yt-dlp update now"
+              icon={<IconRefresh size={14} className={updatingYtdlp ? "animate-spin" : ""} />}
+              variant="secondary"
+              onClick={handleForceUpdateYtdlp}
+              disabled={updatingYtdlp}
+            />
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          title="Custom yt-dlp binary path"
+          description="Override with your own yt-dlp executable path. Leave empty to use the managed binary."
+        >
+          <input
+            type="text"
+            value={config.ytdlp_binary_path || ""}
+            onChange={(e) => update("ytdlp_binary_path", e.target.value)}
+            placeholder="Managed yt-dlp"
+            className="h-7.5 w-56 px-2.5 text-xs rounded-lg bg-composer-input border border-composer-border text-composer-text placeholder:text-composer-text-muted focus:outline-none focus:border-composer-border-hover transition-colors"
+          />
+        </SettingRow>
+
+        <SettingRow
+          title="Default Save Directory"
+          description="Folder for downloaded YouTube audio files and project exports."
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className="text-xs font-mono text-composer-text-muted truncate max-w-[180px]"
+              title={config.download_dir || "Default (library cache)"}
+            >
+              {config.download_dir || "Default"}
+            </span>
+            <Button size="sm" variant="secondary" hasIcon onClick={chooseDownloadDir}>
+              <IconFolder size={14} />
+              Browse…
+            </Button>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          title="Cache streams for offline replay"
+          description="Automatically store streamed tracks to local library cache for instant replay."
+        >
+          <ToggleSwitch
+            checked={config.auto_download_to_library}
+            onChange={() => update("auto_download_to_library", !config.auto_download_to_library)}
+            label="Auto download to library"
+          />
+        </SettingRow>
+
+        <SettingRow
+          title="YouTube Cookies (cookies.txt)"
+          description="Upload cookies from your browser to bypass YouTube age gates and bot verification."
+        >
+          <div className="flex items-center gap-2">
+            <input ref={fileInputRef} type="file" accept=".txt" onChange={handleCookieFileChange} className="hidden" />
+            {cookiesStatus?.present ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-composer-positive flex items-center gap-1 font-medium">
+                  <IconCheck size={14} />
+                  Loaded
+                </span>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  hasIcon
+                  onClick={removeCookies}
+                  title="Remove cookies"
+                  className="bg-composer-negative/10"
+                >
+                  <IconTrash size={14} />
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="secondary" hasIcon onClick={() => fileInputRef.current?.click()}>
+                <IconUpload size={14} />
+                Upload…
+              </Button>
+            )}
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          title="Prefer Premium Audio"
+          description="Request higher quality audio streams from YouTube Music (requires active YouTube cookies)."
+        >
+          <ToggleSwitch
+            checked={config.prefer_premium_audio}
+            onChange={() => update("prefer_premium_audio", !config.prefer_premium_audio)}
+            label="Prefer premium audio"
+          />
+        </SettingRow>
+      </SettingsGroup>
+
+      <SettingsGroup title="Diagnostics & Maintenance">
+        <SettingRow
+          title="Diagnostics & Logs"
+          description="Inspect bridge activity, copy system diagnostics, and configure recording verbosity."
+        >
           <Button
             size="sm"
-            variant="ghost"
-            onClick={handleForceUpdateYtdlp}
-            disabled={updatingYtdlp}
-            title="Check for yt-dlp update now"
+            variant="secondary"
+            hasIcon
+            onClick={() => setIsLogModalOpen(true)}
+            title="Open bridge diagnostics and logs"
           >
-            <IconRefresh size={14} className={updatingYtdlp ? "animate-spin" : ""} />
+            <IconFileText size={14} />
+            View logs
           </Button>
-        </div>
-      </SettingRow>
-
-      <SettingRow
-        title="Custom yt-dlp binary path"
-        description="Override with your own yt-dlp executable path. Leave empty to use the managed binary."
-      >
-        <input
-          type="text"
-          value={config.ytdlp_binary_path || ""}
-          onChange={(e) => update("ytdlp_binary_path", e.target.value)}
-          placeholder="Managed yt-dlp"
-          className="h-7 w-48 px-2 text-xs rounded bg-composer-bg border border-composer-border text-composer-text placeholder:text-composer-text-muted"
-        />
-      </SettingRow>
-
-      <SettingRow
-        title="Default Save Directory"
-        description="Folder for downloaded YouTube audio files and project exports."
-      >
-        <div className="flex items-center gap-2">
-          <span
-            className="text-xs font-mono text-composer-text-muted truncate max-w-[180px]"
-            title={config.download_dir || "Default (library cache)"}
-          >
-            {config.download_dir || "Default"}
-          </span>
-          <Button size="sm" variant="ghost" onClick={chooseDownloadDir}>
-            <IconFolder size={14} className="mr-1.5" />
-            Browse…
-          </Button>
-        </div>
-      </SettingRow>
-
-      <SettingRow
-        title="Cache streams for offline replay"
-        description="Automatically store streamed tracks to local library cache for instant replay."
-      >
-        <ToggleSwitch
-          checked={config.auto_download_to_library}
-          onChange={() => update("auto_download_to_library", !config.auto_download_to_library)}
-          label="Auto download to library"
-        />
-      </SettingRow>
-
-      <SettingRow
-        title="YouTube Cookies (cookies.txt)"
-        description="Upload cookies from your browser to bypass YouTube age gates and bot verification."
-      >
-        <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" accept=".txt" onChange={handleCookieFileChange} className="hidden" />
-          {cookiesStatus?.present ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-emerald-400 flex items-center gap-1">
-                <IconCheck size={12} />
-                Loaded
-              </span>
-              <Button size="sm" variant="ghost" onClick={removeCookies} title="Remove cookies">
-                <IconTrash size={14} />
-              </Button>
-            </div>
-          ) : (
-            <Button size="sm" variant="ghost" onClick={() => fileInputRef.current?.click()}>
-              <IconUpload size={14} className="mr-1.5" />
-              Upload…
-            </Button>
-          )}
-        </div>
-      </SettingRow>
-
-      <SettingRow
-        title="Prefer Premium Audio"
-        description="Request higher quality audio streams from YouTube Music (requires active YouTube cookies)."
-      >
-        <ToggleSwitch
-          checked={config.prefer_premium_audio}
-          onChange={() => update("prefer_premium_audio", !config.prefer_premium_audio)}
-          label="Prefer premium audio"
-        />
-      </SettingRow>
-
-      <SettingRow
-        title="Log Level & Diagnostics"
-        description="How much diagnostic detail to record in bridge.log for troubleshooting."
-      >
-        <div className="flex items-center gap-2">
-          <Select
-            value={config.log_level || "info"}
-            onChange={(val) => update("log_level", val)}
-            options={[
-              { value: "error", label: "Errors only" },
-              { value: "warn", label: "Warnings" },
-              { value: "info", label: "Info" },
-              { value: "debug", label: "Debug" },
-            ]}
-          />
-          <Button size="sm" variant="ghost" onClick={openLogFile} title="Open bridge.log in default text editor">
-            <IconFileText size={14} className="mr-1.5" />
-            View log
-          </Button>
-        </div>
-      </SettingRow>
+        </SettingRow>
+      </SettingsGroup>
 
       {saveStatus === "saving" && (
         <div className="pt-2 text-right text-xs text-composer-text-muted">Saving changes…</div>
       )}
+
+      <BridgeLogModal
+        isOpen={isLogModalOpen}
+        onClose={() => setIsLogModalOpen(false)}
+        logLevel={config.log_level}
+        onLogLevelChange={(val) => update("log_level", val)}
+      />
     </div>
   );
 };

@@ -1,5 +1,7 @@
 import type { LyricsSearchResult } from "@/domain/lyrics-search/result";
+import { useAudioStore } from "@/stores/audio";
 import { type ImportModalSection, useImportModalState, useImportModalStore } from "@/stores/import-modal-store";
+import { useProjectStore } from "@/stores/project";
 import { Button } from "@/ui/button";
 import { Modal } from "@/ui/modal";
 import { isAbortError } from "@/utils/abort-error";
@@ -13,6 +15,7 @@ import {
 import { importLyrics, useImportContext } from "@/views/lyrics-import-modal/import-lyrics";
 import { importLyricsFile, importLyricsText } from "@/views/lyrics-import-modal/import-lyrics-source";
 import { PasteSection } from "@/views/lyrics-import-modal/paste-section";
+import { buildProjectPrefill } from "@/views/lyrics-import-modal/project-prefill";
 import { SearchSection } from "@/views/lyrics-import-modal/search-section";
 import { payloadToContent, syntheticFilenameForResult } from "@/views/lyrics-import-modal/shell-helpers";
 import { UploadSection } from "@/views/lyrics-import-modal/upload-section";
@@ -26,6 +29,13 @@ import { toast } from "sonner";
 const LyricsImportModalShell: React.FC = () => {
   const { prefill, initialSection } = useImportModalState();
   const importContext = useImportContext("File");
+  const metadata = useProjectStore((s) => s.metadata);
+  const audioSource = useAudioStore((s) => s.source);
+
+  const effectivePrefill = useMemo(
+    () => prefill ?? buildProjectPrefill(metadata, audioSource, importContext.audioDuration),
+    [prefill, metadata, audioSource, importContext.audioDuration],
+  );
 
   const [currentSection, setCurrentSection] = useState<ImportModalSection>(initialSection ?? "search");
   const [pasteText, setPasteText] = useState("");
@@ -146,7 +156,7 @@ const LyricsImportModalShell: React.FC = () => {
     if (currentSection === "search") {
       return (
         <SearchSection
-          initialPrefill={prefill}
+          initialPrefill={effectivePrefill}
           expectedDurationSec={expectedDurationSec}
           onSelect={handleSearchSelect}
           onSwitchToPaste={switchToPaste}
@@ -173,7 +183,7 @@ const LyricsImportModalShell: React.FC = () => {
     handleFilePicked,
     handleSearchSelect,
     pasteText,
-    prefill,
+    effectivePrefill,
     switchToPaste,
     switchToSearch,
     switchToUpload,

@@ -137,6 +137,20 @@ describe("LyricsImportModal section selection", () => {
     await expect.poll(() => track.value).toBe("Bohemian Rhapsody");
     expect(artist.value).toBe("Queen");
   });
+
+  it("populates search inputs from active project metadata when prefill is omitted", async () => {
+    useProjectStore.getState().setMetadata({
+      title: "Sukidakara (Re-Recording)",
+      artists: ["Yuika"],
+    });
+    const screen = await render(withQueryClient(<LyricsImportModalHost />));
+    openModal();
+    await expect.element(screen.getByLabelText("Track")).toBeInTheDocument();
+    const track = screen.getByLabelText("Track").element() as HTMLInputElement;
+    const artist = screen.getByLabelText("Artist").element() as HTMLInputElement;
+    await expect.poll(() => track.value).toBe("Sukidakara (Re-Recording)");
+    expect(artist.value).toBe("Yuika");
+  });
 });
 
 describe("LyricsImportModal section switching", () => {

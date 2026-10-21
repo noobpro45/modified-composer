@@ -46,7 +46,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ screen, onSettingsOpen, onHelpOpe
 
   return (
     <header
-      className="flex items-center justify-between gap-4 p-4 border-b select-none border-composer-border"
+      className="flex items-center justify-between gap-4 h-16 px-4 border-b select-none border-composer-border bg-composer-bg shrink-0"
       style={isWails ? ({ "--wails-draggable": "drag" } as React.CSSProperties) : undefined}
     >
       <div style={isWails ? ({ "--wails-draggable": "no-drag" } as React.CSSProperties) : undefined}>

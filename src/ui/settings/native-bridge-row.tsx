@@ -1,18 +1,23 @@
+import { SettingRowLayout } from "@/ui/settings/setting-row-layout";
 import { cn } from "@/utils/cn";
 import type React from "react";
 
 export const SettingRow: React.FC<{
   title: string;
-  description: string;
+  description: React.ReactNode;
   children: React.ReactNode;
-}> = ({ title, description, children }) => (
-  <div className="flex items-center justify-between py-3 border-b border-composer-border/40 last:border-b-0">
-    <div className="flex flex-col gap-0.5 pr-4 flex-1">
-      <span className="text-sm font-medium text-composer-text">{title}</span>
-      <span className="text-xs text-composer-text-muted">{description}</span>
+  badge?: React.ReactNode;
+}> = ({ title, description, children, badge }) => (
+  <SettingRowLayout>
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <span className="flex items-center gap-2 text-sm font-medium text-composer-text">
+        <span>{title}</span>
+        {badge}
+      </span>
+      <span className="text-xs text-composer-text-muted text-pretty">{description}</span>
     </div>
-    <div className="shrink-0">{children}</div>
-  </div>
+    {children}
+  </SettingRowLayout>
 );
 
 export const ToggleSwitch: React.FC<{

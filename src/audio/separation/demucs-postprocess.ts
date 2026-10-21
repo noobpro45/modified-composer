@@ -70,11 +70,15 @@ function denormalizeDemucsOutput(channels: Float32Array[], normalized: Normaliza
 
 // -- Stem extraction ----------------------------------------------------------
 
-function extractVocalsStem(timeTensor: TensorLike, freqTensor: TensorLike): Float32Array[] {
+function extractVocalsStem(timeTensor: TensorLike, freqTensor?: TensorLike): Float32Array[] {
   const timeData = timeTensor.data;
   const stemStride = 2 * SEGMENT_SAMPLES;
   const channelStride = SEGMENT_SAMPLES;
   const base = STEM_INDEX_VOCALS * stemStride;
+
+  if (!freqTensor) {
+    return [timeData.slice(base, base + channelStride), timeData.slice(base + channelStride, base + 2 * channelStride)];
+  }
 
   const freqSourceStride = MAGSPEC_CHANNELS * NUM_FREQ_BINS * NUM_TIME_FRAMES;
   const freqBase = STEM_INDEX_VOCALS * freqSourceStride;

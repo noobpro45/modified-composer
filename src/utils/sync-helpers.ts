@@ -3,6 +3,7 @@ import type { LyricLine } from "@/domain/line/model";
 import type { AnchorUndo } from "@/domain/sync/anchor-gesture";
 import type { SyncCursor } from "@/domain/sync/cursor";
 import type { ReRecording } from "@/domain/sync/skipped-instances";
+import { convertLineToWordsSmart } from "@/domain/word/line-to-words";
 import type { WordTiming } from "@/domain/word/timing";
 import { useSettingsStore } from "@/stores/settings";
 import { formatTime } from "@/utils/format-time";
@@ -78,25 +79,29 @@ interface ConvertibleLine {
   begin?: number;
   end?: number;
   words?: WordTiming[];
+  transliteration?: { text: string } | string;
 }
 
-function convertLineToWord<T extends ConvertibleLine>(line: T): T {
+function convertLineToWord<T extends ConvertibleLine>(
+  line: T,
+  options?: { onsets?: readonly number[]; evenly?: boolean },
+): T {
   if (line.words?.length) return line;
   if (line.begin === undefined || line.end === undefined) return line;
 
-  const lineBegin = line.begin;
-  const lineEnd = line.end;
-  const { parts: wordTexts, trailingSpace } = splitIntoWordsWithMeta(line.text);
-  if (wordTexts.length === 0) return line;
+  const transliterationText =
+    typeof line.transliteration === "string" ? line.transliteration : line.transliteration?.text;
 
-  const duration = lineEnd - lineBegin;
-  const wordDuration = duration / wordTexts.length;
-
-  const words: WordTiming[] = wordTexts.map((text, i) => ({
-    text: trailingSpace[i] ? `${text} ` : text,
-    begin: lineBegin + i * wordDuration,
-    end: lineBegin + (i + 1) * wordDuration,
-  }));
+  const words = convertLineToWordsSmart({
+    text: line.text,
+    begin: line.begin,
+    end: line.end,
+    onsets: options?.onsets,
+    transliterationText,
+    splitCharacter: getSplitCharacter(),
+    evenly: options?.evenly,
+  });
+  if (words.length === 0) return line;
 
   return { ...line, words, begin: undefined, end: undefined };
 }

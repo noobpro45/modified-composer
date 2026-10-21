@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -1031,10 +1032,42 @@ func (a *App) DownloadAudio(videoID string) (*library.Track, error) {
 	return a.library.GetTrack(videoID)
 }
 
-// OpenLogFile returns the absolute path to the bridge log file. The frontend
-// opens it via the OS shell using the Wails runtime BrowserOpenURL helper.
+// OpenLogFile opens the bridge log file in the OS default text editor and returns its path.
 func (a *App) OpenLogFile() string {
-	return "file://" + a.logPath
+	switch runtime.GOOS {
+	case "windows":
+		_ = exec.Command("notepad.exe", a.logPath).Start()
+	case "darwin":
+		_ = exec.Command("open", a.logPath).Start()
+	default:
+		_ = exec.Command("xdg-open", a.logPath).Start()
+	}
+	return a.logPath
+}
+
+// ReadLogFile reads and returns the full contents of bridge.log.
+func (a *App) ReadLogFile() (string, error) {
+	data, err := os.ReadFile(a.logPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return string(data), nil
+}
+
+// OpenLogFolder opens the folder containing bridge.log in the OS file explorer.
+func (a *App) OpenLogFolder() {
+	dir := filepath.Dir(a.logPath)
+	switch runtime.GOOS {
+	case "windows":
+		_ = exec.Command("explorer.exe", dir).Start()
+	case "darwin":
+		_ = exec.Command("open", dir).Start()
+	default:
+		_ = exec.Command("xdg-open", dir).Start()
+	}
 }
 
 // BuildDiagnosticReport produces a copy-pasteable diagnostics string covering

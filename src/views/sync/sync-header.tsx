@@ -9,7 +9,7 @@ import { IconLanguage, IconLock, IconLockOpen, IconPlayerPlayFilled, IconRefresh
 
 interface SyncHeaderProps {
   progressText: string;
-  textVariant: "original" | "transliteration";
+  textVariant: "original" | "transliteration" | "both";
   hasTransliteration: boolean;
   toggleTextVariant: () => void;
   granularity: "line" | "word";
@@ -54,13 +54,13 @@ const SyncHeader: React.FC<SyncHeaderProps> = ({
         <Button
           hasIcon
           size="sm"
-          variant={textVariant === "transliteration" ? "primary" : "ghost"}
+          variant={textVariant !== "original" ? "primary" : "ghost"}
           disabled={!hasTransliteration}
           onClick={toggleTextVariant}
-          title="Toggle original / transliteration text"
+          title="Toggle original / transliteration / both text"
         >
           <IconLanguage className="size-4" />
-          {textVariant === "transliteration" ? "Transliteration" : "Original"}
+          {textVariant === "both" ? "Both" : textVariant === "transliteration" ? "Transliteration" : "Original"}
           {showShortcutHints && <InlineKeyBadge keys={getEffectiveKeysArray("sync.toggleTextVariant")} />}
         </Button>
         <SegmentedControl

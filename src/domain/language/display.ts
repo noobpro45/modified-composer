@@ -9,7 +9,7 @@ import type { WordTiming } from "@/domain/word/timing";
 import { stripSplitCharacter } from "@/utils/split-character";
 import { splitIntoWordsWithMeta } from "@/utils/sync-helpers";
 
-type LanguageTextVariant = "original" | "transliteration";
+type LanguageTextVariant = "original" | "transliteration" | "both";
 
 interface LanguageDisplayLine {
   text: string;
@@ -18,6 +18,8 @@ interface LanguageDisplayLine {
   backgroundWords?: WordTiming[];
   wordTexts?: string[];
   backgroundWordTexts?: string[];
+  transliterationWordTexts?: string[];
+  backgroundTransliterationWordTexts?: string[];
 }
 
 function sourceSlots(text: string): WordTiming[] {
@@ -101,22 +103,35 @@ function getLanguageDisplayLine(line: LyricLine, variant: LanguageTextVariant): 
     }),
   );
 
+  const transWordTexts = line.transliteration.text
+    ? displayTrackTexts(line.text, alignedLine.words, sourceLine.words)
+    : undefined;
+
+  const bgTransWordTexts =
+    line.backgroundText && line.transliteration.backgroundText
+      ? displayTrackTexts(line.backgroundText, alignedLine.backgroundWords, sourceLine.backgroundWords)
+      : undefined;
+
   return {
-    text: line.transliteration.text ? normalizeTransliterationForEditing(line.transliteration.text) : line.text,
-    backgroundText: line.transliteration.backgroundText
-      ? normalizeTransliterationForEditing(line.transliteration.backgroundText)
-      : line.backgroundText,
+    text:
+      variant === "both" && line.transliteration.text
+        ? `${line.text} (${normalizeTransliterationForEditing(line.transliteration.text)})`
+        : line.transliteration.text
+          ? normalizeTransliterationForEditing(line.transliteration.text)
+          : line.text,
+    backgroundText:
+      variant === "both" && line.transliteration.backgroundText && line.backgroundText
+        ? `${line.backgroundText} (${normalizeTransliterationForEditing(line.transliteration.backgroundText)})`
+        : line.transliteration.backgroundText
+          ? normalizeTransliterationForEditing(line.transliteration.backgroundText)
+          : line.backgroundText,
     words: alignedLine.words,
     backgroundWords: alignedLine.backgroundWords,
-    wordTexts: line.transliteration.text
-      ? displayTrackTexts(line.text, alignedLine.words, sourceLine.words)
-      : undefined,
-    backgroundWordTexts:
-      line.backgroundText && line.transliteration.backgroundText
-        ? displayTrackTexts(line.backgroundText, alignedLine.backgroundWords, sourceLine.backgroundWords)
-        : undefined,
+    wordTexts: transWordTexts,
+    backgroundWordTexts: bgTransWordTexts,
+    transliterationWordTexts: transWordTexts,
+    backgroundTransliterationWordTexts: bgTransWordTexts,
   };
 }
 
 export { getLanguageDisplayLine };
-export type { LanguageDisplayLine, LanguageTextVariant };

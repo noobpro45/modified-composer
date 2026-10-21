@@ -106,8 +106,16 @@ export function OpenLogFile() {
   return window['go']['app']['App']['OpenLogFile']();
 }
 
+export function OpenLogFolder() {
+  return window['go']['app']['App']['OpenLogFolder']();
+}
+
 export function PreferPremiumAudio() {
   return window['go']['app']['App']['PreferPremiumAudio']();
+}
+
+export function ReadLogFile() {
+  return window['go']['app']['App']['ReadLogFile']();
 }
 
 export function ReadProjectFile(arg1) {

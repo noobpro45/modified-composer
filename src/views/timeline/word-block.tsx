@@ -14,6 +14,8 @@ interface WordBlockProps {
   wordIndex: number;
   trackType: "word" | "bg";
   text: string;
+  transliteration?: string;
+  showBoth?: boolean;
   begin: number;
   end: number;
   color: string;
@@ -68,6 +70,8 @@ const WordBlock: React.FC<WordBlockProps> = ({
   wordIndex,
   trackType,
   text,
+  transliteration,
+  showBoth,
   begin,
   end,
   color,
@@ -94,6 +98,7 @@ const WordBlock: React.FC<WordBlockProps> = ({
   const naturalWidth = (end - begin) * zoom;
   const width = Math.max(naturalWidth, 4);
   const showText = naturalWidth >= 20;
+  const canShowBoth = showBoth && Boolean(transliteration) && naturalWidth >= 28;
 
   const myKey = selfKey(lineId, wordIndex, trackType);
   const isSnapped = useTimelineStore((s) => s.snappedBlockId === myKey);
@@ -170,7 +175,17 @@ const WordBlock: React.FC<WordBlockProps> = ({
         onEdgeHover={onEdgeHover}
       />
 
-      {showText && <span className="px-1 pointer-events-none truncate">{text}</span>}
+      {showText &&
+        (canShowBoth && transliteration ? (
+          <div className="flex flex-col items-center justify-center leading-none px-1 pointer-events-none overflow-hidden max-w-full">
+            <span className="text-[11px] font-medium truncate max-w-full leading-tight">{text}</span>
+            <span className="text-[9px] text-composer-accent font-mono truncate max-w-full leading-tight opacity-90">
+              {transliteration}
+            </span>
+          </div>
+        ) : (
+          <span className="px-1 pointer-events-none truncate">{text}</span>
+        ))}
 
       <WordEdgeHandle
         edge="right"

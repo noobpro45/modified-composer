@@ -10,6 +10,18 @@ describe("rollingEditMode", () => {
   });
 });
 
+describe("textVariant", () => {
+  it("cycles through original -> transliteration -> both -> original", () => {
+    useTimelineStore.setState({ textVariant: "original" });
+    useTimelineStore.getState().toggleTextVariant();
+    expect(useTimelineStore.getState().textVariant).toBe("transliteration");
+    useTimelineStore.getState().toggleTextVariant();
+    expect(useTimelineStore.getState().textVariant).toBe("both");
+    useTimelineStore.getState().toggleTextVariant();
+    expect(useTimelineStore.getState().textVariant).toBe("original");
+  });
+});
+
 describe("markerMode", () => {
   beforeEach(() => {
     useTimelineStore.setState({ markerMode: false });

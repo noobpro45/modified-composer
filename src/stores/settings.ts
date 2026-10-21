@@ -16,6 +16,8 @@ type GranularityDefault = "word" | "line";
 type LinkedDivergenceAction = "ask" | "apply" | "detach";
 type PreviewRenderer = "braccato" | "am-lyrics";
 type VocalModelVariant = "fp16" | "fp32";
+type LanguageAutoGenerate = "auto" | "manual";
+type RomanizationCase = "preserve" | "lowercase";
 
 interface ExperimentFlags {
   youtubeBridge: boolean;
@@ -83,6 +85,9 @@ interface SettingsState {
   autoExtractBackgroundVocals: boolean;
   mergeStandaloneBackgroundLines: boolean;
   preserveBracketsOnExtraction: boolean;
+  languageAutoGenerate: LanguageAutoGenerate;
+  languageDefaultTarget: string;
+  romanizationCase: RomanizationCase;
 
   confirmReplaceLyrics: boolean;
   confirmSyncReset: boolean;
@@ -168,6 +173,9 @@ const DEFAULTS: SettingsState = {
   autoExtractBackgroundVocals: true,
   mergeStandaloneBackgroundLines: true,
   preserveBracketsOnExtraction: true,
+  languageAutoGenerate: "auto",
+  languageDefaultTarget: "en",
+  romanizationCase: "preserve",
 
   confirmReplaceLyrics: true,
   confirmSyncReset: true,
@@ -282,4 +290,4 @@ export {
   getActiveCobaltInstance,
   isUsingDefaultCobaltInstance,
 };
-export type { SettingsState, CobaltInstanceStatus, VocalModelVariant };
+export type { SettingsState, CobaltInstanceStatus, VocalModelVariant, LanguageAutoGenerate, RomanizationCase };

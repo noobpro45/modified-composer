@@ -14,6 +14,7 @@ const LANGUAGE_OPTIONS = [
   ["ru", "Russian"],
   ["tr", "Turkish"],
   ["vi", "Vietnamese"],
+  ["id", "Indonesian"],
 ] as const;
 
 const SOURCE_LANGUAGE_OPTIONS = [
