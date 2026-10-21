@@ -10,6 +10,7 @@ interface LanguageGenerationRequest {
   transliteration: boolean;
   sourceLanguage: string;
   signal: AbortSignal;
+  romanizationCase?: "preserve" | "lowercase";
 }
 
 interface LanguageGenerationResult {
@@ -23,7 +24,7 @@ interface LanguageGenerationResult {
 
 async function requestLanguageGeneration(
   lines: readonly LyricLine[],
-  { translations, transliteration, sourceLanguage, signal }: LanguageGenerationRequest,
+  { translations, transliteration, sourceLanguage, signal, romanizationCase }: LanguageGenerationRequest,
 ): Promise<LanguageGenerationResult> {
   const { mainInputs, bgInputs } = languageGenerationInputs(lines);
   const [romanizationResults, translationResults] = await Promise.all([
@@ -41,13 +42,29 @@ async function requestLanguageGeneration(
     ),
   ]);
   const [romanMain, romanBg] = romanizationResults ?? [];
+  const formatRoman = <
+    T extends { text: string | null; segments: Array<{ original: string; transliteration: string }> },
+  >(
+    result: T,
+  ): T =>
+    romanizationCase === "lowercase"
+      ? {
+          ...result,
+          text: result.text ? result.text.toLowerCase() : null,
+          segments: result.segments.map((seg) => ({
+            original: seg.original,
+            transliteration: seg.transliteration.toLowerCase(),
+          })),
+        }
+      : result;
+
   return {
     transliteration: romanMain
       ? {
           language: romanMain.language,
           backgroundLanguage: romanBg?.language,
-          main: new Map(romanMain.lines.map((result) => [result.id, result])),
-          background: new Map(romanBg?.lines.map((result) => [result.id, result]) ?? []),
+          main: new Map(romanMain.lines.map((result) => [result.id, formatRoman(result)])),
+          background: new Map(romanBg?.lines.map((result) => [result.id, formatRoman(result)]) ?? []),
         }
       : undefined,
     translations: translations.map((language, index) => ({

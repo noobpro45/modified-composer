@@ -38,12 +38,50 @@ const asMilliseconds = (seconds: number) => `${(seconds * 1000).toFixed(0)}ms`;
 
 // -- Registry ------------------------------------------------------------------
 
+const LANGUAGE_DEFAULT_TARGET_OPTIONS: SelectOption[] = [
+  { value: "none", label: "None (transliteration only)" },
+  { value: "en", label: "English" },
+  { value: "id", label: "Indonesian" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "ja", label: "Japanese" },
+  { value: "ko", label: "Korean" },
+  { value: "zh-Hans", label: "Chinese (Simplified)" },
+  { value: "zh-Hant", label: "Chinese (Traditional)" },
+  { value: "pt", label: "Portuguese" },
+  { value: "it", label: "Italian" },
+  { value: "ru", label: "Russian" },
+  { value: "vi", label: "Vietnamese" },
+  { value: "ar", label: "Arabic" },
+  { value: "hi", label: "Hindi" },
+  { value: "tr", label: "Turkish" },
+];
+
 const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
   showShortcutHints: TOGGLE,
   showSyllableIndicators: TOGGLE,
   autoExtractBackgroundVocals: TOGGLE,
   mergeStandaloneBackgroundLines: TOGGLE,
   preserveBracketsOnExtraction: TOGGLE,
+  languageAutoGenerate: {
+    kind: "select",
+    options: [
+      { value: "auto", label: "Automatic" },
+      { value: "manual", label: "On request" },
+    ],
+  },
+  languageDefaultTarget: {
+    kind: "select",
+    options: LANGUAGE_DEFAULT_TARGET_OPTIONS,
+  },
+  romanizationCase: {
+    kind: "select",
+    options: [
+      { value: "preserve", label: "Preserve case" },
+      { value: "lowercase", label: "All lowercase" },
+    ],
+  },
   musicBrainzLookup: {
     kind: "select",
     options: [

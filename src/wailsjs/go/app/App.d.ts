@@ -62,7 +62,11 @@ export function OpenInYouTube(arg1:string):Promise<string>;
 
 export function OpenLogFile():Promise<string>;
 
+export function OpenLogFolder():Promise<void>;
+
 export function PreferPremiumAudio():Promise<boolean>;
+
+export function ReadLogFile():Promise<string>;
 
 export function ReadProjectFile(arg1:string):Promise<string>;
 

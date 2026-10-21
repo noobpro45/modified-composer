@@ -53,6 +53,18 @@ describe("transliteration alignment", () => {
     expect(plan.status).toBe("confirmed");
     expect(plan.words).toBe(words);
   });
+
+  it("aligns Japanese syllables phonetically instead of cutting inside consonants", () => {
+    const words = ["愛", "し", "て", "る"].map((text, index) => ({ text, begin: index, end: index + 1 }));
+    const plan = planTransliterationAlignment(words, "aishiteru");
+    expect(plan.words.map((w) => w.transliteration)).toEqual(["ai", "shi", "te", "ru"]);
+  });
+
+  it("aligns 3 timed syllables for ashita", () => {
+    const words = ["あ", "し", "た"].map((text, index) => ({ text, begin: index, end: index + 1 }));
+    const plan = planTransliterationAlignment(words, "ashita");
+    expect(plan.words.map((w) => w.transliteration)).toEqual(["a", "shi", "ta"]);
+  });
 });
 
 describe("withAlignedWords", () => {

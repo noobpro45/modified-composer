@@ -2,6 +2,7 @@ import { languageSourceFingerprint } from "@/domain/language/fingerprint";
 import { staleGeneratedLanguages } from "@/domain/language/stale-generated";
 import type { LyricLine } from "@/domain/line/model";
 import { useProjectStore } from "@/stores/project";
+import { useSettingsStore } from "@/stores/settings";
 import { isTransientLines } from "@/stores/project/transient-lines";
 import { watchGenerationEdits } from "@/views/languages/generation-edit-guard";
 import { mergeGeneratedLanguageUpdates } from "@/views/languages/merge-generated-language-updates";
@@ -61,6 +62,7 @@ async function refreshStaleGeneratedLanguages(signal: AbortSignal, failures: Fai
           transliteration: group.transliteration,
           sourceLanguage: starting.metadata.language || "auto",
           signal,
+          romanizationCase: useSettingsStore.getState().romanizationCase,
         }),
       ),
     );

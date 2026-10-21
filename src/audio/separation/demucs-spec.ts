@@ -20,7 +20,12 @@ const ISTFT_FREQ_BINS = NUM_FREQ_BINS + 1;
 const ISTFT_TIME_FRAMES = NUM_TIME_FRAMES + ISTFT_TIME_PAD * 2;
 const ISTFT_LENGTH = Math.ceil(SEGMENT_SAMPLES / HOP_LENGTH) * HOP_LENGTH + 2 * PRE_PAD_LEFT;
 
-function computeMagspec(channels: Float32Array[]): Float32Array {
+interface SplitMagspec {
+  real: Float32Array;
+  imag: Float32Array;
+}
+
+function computeSplitMagspec(channels: Float32Array[]): SplitMagspec {
   if (channels.length !== 2) {
     throw new Error(`HTDemucs magspec requires stereo input (got ${channels.length} channels)`);
   }
@@ -30,24 +35,37 @@ function computeMagspec(channels: Float32Array[]): Float32Array {
     }
   }
 
-  const out = new Float32Array(MAGSPEC_CHANNELS * NUM_FREQ_BINS * NUM_TIME_FRAMES);
+  const channelStride = NUM_FREQ_BINS * NUM_TIME_FRAMES;
+  const real = new Float32Array(2 * channelStride);
+  const imag = new Float32Array(2 * channelStride);
 
   for (let c = 0; c < 2; c++) {
     const prePadded = reflectPad(channels[c], PRE_PAD_LEFT, PRE_PAD_RIGHT);
     const spec = stft(prePadded, { center: true, normalized: true });
 
-    const realCh = c * 2;
-    const imagCh = c * 2 + 1;
+    const base = c * channelStride;
     for (let f = 0; f < NUM_FREQ_BINS; f++) {
       for (let t = 0; t < NUM_TIME_FRAMES; t++) {
         const srcFrame = t + TIME_TRIM_START;
         const srcIdx = srcFrame * spec.numBins + f;
-        out[realCh * NUM_FREQ_BINS * NUM_TIME_FRAMES + f * NUM_TIME_FRAMES + t] = spec.real[srcIdx];
-        out[imagCh * NUM_FREQ_BINS * NUM_TIME_FRAMES + f * NUM_TIME_FRAMES + t] = spec.imag[srcIdx];
+        const dstIdx = base + f * NUM_TIME_FRAMES + t;
+        real[dstIdx] = spec.real[srcIdx];
+        imag[dstIdx] = spec.imag[srcIdx];
       }
     }
   }
 
+  return { real, imag };
+}
+
+function computeMagspec(channels: Float32Array[]): Float32Array {
+  const { real, imag } = computeSplitMagspec(channels);
+  const channelStride = NUM_FREQ_BINS * NUM_TIME_FRAMES;
+  const out = new Float32Array(MAGSPEC_CHANNELS * channelStride);
+  out.set(real.subarray(0, channelStride), 0 * channelStride);
+  out.set(imag.subarray(0, channelStride), 1 * channelStride);
+  out.set(real.subarray(channelStride, 2 * channelStride), 2 * channelStride);
+  out.set(imag.subarray(channelStride, 2 * channelStride), 3 * channelStride);
   return out;
 }
 
@@ -88,6 +106,7 @@ function waveformFromComplexAsChannels(sourceSpec: Float32Array): Float32Array[]
 }
 
 const MAGSPEC_DIMS: readonly number[] = [1, MAGSPEC_CHANNELS, NUM_FREQ_BINS, NUM_TIME_FRAMES];
+const SPLIT_MAGSPEC_DIMS: readonly number[] = [1, 2, NUM_FREQ_BINS, NUM_TIME_FRAMES];
 
 export {
   SEGMENT_SAMPLES,
@@ -95,6 +114,8 @@ export {
   NUM_FREQ_BINS,
   MAGSPEC_CHANNELS,
   MAGSPEC_DIMS,
+  SPLIT_MAGSPEC_DIMS,
   computeMagspec,
+  computeSplitMagspec,
   waveformFromComplexAsChannels,
 };

@@ -43,6 +43,7 @@ interface SyncCarouselProps {
     text: string;
     displayText?: string;
     displayWordTexts?: string[];
+    transliterationWordTexts?: string[];
     words?: WordTiming[];
     begin?: number;
     sharedTag?: SharedSyncTag;
@@ -54,6 +55,7 @@ interface SyncCarouselProps {
   rippleTarget?: RippleTarget | null;
   onRippleComplete?: () => void;
   aboveCurrent?: React.ReactNode;
+  showBoth?: boolean;
 }
 
 // -- Components ---------------------------------------------------------------
@@ -77,6 +79,7 @@ interface WordGranularityLineProps {
   isCurrent: boolean;
   rippleTarget: RippleTarget | null;
   onRippleComplete: () => void;
+  showBoth?: boolean;
 }
 
 const WordGranularityLine: React.FC<WordGranularityLineProps> = ({
@@ -88,9 +91,16 @@ const WordGranularityLine: React.FC<WordGranularityLineProps> = ({
   isCurrent,
   rippleTarget,
   onRippleComplete,
+  showBoth,
 }) => {
   const { accentColor, secondaryColor, disabledColor } = useCarouselColors();
-  const lineWords = line.displayWordTexts ?? splitIntoWords(line.text);
+  const lineWords = showBoth
+    ? line.words?.length
+      ? line.words.map((w) => w.text)
+      : splitIntoWords(line.text)
+    : (line.displayWordTexts ?? splitIntoWords(line.text));
+  const transliterations = showBoth ? (line.transliterationWordTexts ?? line.displayWordTexts) : undefined;
+
   return lineWords.map((word, widx) => {
     const isPrevLine = idx === lineIndex - 1;
     const holdActive = isHolding;
@@ -102,6 +112,7 @@ const WordGranularityLine: React.FC<WordGranularityLineProps> = ({
     const color = isCurrentHeld ? accentColor : isLastSynced ? accentColor : isCurrent ? secondaryColor : disabledColor;
 
     const hasRipple = rippleTarget !== null && rippleTarget.lineId === line.id && rippleTarget.wordIndex === widx;
+    const trans = transliterations?.[widx]?.trim();
 
     return (
       <m.span
@@ -109,9 +120,12 @@ const WordGranularityLine: React.FC<WordGranularityLineProps> = ({
         initial={false}
         animate={{ color, scale: isCurrentHeld ? 0.95 : 1 }}
         transition={syncCarouselTransition}
-        className="relative inline-flex items-center justify-center origin-center"
+        className="relative inline-flex flex-col items-center justify-center origin-center"
       >
-        {word}
+        <span>{word}</span>
+        {showBoth && trans && (
+          <span className="text-sm font-normal text-composer-accent font-mono opacity-90 leading-tight">{trans}</span>
+        )}
         <AnimatePresence>
           {hasRipple && rippleTarget && <RippleRing key={rippleTarget.nonce} onComplete={onRippleComplete} />}
         </AnimatePresence>
@@ -143,6 +157,7 @@ const SyncCarousel: React.FC<SyncCarouselProps> = ({
   rippleTarget = null,
   onRippleComplete,
   aboveCurrent,
+  showBoth,
 }) => {
   const { accentColor, secondaryColor, disabledColor } = useCarouselColors();
 
@@ -201,6 +216,7 @@ const SyncCarousel: React.FC<SyncCarouselProps> = ({
                     isCurrent={isCurrent}
                     rippleTarget={rippleTarget}
                     onRippleComplete={handleRippleComplete}
+                    showBoth={showBoth}
                   />
                 )}
               </div>

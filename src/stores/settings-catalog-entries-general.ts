@@ -39,6 +39,27 @@ const GENERAL_CATALOG_ENTRIES = {
     keywords: ["bg", "parentheses"],
     settingKey: "preserveBracketsOnExtraction",
   },
+  languageAutoGenerate: {
+    section: "general",
+    label: "Auto-generate languages",
+    description: "Generate transliteration and translations automatically when opening the Languages tab.",
+    keywords: ["translate", "romanize", "romaji", "languages", "auto"],
+    settingKey: "languageAutoGenerate",
+  },
+  languageDefaultTarget: {
+    section: "general",
+    label: "Default translation language",
+    description: "The initial language track to translate lyrics into.",
+    keywords: ["translate", "language", "english", "target"],
+    settingKey: "languageDefaultTarget",
+  },
+  romanizationCase: {
+    section: "general",
+    label: "Romanization letter case",
+    description: "Keep original capitalization or convert all transliterated text to lowercase.",
+    keywords: ["romaji", "pinyin", "romanization", "lowercase", "capitalization"],
+    settingKey: "romanizationCase",
+  },
   musicBrainzLookup: {
     section: "general",
     label: "Song details from MusicBrainz",

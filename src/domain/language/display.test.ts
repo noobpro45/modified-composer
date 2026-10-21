@@ -72,6 +72,12 @@ describe("language display alignment", () => {
     expect(getLanguageDisplayLine(line, "original")).toMatchObject({ text: line.text, words: line.words });
   });
 
+  it("formats bilingual text in both mode", () => {
+    const display = getLanguageDisplayLine(line, "both");
+    expect(display.text).toBe("걸음은 Like a dance (geol eum eun  Like  a  dance)");
+    expect(display.transliterationWordTexts).toEqual(["geol eum eun  ", "Like  ", "a  ", "dance"]);
+  });
+
   it("keeps all labels visible while only the timed prefix has timing", () => {
     const partial = { ...line, words: line.words.slice(0, 1) } satisfies LyricLine;
     const display = getLanguageDisplayLine(partial, "transliteration");

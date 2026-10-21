@@ -18,6 +18,8 @@ interface WordHandlers {
 interface WordRendererProps {
   lineId: string;
   word: string;
+  transliteration?: string;
+  showBoth?: boolean;
   idx: number;
   timing: WordTiming | undefined;
   allWords: WordTiming[] | undefined;
@@ -29,7 +31,14 @@ interface WordRendererProps {
 
 // -- Helper -------------------------------------------------------------------
 
-function renderWordContent(word: string, timing: WordTiming | undefined, isBackground: boolean, editMode: boolean) {
+function renderWordContent(
+  word: string,
+  timing: WordTiming | undefined,
+  isBackground: boolean,
+  editMode: boolean,
+  showBoth?: boolean,
+  transliteration?: string,
+) {
   const isSynced = !!timing;
   const baseClass = isBackground ? "italic" : "";
   const syncedClass = isBackground ? "text-composer-text-muted/70" : "text-composer-text-muted";
@@ -37,6 +46,27 @@ function renderWordContent(word: string, timing: WordTiming | undefined, isBackg
   const activeClass = isBackground ? "text-composer-accent-text/80" : "text-composer-accent-text";
 
   if (editMode && isSynced) {
+    if (showBoth && transliteration) {
+      return (
+        <span className={`relative inline-block whitespace-pre ${baseClass}`}>
+          <span className={`inline-flex flex-col items-center leading-tight ${syncedClass}`}>
+            <span>{word}</span>
+            <span className="text-[11px] text-composer-accent font-mono opacity-90">{transliteration}</span>
+          </span>
+          <span
+            className={`absolute inset-0 overflow-hidden ${activeClass}`}
+            data-word-begin={timing.begin}
+            data-word-end={timing.end}
+            style={{ width: "0%" }}
+          >
+            <span className="inline-flex flex-col items-center leading-tight">
+              <span>{word}</span>
+              <span className="text-[11px] text-composer-accent font-mono opacity-90">{transliteration}</span>
+            </span>
+          </span>
+        </span>
+      );
+    }
     return (
       <span className={`relative inline-block whitespace-pre ${baseClass}`}>
         <span className={syncedClass}>{word}</span>
@@ -51,6 +81,20 @@ function renderWordContent(word: string, timing: WordTiming | undefined, isBackg
       </span>
     );
   }
+
+  if (showBoth && transliteration) {
+    return (
+      <span
+        className={`inline-flex flex-col items-center leading-tight whitespace-pre ${baseClass} ${
+          isSynced ? syncedClass : unsyncedClass
+        }`}
+      >
+        <span>{word}</span>
+        <span className="text-[11px] text-composer-accent font-mono opacity-90">{transliteration}</span>
+      </span>
+    );
+  }
+
   return <span className={`whitespace-pre ${baseClass} ${isSynced ? syncedClass : unsyncedClass}`}>{word}</span>;
 }
 
@@ -59,6 +103,8 @@ function renderWordContent(word: string, timing: WordTiming | undefined, isBackg
 const WordRenderer: React.FC<WordRendererProps> = ({
   lineId,
   word,
+  transliteration,
+  showBoth,
   idx,
   timing,
   allWords,
@@ -89,10 +135,10 @@ const WordRenderer: React.FC<WordRendererProps> = ({
             title={isBackground ? "Jump to this word" : "Re-record from this word"}
             className="appearance-none border-0 bg-transparent p-0 text-left cursor-pointer"
           >
-            {renderWordContent(word, timing, isBackground, editMode)}
+            {renderWordContent(word, timing, isBackground, editMode, showBoth, transliteration)}
           </button>
         ) : (
-          renderWordContent(word, timing, isBackground, editMode)
+          renderWordContent(word, timing, isBackground, editMode, showBoth, transliteration)
         )}
         {isSynced && timing && timing.end === timing.begin && (
           <Tooltip content="No duration - sync the next word to close this one or increase the end time">

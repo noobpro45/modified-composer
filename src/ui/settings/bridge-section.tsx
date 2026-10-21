@@ -135,20 +135,7 @@ const BridgeSection: React.FC = () => {
 
   if (isDesktop) {
     return (
-      <div data-testid="bridge-section" className="py-2 flex flex-col gap-3">
-        <div className="flex items-start justify-between pb-2 border-b border-composer-border/50">
-          <div className="flex flex-col gap-0.5 pr-4">
-            <span className="text-sm font-medium text-composer-text flex items-center gap-2">
-              Composer Bridge
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-composer-accent/20 text-composer-accent-text">
-                Desktop Native
-              </span>
-            </span>
-            <span className="text-xs text-composer-text-muted">
-              Embedded engine managing YouTube audio downloads, yt-dlp updates, and local audio caching.
-            </span>
-          </div>
-        </div>
+      <div data-testid="bridge-section" className="py-2">
         <NativeBridgeControls />
       </div>
     );

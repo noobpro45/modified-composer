@@ -1,5 +1,6 @@
 import { pastedRows } from "@/domain/language/paste-import";
 import { useProjectStore } from "@/stores/project";
+import { useSettingsStore } from "@/stores/settings";
 import { EmptyState } from "@/ui/empty-state";
 import { Scroll } from "@/ui/scroll";
 import { Select } from "@/ui/select";
@@ -31,6 +32,8 @@ const LanguagesPanel: React.FC = () => {
   const updateLinesWithHistory = useProjectStore((state) => state.updateLinesWithHistory);
   const setMetadata = useProjectStore((state) => state.setMetadata);
   const { targets, targetsRef, setTargets, project } = useLanguageTargets(lines, metadata, projectSession);
+  const languageAutoGenerate = useSettingsStore((state) => state.languageAutoGenerate);
+  const romanizationCase = useSettingsStore((state) => state.romanizationCase);
   const [isGenerating, setIsGenerating] = useState(false);
   const [pasteImport, setPasteImport] = useState<{
     text: string;
@@ -40,6 +43,9 @@ const LanguagesPanel: React.FC = () => {
   const generatedOnEntry = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const sourceLanguage = metadata.language || "auto";
+
+  const hasAnyGenerated = lines.some((l) => Boolean(l.transliteration) || Object.keys(l.translations ?? {}).length > 0);
+
   const generate = useCallback(
     async (
       requestedTargets: string[],
@@ -60,6 +66,7 @@ const LanguagesPanel: React.FC = () => {
           transliteration: includeTransliteration,
           sourceLanguage: requestedSource,
           signal: controller.signal,
+          romanizationCase,
         });
         const currentState = useProjectStore.getState();
         if (
@@ -94,7 +101,7 @@ const LanguagesPanel: React.FC = () => {
         }
       }
     },
-    [setMetadata, sourceLanguage, targetsRef, updateLinesWithHistory],
+    [romanizationCase, setMetadata, sourceLanguage, targetsRef, updateLinesWithHistory],
   );
   // Activity tears down effects on hide, even without a render of the new tab.
   // biome-ignore lint/correctness/useExhaustiveDependencies: Tab and project changes must cancel the previous generation lifecycle.
@@ -110,8 +117,10 @@ const LanguagesPanel: React.FC = () => {
   useEffect(() => {
     if (activeTab !== "languages" || generatedOnEntry.current || lines.length === 0) return;
     generatedOnEntry.current = true;
-    void generate(targets);
-  }, [activeTab, generate, lines.length, targets]);
+    if (languageAutoGenerate !== "manual") {
+      void generate(targets);
+    }
+  }, [activeTab, generate, lines.length, targets, languageAutoGenerate]);
   const languageName = useMemo(() => new Map<string, string>(LANGUAGE_OPTIONS), []);
   const availableLanguages = LANGUAGE_OPTIONS.filter(([code]) => !targets.includes(code));
   const removeTarget = (language: string) => {
@@ -127,18 +136,13 @@ const LanguagesPanel: React.FC = () => {
   const addTarget = (language: string) => {
     if (targets.includes(language)) return;
     setTargets([...targets, language]);
-    void generate([language]);
+    void generate([language], false, sourceLanguage, false);
   };
   const trackCount = targets.length + 1;
   const changeSourceLanguage = (language: string) => {
     const selected = language || "auto";
     setMetadata({ language: language || undefined });
-    let requestedTargets = targets;
-    if (selected !== "en" && !targets.includes("en")) {
-      requestedTargets = [...targets, "en"];
-      setTargets(requestedTargets);
-    }
-    void generate(requestedTargets, false, selected);
+    void generate(targets, false, selected);
   };
 
   if (lines.length === 0) {
@@ -183,7 +187,8 @@ const LanguagesPanel: React.FC = () => {
             isGenerating={isGenerating}
             translations={targets}
             languageNames={languageName}
-            onRegenerateAll={() => void generate(targets, true)}
+            hasAnyGenerated={hasAnyGenerated}
+            onRegenerateAll={() => void generate(targets, true, sourceLanguage)}
             onRegenerateSelection={(selection) =>
               void generate(selection.translations, true, sourceLanguage, selection.transliteration)
             }

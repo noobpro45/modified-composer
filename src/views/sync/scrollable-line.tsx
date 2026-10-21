@@ -25,12 +25,15 @@ interface ScrollableLineProps {
   text: string;
   displayText?: string;
   displayWordTexts?: string[];
+  transliterationWordTexts?: string[];
+  showBoth?: boolean;
   lineNumber: number;
   isCurrent: boolean;
   agentId?: string;
   backgroundText?: string;
   displayBackgroundText?: string;
   displayBackgroundWordTexts?: string[];
+  backgroundTransliterationWordTexts?: string[];
   backgroundWords?: WordTiming[];
   words?: WordTiming[];
   lineBegin?: number;
@@ -63,12 +66,15 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
   text,
   displayText,
   displayWordTexts,
+  transliterationWordTexts,
+  showBoth,
   lineNumber,
   isCurrent,
   agentId,
   backgroundText,
   displayBackgroundText,
   displayBackgroundWordTexts,
+  backgroundTransliterationWordTexts,
   backgroundWords,
   words,
   lineBegin,
@@ -95,18 +101,19 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
 }) => {
   const lineRef = useRef<HTMLDivElement>(null);
   const wordTexts = useMemo(
-    () => displayWordTexts ?? (words?.length ? words.map((w) => w.text) : splitIntoWords(text)),
-    [displayWordTexts, text, words],
+    () =>
+      (showBoth ? undefined : displayWordTexts) ?? (words?.length ? words.map((w) => w.text) : splitIntoWords(text)),
+    [displayWordTexts, showBoth, text, words],
   );
   const bgWordTexts = useMemo(
     () =>
-      displayBackgroundWordTexts ??
+      (showBoth ? undefined : displayBackgroundWordTexts) ??
       (backgroundWords?.length
         ? backgroundWords.map((w) => w.text)
         : (displayBackgroundText ?? backgroundText)
           ? splitIntoWords(displayBackgroundText ?? backgroundText ?? "")
           : []),
-    [backgroundText, backgroundWords, displayBackgroundText, displayBackgroundWordTexts],
+    [backgroundText, backgroundWords, displayBackgroundText, displayBackgroundWordTexts, showBoth],
   );
 
   useEffect(() => {
@@ -175,23 +182,27 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
     groups: ReturnType<typeof computeSyllableGroups>,
     prefix: string,
     isBackground?: boolean,
+    transliterations?: string[],
   ) => {
+    const renderWord = (idx: number) => (
+      <WordRenderer
+        key={`${lineNumber}-${prefix}-${idx}`}
+        lineId={lineId}
+        word={texts[idx]}
+        transliteration={showBoth ? (transliterations?.[idx] ?? timings?.[idx]?.transliteration) : undefined}
+        showBoth={showBoth}
+        idx={idx}
+        timing={timings?.[idx]}
+        allWords={timings}
+        handlers={handlers}
+        isBackground={isBackground}
+        editMode={editMode}
+        currentTime={currentTime}
+      />
+    );
+
     if (groups.length === 0) {
-      return texts.map((word, idx) => (
-        <WordRenderer
-          // biome-ignore lint/suspicious/noArrayIndexKey: index is stable for word position
-          key={`${lineNumber}-${prefix}-${idx}`}
-          lineId={lineId}
-          word={word}
-          idx={idx}
-          timing={timings?.[idx]}
-          allWords={timings}
-          handlers={handlers}
-          isBackground={isBackground}
-          editMode={editMode}
-          currentTime={currentTime}
-        />
-      ));
+      return texts.map((_, idx) => renderWord(idx));
     }
 
     const groupByStart = new Map(groups.map((g) => [g.startIndex, g]));
@@ -210,7 +221,7 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
             className="inline-flex flex-col items-center shrink-0"
           >
             <span className="w-full text-center text-sm text-composer-text-muted border-t border-l border-r border-composer-border rounded-t-lg px-1.5 leading-relaxed">
-              {displayWordTexts
+              {displayWordTexts && !showBoth
                 ? texts
                     .slice(group.startIndex, group.endIndex + 1)
                     .map((word) => word.trim())
@@ -218,48 +229,20 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
                 : group.originalWord}
             </span>
             <span className="inline-flex flex-nowrap gap-x-3 bg-composer-button/30 rounded-b-lg px-1.5 py-0.5 border border-composer-border">
-              {texts.slice(group.startIndex, group.endIndex + 1).map((word, j) => {
-                const idx = group.startIndex + j;
-                return (
-                  <WordRenderer
-                    key={`${lineNumber}-${prefix}-${idx}`}
-                    lineId={lineId}
-                    word={word}
-                    idx={idx}
-                    timing={timings?.[idx]}
-                    allWords={timings}
-                    handlers={handlers}
-                    isBackground={isBackground}
-                    editMode={editMode}
-                    currentTime={currentTime}
-                  />
-                );
-              })}
+              {Array.from({ length: group.endIndex - group.startIndex + 1 }, (_, offset) =>
+                renderWord(group.startIndex + offset),
+              )}
             </span>
           </span>,
         );
         i = group.endIndex + 1;
       } else if (!inGroup.has(i)) {
-        elements.push(
-          <WordRenderer
-            key={`${lineNumber}-${prefix}-${i}`}
-            lineId={lineId}
-            word={texts[i]}
-            idx={i}
-            timing={timings?.[i]}
-            allWords={timings}
-            handlers={handlers}
-            isBackground={isBackground}
-            editMode={editMode}
-            currentTime={currentTime}
-          />,
-        );
+        elements.push(renderWord(i));
         i++;
       } else {
         i++;
       }
     }
-
     return elements;
   };
 
@@ -327,12 +310,28 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
           </div>
         ) : (
           <div className="flex flex-wrap gap-x-3 gap-y-1 items-end">
-            {renderWordList(wordTexts, words, mainWordHandlers, mainSyllableGroups, "main")}
+            {renderWordList(
+              wordTexts,
+              words,
+              mainWordHandlers,
+              mainSyllableGroups,
+              "main",
+              false,
+              transliterationWordTexts,
+            )}
           </div>
         )}
         {bgWordTexts.length > 0 && (
           <div className="flex flex-wrap gap-x-3 gap-y-1 items-end">
-            {renderWordList(bgWordTexts, backgroundWords, bgWordHandlers, bgSyllableGroups, "bg", true)}
+            {renderWordList(
+              bgWordTexts,
+              backgroundWords,
+              bgWordHandlers,
+              bgSyllableGroups,
+              "bg",
+              true,
+              backgroundTransliterationWordTexts,
+            )}
           </div>
         )}
       </div>
@@ -345,6 +344,9 @@ const ScrollableLine = memo(ScrollableLineInner, (prev, next) => {
     prev.text === next.text &&
     prev.displayText === next.displayText &&
     prev.displayWordTexts === next.displayWordTexts &&
+    prev.transliterationWordTexts === next.transliterationWordTexts &&
+    prev.backgroundTransliterationWordTexts === next.backgroundTransliterationWordTexts &&
+    prev.showBoth === next.showBoth &&
     prev.lineNumber === next.lineNumber &&
     prev.isCurrent === next.isCurrent &&
     prev.agentId === next.agentId &&

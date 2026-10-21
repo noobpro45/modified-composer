@@ -123,7 +123,16 @@ const SyncLineButton: React.FC<{ lineId: string; wordCount: number }> = ({ lineI
 
 const EmptyWordTrack: React.FC<EmptyWordTrackProps> = ({ line, lineIndex, duration, rowHeight }) => {
   const zoom = useTimelineStore((s) => s.zoom);
+  const textVariant = useTimelineStore((s) => s.textVariant);
   const displayText = stripSplitCharacter(line.text);
+  const transText = line.transliteration?.text ? stripSplitCharacter(line.transliteration.text) : undefined;
+
+  let label = truncateLabel(displayText, MAIN_LABEL_MAX_CHARS);
+  if (textVariant === "both" && transText) {
+    label = `${truncateLabel(displayText, 36)} (${truncateLabel(transText, 36)})`;
+  } else if (textVariant === "transliteration" && transText) {
+    label = truncateLabel(transText, MAIN_LABEL_MAX_CHARS);
+  }
 
   return (
     <div
@@ -136,7 +145,7 @@ const EmptyWordTrack: React.FC<EmptyWordTrackProps> = ({ line, lineIndex, durati
         className="sticky left-[48px] z-10 inline-flex items-center gap-2 px-3 text-xs text-composer-text-muted italic bg-composer-bg/80 backdrop-blur-sm"
         style={{ height: rowHeight, maxWidth: "calc(100% - 48px)" }}
       >
-        <span className="truncate pr-0.5">{truncateLabel(displayText, MAIN_LABEL_MAX_CHARS)}</span>
+        <span className="truncate pr-0.5">{label}</span>
         {displayText.length > 0 && (
           <SyncLineButton lineId={line.id} wordCount={splitIntoWordsWithMeta(line.text).parts.length} />
         )}
@@ -145,21 +154,36 @@ const EmptyWordTrack: React.FC<EmptyWordTrackProps> = ({ line, lineIndex, durati
   );
 };
 
-const EmptyBgTrack: React.FC<EmptyBgTrackProps> = ({ line, lineIndex, isOver }) => (
-  <div
-    data-line-index={lineIndex}
-    data-track="bg"
-    className={cn(
-      "flex items-center px-2 text-xs font-mono truncate transition-colors border-t border-composer-border/30 cursor-pointer",
-      isOver ? "bg-composer-accent/20 text-composer-text" : "text-composer-text-muted/50 bg-composer-bg-elevated/25",
-    )}
-    style={{ height: BG_DROP_ZONE_HEIGHT }}
-    onDoubleClick={(e) => addBackgroundWordAt(line, pointerTime(e))}
-    onContextMenu={(e) => openTrackContextMenu(e, line.id, lineIndex, "bg")}
-  >
-    {line.backgroundText ? truncateLabel(line.backgroundText, BG_LABEL_MAX_CHARS) : "BG"}
-  </div>
-);
+const EmptyBgTrack: React.FC<EmptyBgTrackProps> = ({ line, lineIndex, isOver }) => {
+  const textVariant = useTimelineStore((s) => s.textVariant);
+  const displayBg = line.backgroundText ? stripSplitCharacter(line.backgroundText) : undefined;
+  const transBg = line.transliteration?.backgroundText
+    ? stripSplitCharacter(line.transliteration.backgroundText)
+    : undefined;
+
+  let bgLabel = displayBg ? truncateLabel(displayBg, BG_LABEL_MAX_CHARS) : "BG";
+  if (displayBg && textVariant === "both" && transBg) {
+    bgLabel = `${truncateLabel(displayBg, 24)} (${truncateLabel(transBg, 24)})`;
+  } else if (textVariant === "transliteration" && transBg) {
+    bgLabel = truncateLabel(transBg, BG_LABEL_MAX_CHARS);
+  }
+
+  return (
+    <div
+      data-line-index={lineIndex}
+      data-track="bg"
+      className={cn(
+        "flex items-center px-2 text-xs font-mono truncate transition-colors border-t border-composer-border/30 cursor-pointer",
+        isOver ? "bg-composer-accent/20 text-composer-text" : "text-composer-text-muted/50 bg-composer-bg-elevated/25",
+      )}
+      style={{ height: BG_DROP_ZONE_HEIGHT }}
+      onDoubleClick={(e) => addBackgroundWordAt(line, pointerTime(e))}
+      onContextMenu={(e) => openTrackContextMenu(e, line.id, lineIndex, "bg")}
+    >
+      {bgLabel}
+    </div>
+  );
+};
 
 // -- Exports -------------------------------------------------------------------
 

@@ -140,11 +140,19 @@ const SyncPanel: React.FC = () => {
 
   const carouselLines = useMemo(
     () =>
-      displayLines.map((line) => {
+      lines.map((line, index) => {
+        const displayLine = displayLines[index];
         const sharedTag = sharedTags.get(line.id);
-        return sharedTag ? { ...line, sharedTag } : line;
+        const base = {
+          ...line,
+          displayText: displayLine.text,
+          displayWordTexts: displayLine.wordTexts,
+          transliterationWordTexts: displayLine.transliterationWordTexts,
+          words: displayLine.words ?? line.words,
+        };
+        return sharedTag ? { ...base, sharedTag } : base;
       }),
-    [displayLines, sharedTags],
+    [lines, displayLines, sharedTags],
   );
 
   const stopSessionAtSongEnd = useEffectEvent(() => {
@@ -482,11 +490,14 @@ const SyncPanel: React.FC = () => {
                     text={line.text}
                     displayText={displayLine.text}
                     displayWordTexts={displayLine.wordTexts}
+                    transliterationWordTexts={displayLine.transliterationWordTexts}
+                    showBoth={textVariant === "both"}
                     isCurrent={editMode ? index === playingLineIndex : index === lineIndex}
                     agentId={line.agentId}
                     backgroundText={line.backgroundText}
                     displayBackgroundText={displayLine.backgroundText}
                     displayBackgroundWordTexts={displayLine.backgroundWordTexts}
+                    backgroundTransliterationWordTexts={displayLine.backgroundTransliterationWordTexts}
                     backgroundWords={displayLine.backgroundWords ?? line.backgroundWords}
                     words={displayLine.words ?? line.words}
                     lineBegin={timing?.begin}
@@ -566,6 +577,7 @@ const SyncPanel: React.FC = () => {
               rippleTarget={rippleTarget}
               onRippleComplete={clearRippleTarget}
               aboveCurrent={countIn.dots}
+              showBoth={textVariant === "both"}
             />
           )}
         </div>
@@ -585,7 +597,12 @@ const SyncPanel: React.FC = () => {
           showGestureCircles && (
             <SyncGestureControls
               currentWord={currentWord}
-              displayWord={placingName ?? displayLines[lineIndex]?.wordTexts?.[wordIndex]}
+              displayWord={
+                placingName ??
+                (textVariant === "both" && currentWord && displayLines[lineIndex]?.transliterationWordTexts?.[wordIndex]
+                  ? `${currentWord} (${displayLines[lineIndex].transliterationWordTexts[wordIndex].trim()})`
+                  : displayLines[lineIndex]?.wordTexts?.[wordIndex])
+              }
               isHolding={isHolding}
               handleHoldPointerDown={handleHoldPointerDown}
               handleHoldPointerRelease={handleHoldPointerRelease}

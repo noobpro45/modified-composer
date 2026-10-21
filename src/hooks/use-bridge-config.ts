@@ -12,6 +12,7 @@ import {
   UploadCookies,
 } from "@/wailsjs/go/app/App";
 import type { app, config } from "@/wailsjs/go/models";
+import { BrowserOpenURL } from "@/wailsjs/runtime/runtime";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const SAVE_DEBOUNCE_MS = 300;
@@ -157,7 +158,18 @@ export function useBridgeConfig(): UseBridgeConfigResult {
 
   const openLogFile = useCallback(async () => {
     if (!isDesktop) return;
-    await OpenLogFile();
+    try {
+      const url = await OpenLogFile();
+      if (url) {
+        if (typeof window !== "undefined" && window.runtime?.BrowserOpenURL) {
+          window.runtime.BrowserOpenURL(url);
+        } else {
+          BrowserOpenURL(url);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to open log file:", err);
+    }
   }, [isDesktop]);
 
   const forceUpdateYtdlp = useCallback(async () => {

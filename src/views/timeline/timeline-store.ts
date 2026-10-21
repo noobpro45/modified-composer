@@ -36,7 +36,7 @@ interface TimelineState {
   zoom: number;
   followEnabled: boolean;
   previewSidebarOpen: boolean;
-  textVariant: "original" | "transliteration";
+  textVariant: "original" | "transliteration" | "both";
   selectedWords: WordSelection[];
   selectionPlayback: SelectionPlaybackMode | null;
 
@@ -162,7 +162,10 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     toggleFollow: () => set((s) => ({ followEnabled: !s.followEnabled })),
     togglePreviewSidebar: () => set((s) => ({ previewSidebarOpen: !s.previewSidebarOpen })),
     toggleTextVariant: () =>
-      set((s) => ({ textVariant: s.textVariant === "original" ? "transliteration" : "original" })),
+      set((s) => ({
+        textVariant:
+          s.textVariant === "original" ? "transliteration" : s.textVariant === "transliteration" ? "both" : "original",
+      })),
     setSelectedWords: (selectedWords) => set({ selectedWords }),
     setSelectionPlayback: (selectionPlayback) => set({ selectionPlayback }),
 

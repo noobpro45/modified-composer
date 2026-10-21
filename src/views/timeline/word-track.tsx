@@ -422,6 +422,15 @@ const WordTrack: React.FC<WordTrackProps> = ({
                   }).text
                 : word.text
             }
+            transliteration={
+              textVariant === "both" && word.transliteration
+                ? timedTransliterationSlice({
+                    text: word.transliteration,
+                    joinerAfter: wordIndex < words.length - 1 ? word.transliterationJoinerAfter : undefined,
+                  }).text
+                : undefined
+            }
+            showBoth={textVariant === "both"}
             begin={display.begin}
             end={display.end}
             color={color}

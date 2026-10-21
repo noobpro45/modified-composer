@@ -1,4 +1,5 @@
 import type { TransliterationAlignmentStatus, TransliterationTrack } from "@/domain/language/model";
+import { phoneticBoundaryCandidates } from "@/domain/language/syllable-boundaries";
 import {
   hasLexicalBoundaryAfter,
   normalizeTransliterationForEditing,
@@ -49,8 +50,15 @@ function inferredBoundaries(value: string, slotWeights: number[]): { boundaries:
     return { boundaries: separators.map((run) => run.end), exact: true };
   }
 
-  const candidates = visibleGraphemeBoundaries(value);
-  if (candidates.length < slotWeights.length - 1) return null;
+  const rawGraphemes = visibleGraphemeBoundaries(value);
+  if (rawGraphemes.length < slotWeights.length - 1) return null;
+
+  const separatorPoints = separators.map((run) => run.end);
+  const phonetic = phoneticBoundaryCandidates(value).filter(
+    (boundary) => !separators.some((run) => boundary > run.start && boundary < run.end),
+  );
+  const combinedPhonetic = [...new Set([...phonetic, ...separatorPoints])].toSorted((a, b) => a - b);
+  const candidates = combinedPhonetic.length >= slotWeights.length - 1 ? combinedPhonetic : rawGraphemes;
   const totalWeight = slotWeights.reduce((sum, weight) => sum + Math.max(1, weight), 0);
   let consumedWeight = 0;
   let previous = 0;
@@ -248,6 +256,7 @@ function withAlignedWords(line: LyricLine): LyricLine {
 
 export {
   alignTrackToLine,
+  inferredBoundaries,
   mappedTransliteration,
   planTransliterationAlignment,
   validateTransliterationAlignment,
