@@ -10,6 +10,7 @@ import {
   IconPalette,
   IconPlayerPlay,
   IconPlugConnected,
+  IconServer,
   IconSettings,
 } from "@tabler/icons-react";
 
@@ -26,6 +27,7 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionId, ModalNavSection["icon"]>
   confirmations: IconAlertTriangle,
   storage: IconDeviceFloppy,
   advanced: IconPlugConnected,
+  bridge: IconServer,
 };
 
 // -- Exports -------------------------------------------------------------------

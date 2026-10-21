@@ -13,7 +13,8 @@ type SettingsSectionId =
   | "shortcuts"
   | "confirmations"
   | "storage"
-  | "advanced";
+  | "advanced"
+  | "bridge";
 
 interface SettingsSection {
   id: SettingsSectionId;
@@ -49,6 +50,7 @@ const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "confirmations", label: "Confirmations" },
   { id: "storage", label: "Save & Storage" },
   { id: "advanced", label: "Advanced" },
+  { id: "bridge", label: "Composer Bridge" },
 ];
 
 type SettingId = keyof typeof SETTINGS_CATALOG;

@@ -119,17 +119,6 @@ export const NativeBridgeControls: React.FC = () => {
       </SettingRow>
 
       <SettingRow
-        title="Launch at login"
-        description="Automatically start the Bridge background service when you sign into Windows."
-      >
-        <ToggleSwitch
-          checked={config.open_at_login}
-          onChange={() => update("open_at_login", !config.open_at_login)}
-          label="Open at login"
-        />
-      </SettingRow>
-
-      <SettingRow
         title="yt-dlp update channel"
         description="Which release track to track for automated yt-dlp binary updates."
       >

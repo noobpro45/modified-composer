@@ -195,19 +195,19 @@ const SETTINGS_CATALOG = {
     description: "Which engine renders synced lyrics in the Preview tab and the Timeline preview.",
     settingKey: "previewRenderer",
   },
-  youtubeBridge: {
-    section: "advanced",
-    label: "Composer Bridge for YouTube",
-    description: "Route YouTube imports through a small local binary running on your machine instead of Cobalt.",
-    keywords: ["bridge", "yt-dlp", "local"],
-    readOn: (state: SettingsState) => state.experiments.youtubeBridge,
-  },
   cobaltInstances: {
     section: "advanced",
     label: "Cobalt instances",
     description:
       "Composer uses a Cobalt backend to fetch YouTube audio. The default one is currently blocked by YouTube, so add a working instance from cobalt.directory below, or self-host.",
     keywords: ["youtube", "download", "server"],
+  },
+  youtubeBridge: {
+    section: "bridge",
+    label: "Composer Bridge",
+    description: "Configure the embedded desktop engine for YouTube downloads, yt-dlp, and audio caching.",
+    keywords: ["bridge", "yt-dlp", "local", "desktop"],
+    readOn: (state: SettingsState) => state.experiments.youtubeBridge,
   },
 } as const satisfies Record<string, SettingEntry>;
 
