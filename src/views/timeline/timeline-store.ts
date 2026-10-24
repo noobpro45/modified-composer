@@ -183,7 +183,6 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     toggleFollow: () => set((s) => ({ followEnabled: !s.followEnabled })),
     togglePreviewSidebar: () => set((s) => ({ previewSidebarOpen: !s.previewSidebarOpen })),
     toggleTextVariant: () =>
-    toggleTextVariant: () =>
       set((s) => ({
         textVariant:
           s.textVariant === "original" ? "transliteration" : s.textVariant === "transliteration" ? "both" : "original",

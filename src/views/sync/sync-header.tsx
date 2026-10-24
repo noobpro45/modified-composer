@@ -5,6 +5,7 @@ import { IconLanguage, IconLock, IconLockOpen, IconPlayerPlayFilled, IconRefresh
 
 // -- Interfaces ---------------------------------------------------------------
 
+interface SyncHeaderProps {
   progress: { done: number; total: number };
   textVariant: "original" | "transliteration" | "both";
   hasTransliteration: boolean;
