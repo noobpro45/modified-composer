@@ -192,8 +192,8 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
       variants={pingVariants}
       animate={isPinging ? "ping" : "idle"}
       className={cn(
-        "absolute top-1 bottom-1 flex items-center gap-1 rounded-md select-none pl-1.5 pr-2.5",
-        "border text-[10px] font-medium text-composer-text z-[30]",
+        "absolute top-1 bottom-1 flex items-center gap-1.5 rounded-[7px] select-none pl-1 pr-2 z-[30]",
+        "text-[11.5px] font-semibold leading-none text-composer-text banner-elevation",
         isDragging ? "cursor-grabbing" : "cursor-grab",
       )}
       onPointerDown={handlePointerDown}
@@ -203,25 +203,20 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
       style={{
         left,
         width,
-        background: `color-mix(in srgb, ${group.color} 18%, transparent)`,
-        borderColor: `color-mix(in srgb, ${group.color} 60%, transparent)`,
+        background: `linear-gradient(to bottom, color-mix(in oklab, var(--ink) 4%, transparent), transparent 60%), color-mix(in oklab, ${group.color} 24%, var(--word-face))`,
         transform: isDragging ? `translateX(${dragOffsetPx}px)` : undefined,
       }}
     >
       <IconButton
         label={isCollapsed ? "Expand instance" : "Collapse instance"}
-        icon={
-          <IconChevronDown
-            className={cn("size-3 transition-transform duration-200 ease-out", isCollapsed && "-rotate-90")}
-          />
-        }
+        icon={<IconChevronDown className={cn("size-[13px]", isCollapsed && "-rotate-90")} />}
         variant="ghost"
         onClick={handleChevronClick}
         onPointerDown={handleChevronPointerDown}
         onDoubleClick={(e) => e.stopPropagation()}
         className="shrink-0 w-auto h-auto p-0.5 opacity-70 hover:opacity-100 hover:bg-transparent text-current relative before:content-[''] before:absolute before:-inset-2"
       />
-      <span className="font-semibold whitespace-nowrap">{group.label}</span>
+      <span className="min-w-0 truncate">{group.label}</span>
       {hasOwnTiming && (
         <span className="flex min-w-0 items-center gap-0.5 overflow-hidden rounded-full border border-dashed border-composer-text-faint py-px pl-1 pr-1.5 text-composer-text-tertiary whitespace-nowrap">
           <IconClock className="size-2.5 shrink-0" />
@@ -229,11 +224,11 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
         </span>
       )}
       <span
-        className="flex items-center gap-1 text-composer-text-muted tabular-nums whitespace-nowrap ml-auto"
+        className="flex items-center gap-[3px] font-medium text-composer-text/65 tabular-nums whitespace-nowrap ml-auto"
         onMouseEnter={handleBadgeMouseEnter}
         onMouseLeave={handleBadgeMouseLeave}
       >
-        <IconLink className="size-2.5" style={isShared ? { color: group.color } : undefined} />
+        <IconLink className="size-[13px]" style={isShared ? { color: group.color } : undefined} />
         {ordinal} of {totalInstances}
         {isDragging && (
           <span className="ml-1 text-composer-text">
@@ -246,7 +241,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
         <>
           <span
             aria-hidden
-            className="absolute inset-0 rounded-md pointer-events-none overflow-hidden"
+            className="absolute inset-0 rounded-[7px] pointer-events-none overflow-hidden"
             style={{
               background: `linear-gradient(to right, color-mix(in srgb, ${group.color} 35%, transparent) var(--progress-fill, 0%), transparent var(--progress-fill, 0%))`,
             }}

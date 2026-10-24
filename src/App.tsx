@@ -26,9 +26,8 @@ import { useTour } from "@/tour/use-tour";
 import { useRangePlayback } from "@/views/timeline/use-range-playback";
 import "@/tour/tour-theme.css";
 import { AppHeader } from "@/ui/app-header";
-import { ChoiceModalHost } from "@/ui/choice-modal";
-import { ConfirmModalHost } from "@/ui/confirm-modal";
 import { HelpModal } from "@/ui/help-modal";
+import { OverlayHosts } from "@/ui/overlay-hosts";
 import { APP_SETTING_LINK_HOST, SettingLinkContext } from "@/ui/setting-link-context";
 import { SettingsModal } from "@/ui/settings-modal";
 import { EDITOR_PATH, screenForPath } from "@/utils/app-routes";
@@ -39,7 +38,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { LazyMotion, domAnimation } from "motion/react";
 import { Activity, useCallback, useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Toaster } from "sonner";
 
 // -- Constants ----------------------------------------------------------------
 
@@ -170,7 +168,7 @@ const AppShell: React.FC = () => {
   }, [isEditor, resumeOrStartTour, navigate]);
 
   return (
-    <div className="flex flex-col h-screen bg-composer-bg text-composer-text">
+    <div data-screen={screen} className="flex flex-col h-screen bg-composer-bg-dark text-composer-text">
       <MusicBrainzWarmup />
       <AppHeader
         screen={screen}
@@ -215,20 +213,8 @@ const App: React.FC = () => {
       <LazyMotion features={domAnimation} strict>
         <SettingLinkContext value={APP_SETTING_LINK_HOST}>
           <AppShell />
-          <ConfirmModalHost />
           <LyricsImportModalHost />
-          <ChoiceModalHost />
-          <Toaster
-            theme="dark"
-            position="bottom-center"
-            toastOptions={{
-              style: {
-                background: "var(--color-composer-bg-elevated)",
-                border: "1px solid var(--color-composer-border)",
-                color: "var(--color-composer-text)",
-              },
-            }}
-          />
+          <OverlayHosts />
         </SettingLinkContext>
       </LazyMotion>
     </QueryClientProvider>

@@ -1,6 +1,7 @@
 import { timedTransliterationSlice } from "@/domain/language/transliteration-format";
 import { manualBackgroundWordEdit } from "@/domain/line/background";
 import { isWordSelected } from "@/domain/selection/identity";
+import { overlapsLoopRegion } from "@/domain/selection/loop-region";
 import { type BoundaryEdge, clampBoundaryTime, shouldRollNeighbour } from "@/domain/word/boundary";
 import { mergeWordsIntoTrack } from "@/domain/word/merge-track";
 import { boundsOverlap } from "@/domain/word/overlap";
@@ -18,7 +19,7 @@ import { selectionGripEdges } from "@/views/timeline/stretch-grips";
 import { storedLineTimeRange } from "@/views/timeline/stored-line-range";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { useSelectionStretchDrag } from "@/views/timeline/use-selection-stretch";
-import { useSnapBypass } from "@/views/timeline/use-snap-bypass";
+import { useGestureInputReplay } from "@/views/timeline/use-gesture-input-replay";
 import { useTimelineSnap } from "@/views/timeline/use-timeline-snap";
 import { WordBlock } from "@/views/timeline/word-block";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -99,7 +100,7 @@ const WordTrack: React.FC<WordTrackProps> = ({
 
   const snap = useTimelineSnap();
   const getLastPointer = useCallback(() => lastPointerRef.current, []);
-  useSnapBypass({ active: resizing, getLastPointer });
+  useGestureInputReplay({ active: resizing, getLastPointer });
 
   // Multi-block selections: dragging the selection's boundary edge becomes a
   // proportional stretch (anchored at the opposite side) instead of a resize.
@@ -137,7 +138,6 @@ const WordTrack: React.FC<WordTrackProps> = ({
       dragStateRef.current = initialState;
       setDragState(initialState);
 
-      const rollingEdit = useTimelineStore.getState().rollingEditMode;
       const syllablesFollowRollingAtStart = useSettingsStore.getState().syllablesFollowRolling;
       const minWordDuration = useSettingsStore.getState().minWordDuration;
       const boundaryEdge: BoundaryEdge = edge === "left" ? "begin" : "end";
@@ -173,7 +173,7 @@ const WordTrack: React.FC<WordTrackProps> = ({
           words,
           wordIndex,
           edge: boundaryEdge,
-          rollingEdit,
+          rollingEdit: useTimelineStore.getState().rollingEditMode,
           syllablesFollowRolling: syllablesFollowRollingAtStart,
           syllablePositions,
           altHeld: e.altKey,
@@ -264,6 +264,7 @@ const WordTrack: React.FC<WordTrackProps> = ({
     });
 
   const hasSelection = selectedWords.length > 0;
+  const playingRegion = useTimelineStore((s) => (s.selectionPlayback !== null ? s.loopRegion : null));
 
   // The two outer edges of a multi-block selection advertise the proportional
   // stretch. Read lines non-reactively: the grip block identity is stable while
@@ -371,7 +372,9 @@ const WordTrack: React.FC<WordTrackProps> = ({
       updateLineWithHistory(lineId, manualBackgroundWordEdit(newWords));
     }
 
-    useTimelineStore.getState().setEditingWord({ lineId, wordIndex: newIndex, type: trackType });
+    const timeline = useTimelineStore.getState();
+    timeline.clearSelection();
+    timeline.setEditingWord({ lineId, wordIndex: newIndex, type: trackType });
   };
 
   const handleTrackContextMenu = (e: React.MouseEvent) => {
@@ -403,9 +406,9 @@ const WordTrack: React.FC<WordTrackProps> = ({
         const display = getDisplay(wordIndex);
         const wordKey = `${lineId}-${trackType}-${wordIndex}`;
         const syllablePosition = showSyllableIndicators ? syllablePositions[wordIndex] : "none";
-        const gapBefore =
-          (syllablePosition === "middle" || syllablePosition === "last") &&
-          getDisplay(wordIndex - 1).end < display.begin;
+        const inGroup = syllablePosition !== "none";
+        const gapBefore = inGroup && syllablePosition !== "first" && getDisplay(wordIndex - 1).end < display.begin;
+        const gapAfter = inGroup && syllablePosition !== "last" && getDisplay(wordIndex + 1).begin > display.end;
         return (
           <WordBlock
             key={wordKey}
@@ -435,12 +438,16 @@ const WordTrack: React.FC<WordTrackProps> = ({
             end={display.end}
             color={color}
             zoom={zoom}
-            isDimmed={hasSelection && !isWordSelected(selectedWords, lineId, wordIndex, trackType)}
+            isDimmed={
+              (hasSelection && !isWordSelected(selectedWords, lineId, wordIndex, trackType)) ||
+              (playingRegion !== null && !overlapsLoopRegion(display, playingRegion))
+            }
             isSelected={isWordSelected(selectedWords, lineId, wordIndex, trackType)}
             isExplicit={word.explicit === true}
             syllablePosition={syllablePosition}
             syllableEdgesJoin={!syllablesFollowRolling}
             gapBefore={gapBefore}
+            gapAfter={gapAfter}
             leftHighlighted={hoveredBoundary === wordIndex - 1 && isBoundaryConjoined(wordIndex - 1)}
             rightHighlighted={hoveredBoundary === wordIndex && isBoundaryConjoined(wordIndex)}
             leftConjoined={isBoundaryConjoined(wordIndex - 1)}

@@ -1,4 +1,5 @@
 import { withNewInstance } from "@/domain/group/own-timing";
+import { hasTransliteration } from "@/domain/language/has-transliteration";
 import { timeRangeResolver, wholeSongRange } from "@/domain/group/shared-timing";
 import { pickedTemplateSource } from "@/domain/group/template-source";
 import { instanceBounds } from "@/domain/instance/bounds";
@@ -19,7 +20,6 @@ import { useSettingsStore } from "@/stores/settings";
 import { useShortcutBindingsStore } from "@/stores/shortcut-bindings";
 import { showGroupActionToast, showGroupedToast, showSharedSongEdgeToast } from "@/utils/group-toast";
 import { historyShortcutAction } from "@/utils/history-shortcut";
-import { MOD_KEY } from "@/utils/platform";
 import { findMatchingShortcut } from "@/utils/shortcut-matcher";
 import { setBgWordBoundary } from "@/utils/timing/bg-word-timing";
 import { setWordBoundary } from "@/utils/timing/word-timing";
@@ -40,7 +40,7 @@ import { insertEmptyLine } from "@/views/timeline/insert-empty-line";
 import { jumpToAdjacentInstance } from "@/views/timeline/jump-to-instance";
 import { pingGroup } from "@/views/timeline/ping-group";
 import { scrollToInstanceHeader } from "@/views/timeline/scroll-helpers";
-import { playSelection } from "@/views/timeline/selection-playback";
+import { clearLoopRegion, playSelection } from "@/views/timeline/selection-playback";
 import { adjacentSnapPoint } from "@/views/timeline/snap-marker-math";
 import { splitLinesIntoWords } from "@/views/timeline/split-lines-into-words";
 import { GUTTER_WIDTH, WAVEFORM_HEIGHT, useTimelineStore } from "@/views/timeline/timeline-store";
@@ -194,24 +194,6 @@ function useTimelineKeyboard(
       }
 
       if (!claimedByUser) {
-        if (e.code === "KeyC" && (e.metaKey || e.ctrlKey) && !e.repeat) {
-          e.preventDefault();
-          handleCopy();
-          return;
-        }
-
-        if (e.code === "KeyX" && (e.metaKey || e.ctrlKey) && !e.repeat) {
-          e.preventDefault();
-          handleCut();
-          return;
-        }
-
-        if (e.code === "KeyV" && (e.metaKey || e.ctrlKey) && !e.repeat) {
-          e.preventDefault();
-          handlePaste();
-          return;
-        }
-
         if (e.code === "KeyA" && (e.metaKey || e.ctrlKey) && !e.repeat) {
           e.preventDefault();
           const allSelections: WordSelection[] = [];
@@ -229,10 +211,13 @@ function useTimelineKeyboard(
         }
 
         if (e.key === "Escape") {
+          // A modal or panel that closed on this Escape already used it.
+          if (e.defaultPrevented) return;
           const { pasteMode } = useTimelineStore.getState();
           if (pasteMode.status === "preview") {
             useTimelineStore.getState().setPasteMode({ status: "idle" });
           } else {
+            clearLoopRegion();
             useTimelineStore.getState().clearSelection();
           }
           return;
@@ -338,6 +323,18 @@ function useTimelineKeyboard(
         case "timeline.togglePreview":
           useTimelineStore.getState().togglePreviewSidebar();
           break;
+        case "timeline.copy":
+          e.preventDefault();
+          handleCopy();
+          break;
+        case "timeline.cut":
+          e.preventDefault();
+          handleCut();
+          break;
+        case "timeline.paste":
+          e.preventDefault();
+          handlePaste();
+          break;
         case "timeline.toggleSnap": {
           const s = useSettingsStore.getState();
           s.set("timelineSnap", !s.timelineSnap);
@@ -357,7 +354,7 @@ function useTimelineKeyboard(
           break;
         }
         case "timeline.toggleTextVariant":
-          useTimelineStore.getState().toggleTextVariant();
+          if (hasTransliteration(useProjectStore.getState().lines)) useTimelineStore.getState().toggleTextVariant();
           break;
         case "timeline.setWordBegin":
           e.preventDefault();
@@ -534,7 +531,6 @@ function useTimelineKeyboard(
             toast.success("Linked instance added at playhead");
           } else {
             copyInstanceToClipboardAndPreview(projectState.lines, groupId, sourceInstanceIdx);
-            toast(`No room at the playhead. ${MOD_KEY}+V to paste somewhere clear.`);
           }
           break;
         }

@@ -1,4 +1,5 @@
 import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
+import { KEYCAP_CLASS } from "@/ui/inline-key-badge";
 import { formatKey } from "@/utils/format-key";
 import { isMac } from "@/utils/platform";
 import { IconCommand } from "@tabler/icons-react";
@@ -102,9 +103,9 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
       { keys: ["Mod", "Click"], description: "Toggle word in selection" },
       { keys: ["Drag"], description: "Marquee select words" },
       { keys: ["Shift", "Drag"], description: "Add to selection with marquee" },
-      { keys: ["Mod", "C"], description: "Copy selected words" },
-      { keys: ["Mod", "X"], description: "Cut selected words" },
-      { keys: ["Mod", "V"], description: "Paste (ghost preview, click to place)" },
+      { keys: ["Mod", "C"], description: "Copy selected words", shortcutId: "timeline.copy" },
+      { keys: ["Mod", "X"], description: "Cut selected words", shortcutId: "timeline.cut" },
+      { keys: ["Mod", "V"], description: "Paste (ghost preview, click to place)", shortcutId: "timeline.paste" },
       { keys: ["Backspace"], description: "Delete selected words", shortcutId: "timeline.deleteSelection" },
       { keys: ["Alt", "Drag"], description: "Duplicate selected words" },
       { keys: ["E"], description: "Edit selected word text", shortcutId: "timeline.editWord" },
@@ -162,27 +163,18 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
 
 // -- Components ---------------------------------------------------------------
 
-const KeyBadge: React.FC<{ keyName: string }> = ({ keyName }) => {
-  const formatted = formatKey(keyName);
-  const isSymbol = formatted.length === 1 && !/[a-zA-Z0-9]/.test(formatted);
-
-  return (
-    <span
-      className={`inline-flex items-center justify-center min-w-6 h-6 px-1.5 text-xs font-medium rounded bg-composer-button border border-composer-border ${
-        isSymbol ? "text-base" : ""
-      }`}
-    >
-      {(keyName === "Mod" || keyName === "Meta") && isMac ? <IconCommand className="size-3.5" /> : formatted}
-    </span>
-  );
-};
+const KeyBadge: React.FC<{ keyName: string }> = ({ keyName }) => (
+  <span className={KEYCAP_CLASS}>
+    {(keyName === "Mod" || keyName === "Meta") && isMac ? <IconCommand className="size-2.5" /> : formatKey(keyName)}
+  </span>
+);
 
 const ShortcutItem: React.FC<ShortcutItemProps> = ({ keys, description, shortcutId }) => {
   const resolvedKeys = shortcutId ? getEffectiveKeysArray(shortcutId) : keys;
   return (
     <div className="flex items-center justify-between py-1.5">
       <span className="text-sm text-composer-text-secondary">{description}</span>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         {resolvedKeys.map((key) => (
           <KeyBadge key={key} keyName={key} />
         ))}
