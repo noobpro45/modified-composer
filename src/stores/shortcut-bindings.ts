@@ -5,6 +5,8 @@ import {
   type ShortcutScope,
   getShortcutById,
 } from "@/stores/shortcut-registry";
+import { isMac } from "@/utils/platform";
+import { shiftedUsPunctuation } from "@/utils/us-punctuation";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -18,16 +20,19 @@ interface ShortcutBindingsState {
 
 // -- Migration ----------------------------------------------------------------
 
-const SHORTCUT_BINDINGS_PERSIST_VERSION = 5;
+const SHORTCUT_BINDINGS_PERSIST_VERSION = 6;
 const UNBOUND: ShortcutBinding = { key: "" };
 
 const ALTERNATE_REDO_ID = "global.redoAlternate";
 const DELETE_SELECTION_IDS = ["timeline.deleteSelection", "timeline.deleteSelectionAlternate"];
 const CLIPBOARD_IDS = ["timeline.copy", "timeline.cut", "timeline.paste"];
 
+type SameKeys = (saved: ShortcutBinding, added: ShortcutBinding) => boolean;
+
 function unbindIfKeysTaken(
   overrides: Record<string, ShortcutBinding>,
   addedId: string,
+  sameKeys: SameKeys,
 ): Record<string, ShortcutBinding> {
   const added = getShortcutById(addedId);
   if (!added || overrides[addedId]) return overrides;
@@ -37,17 +42,17 @@ function unbindIfKeysTaken(
       owner !== undefined &&
       scopesConflict(added.scope, owner.scope) &&
       typeof binding?.key === "string" &&
-      bindingsEqual(binding, added.defaultBinding)
+      sameKeys(binding, added.defaultBinding)
     );
   });
   return keysTaken ? { ...overrides, [addedId]: UNBOUND } : overrides;
 }
 
-function unbindTakenKeys(addedIds: string[]) {
+function unbindTakenKeys(addedIds: string[], sameKeys: SameKeys = bindingsEqual) {
   return (state: Partial<ShortcutBindingsState>): Partial<ShortcutBindingsState> => {
     const { overrides } = state;
     if (!overrides || typeof overrides !== "object") return state;
-    const migrated = addedIds.reduce(unbindIfKeysTaken, overrides);
+    const migrated = addedIds.reduce((current, addedId) => unbindIfKeysTaken(current, addedId, sameKeys), overrides);
     return migrated === overrides ? state : { ...state, overrides: migrated };
   };
 }
@@ -55,6 +60,19 @@ function unbindTakenKeys(addedIds: string[]) {
 const unbindTakenDeleteKeys = unbindTakenKeys(DELETE_SELECTION_IDS);
 const unbindTakenClipboardKeys = unbindTakenKeys(CLIPBOARD_IDS);
 const unbindTakenTypingPlayKeys = unbindTakenKeys(["global.playPauseWhileTyping"]);
+// Chrome and Safari on macOS saved Cmd+Shift+. as ".", which the ">" seek default also matches.
+function samePressOnMac(saved: ShortcutBinding, added: ShortcutBinding): boolean {
+  const droppedShift = isMac && saved.shift && (saved.mod || saved.meta);
+  const shiftedKey = droppedShift ? shiftedUsPunctuation(saved.key) : undefined;
+  return (
+    bindingsEqual(saved, added) || (shiftedKey !== undefined && bindingsEqual({ ...saved, key: shiftedKey }, added))
+  );
+}
+
+const unbindTakenSeekKeys = unbindTakenKeys(
+  ["global.seekBackward", "global.seekForward", "global.seekBackwardWhileTyping", "global.seekForwardWhileTyping"],
+  samePressOnMac,
+);
 
 const RENAMED_SHORTCUT_IDS: Record<string, string> = { "timeline.toggleGroupLoop": "global.toggleLoop" };
 
@@ -118,7 +136,8 @@ function migrateShortcutBindings(persistedState: unknown, version: number): unkn
   const renamed = version < 2 ? renameShortcutIds(withRedo) : withRedo;
   const withDeleteKeys = version < 3 ? unbindTakenDeleteKeys(renamed) : renamed;
   const withClipboardKeys = version < 4 ? unbindTakenClipboardKeys(withDeleteKeys) : withDeleteKeys;
-  return version < 5 ? unbindTakenTypingPlayKeys(withClipboardKeys) : withClipboardKeys;
+  const withTypingPlayKeys = version < 5 ? unbindTakenTypingPlayKeys(withClipboardKeys) : withClipboardKeys;
+  return version < 6 ? unbindTakenSeekKeys(withTypingPlayKeys) : withTypingPlayKeys;
 }
 
 // -- Store --------------------------------------------------------------------
@@ -154,11 +173,13 @@ function getEffectiveBinding(id: string): ShortcutBinding {
 
 // -- Conflict Detection -------------------------------------------------------
 
+function keyIdentity(binding: ShortcutBinding): string {
+  return binding.key.length === 1 ? binding.key.toLowerCase() : binding.key;
+}
+
 function bindingsEqual(a: ShortcutBinding, b: ShortcutBinding): boolean {
-  const aKey = a.key.length === 1 ? a.key.toLowerCase() : a.key;
-  const bKey = b.key.length === 1 ? b.key.toLowerCase() : b.key;
   return (
-    aKey === bKey &&
+    keyIdentity(a) === keyIdentity(b) &&
     !!a.shift === !!b.shift &&
     !!a.alt === !!b.alt &&
     !!a.ctrl === !!b.ctrl &&
@@ -172,7 +193,8 @@ function scopesConflict(a: ShortcutScope, b: ShortcutScope): boolean {
   return a === b;
 }
 
-function detectConflicts(id: string, newBinding: ShortcutBinding): ShortcutDefinition[] {
+// `pressedAs` is the same key press as the browser reported it, when that differs from the recorded binding.
+function detectConflicts(id: string, newBinding: ShortcutBinding, pressedAs?: ShortcutBinding): ShortcutDefinition[] {
   const source = SHORTCUT_REGISTRY.find((d) => d.id === id);
   if (!source) return [];
 
@@ -180,12 +202,13 @@ function detectConflicts(id: string, newBinding: ShortcutBinding): ShortcutDefin
     if (def.id === id) return false;
     if (!scopesConflict(source.scope, def.scope)) return false;
     const effective = getEffectiveBinding(def.id);
-    return bindingsEqual(effective, newBinding);
+    return bindingsEqual(effective, newBinding) || (pressedAs !== undefined && bindingsEqual(effective, pressedAs));
   });
 }
 
-function assignBinding(id: string, binding: ShortcutBinding): void {
-  const unbound = Object.fromEntries(detectConflicts(id, binding).map((conflict) => [conflict.id, UNBOUND]));
+function assignBinding(id: string, binding: ShortcutBinding, pressedAs?: ShortcutBinding): void {
+  const conflicts = detectConflicts(id, binding, pressedAs);
+  const unbound = Object.fromEntries(conflicts.map((conflict) => [conflict.id, UNBOUND]));
   useShortcutBindingsStore.setState((state) => ({ overrides: { ...state.overrides, ...unbound, [id]: binding } }));
 }
 

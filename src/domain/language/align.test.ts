@@ -70,6 +70,8 @@ describe("transliteration alignment", () => {
     const words = ["あ", "し", "た"].map((text, index) => ({ text, begin: index, end: index + 1 }));
     const plan = planTransliterationAlignment(words, "ashita");
     expect(plan.words.map((w) => w.transliteration)).toEqual(["a", "shi", "ta"]);
+  });
+
   it("does not promote a reused proportional mapping to confirmed", () => {
     const words = ["붙", "어", "있", "던"].map((text, index) => ({ text, begin: index, end: index + 1 }));
     const track: TransliterationTrack = {
