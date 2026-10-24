@@ -83,7 +83,8 @@ func main() {
 	installGoroutineDumpSignal(dataDir)
 
 	if err := bootstrapYtdlp(context.Background(), dataDir, cfg.YtdlpChannel, cfg.YtdlpBinaryPath); err != nil {
-		fatal("ensure yt-dlp: %v", err)
+		slog.Warn("ensure yt-dlp failed; YouTube features may be unavailable until next launch",
+			"err", err, "dataDir", dataDir)
 	}
 	bootstrapDeno(dataDir)
 	go bootstrapFfmpeg(dataDir)
@@ -276,7 +277,7 @@ func main() {
 
 						// Intercept API routes and serve them directly from Wails AssetServer
 						// instead of requiring the frontend to hit localhost:7777
-						if strings.HasPrefix(r.URL.Path, "/audio/") || strings.HasPrefix(r.URL.Path, "/thumb/") || r.URL.Path == "/health" {
+						if strings.HasPrefix(r.URL.Path, "/audio/") || strings.HasPrefix(r.URL.Path, "/thumb/") || r.URL.Path == "/health" || r.URL.Path == "/import" {
 							server.WithCORS(handlers.Router(), func() []string { return a.GetConfig().AllowedOrigins }).ServeHTTP(w, r)
 							return
 						}

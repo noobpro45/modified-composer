@@ -24,5 +24,10 @@ const isChromium =
 
 const BROWSER_KIND: BrowserKind = isChromium ? "chromium" : "other";
 
+function isDesktop(): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean(window.__platform || window.go?.app?.App || window.runtime);
+}
+
 export type { BrowserKind };
-export { isMac, MOD_KEY, ALT_KEY, isChromiumBrands, BROWSER_KIND };
+export { isMac, MOD_KEY, ALT_KEY, isChromiumBrands, BROWSER_KIND, isDesktop };

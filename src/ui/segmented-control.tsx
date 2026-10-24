@@ -18,6 +18,7 @@ interface SegmentedControlProps<T extends string> {
   onChange: (value: T) => void;
   "aria-label": string;
   className?: string;
+  size?: "sm" | "md";
 }
 
 // -- Helpers ------------------------------------------------------------------
@@ -35,7 +36,9 @@ function SegmentedControl<T extends string>({
   onChange,
   "aria-label": ariaLabel,
   className,
+  size = "md",
 }: SegmentedControlProps<T>) {
+  const isSm = size === "sm";
   return (
     <div role="group" aria-label={ariaLabel} className={cn("tray select-none", className)}>
       {options.map((option) => {
@@ -51,16 +54,17 @@ function SegmentedControl<T extends string>({
             disabled={option.disabled}
             onClick={() => onChange(option.value)}
             className={cn(
-              "inline-flex items-center justify-center gap-1.5 h-7 px-3 text-[13px] font-medium rounded-lg whitespace-nowrap transition-[color,background-color,box-shadow] cursor-pointer",
-              option.iconOnly && "w-7 px-0",
+              "inline-flex items-center justify-center font-medium rounded-lg whitespace-nowrap transition-[color,background-color,box-shadow] cursor-pointer",
+              isSm ? "h-6.5 px-2 text-[11.5px] gap-1" : "h-7 px-3 text-[13px] gap-1.5",
+              option.iconOnly && (isSm ? "w-6.5 px-0" : "w-7 px-0"),
               "disabled:cursor-not-allowed disabled:text-composer-text-faint disabled:line-through",
               isSelected
                 ? "latch-on [&_svg]:text-composer-accent-text"
                 : "text-[var(--muted)] hover:text-[var(--label)] hover:bg-[var(--layer-1)]",
             )}
           >
-            {OptionIcon && <OptionIcon aria-hidden="true" className="size-4 shrink-0" />}
-            {!option.iconOnly && option.label}
+            {OptionIcon && <OptionIcon aria-hidden="true" className={cn("shrink-0", isSm ? "size-3.5" : "size-4")} />}
+            {!option.iconOnly && <span className="truncate">{option.label}</span>}
             {option.count !== undefined && (
               <span
                 className={cn(

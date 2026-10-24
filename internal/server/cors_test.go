@@ -119,7 +119,7 @@ func TestWithCORS_PreflightReturns204WithHeaders(t *testing.T) {
 	wantHeaders := map[string]string{
 		"Access-Control-Allow-Origin":  "https://composer.boidu.dev",
 		"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-		"Access-Control-Allow-Headers": "Content-Type",
+		"Access-Control-Allow-Headers": "Content-Type, Range",
 		"Access-Control-Max-Age":       "86400",
 	}
 	for k, want := range wantHeaders {
@@ -229,5 +229,32 @@ func TestWithCORS_NoWildcardSuffixMatching(t *testing.T) {
 
 	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "" {
 		t.Errorf("allow-origin: got %q, want empty (no suffix matching)", got)
+	}
+}
+
+func TestWithCORS_WailsOriginsAllowedWithPort(t *testing.T) {
+	srv := httptest.NewServer(WithCORS(okHandler(), staticOrigins(nil)))
+	defer srv.Close()
+
+	testOrigins := []string{
+		"http://wails.localhost",
+		"http://wails.localhost:34115",
+		"https://wails.localhost:54321",
+		"wails://localhost",
+		"wails://wails",
+	}
+
+	for _, origin := range testOrigins {
+		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/health", nil)
+		req.Header.Set("Origin", origin)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("Do for %s: %v", origin, err)
+		}
+		got := resp.Header.Get("Access-Control-Allow-Origin")
+		resp.Body.Close()
+		if got != origin {
+			t.Errorf("allow-origin for %s: got %q, want %q", origin, got, origin)
+		}
 	}
 }

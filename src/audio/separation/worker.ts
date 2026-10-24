@@ -1,12 +1,22 @@
 /// <reference lib="webworker" />
 // biome-ignore organizeImports: the webworker triple-slash reference must stay before imports.
 import { type Chunk, SEGMENT_SAMPLES, chunkCount, iterateChunks, stitchChunks } from "@/audio/separation/chunker";
-import { MAGSPEC_DIMS, SPLIT_MAGSPEC_DIMS, computeMagspec, computeSplitMagspec } from "@/audio/separation/demucs-spec";
+import { MAGSPEC_DIMS, computeMagspec } from "@/audio/separation/demucs-spec";
 import { denormalizeDemucsOutput, extractVocalsStem, normalizeForDemucs } from "@/audio/separation/demucs-postprocess";
 import { fetchAndCacheModel, hasCachedModel, readCachedModel } from "@/audio/separation/model-cache";
 import { getModelDescriptor } from "@/audio/separation/model-registry";
 import type { VocalModelVariant } from "@/stores/settings";
 
+// HTDemucs ONNX I/O contract (matches sevagh/demucs.onnx export):
+//   inputs:
+//     "input": [1, 2, 343980]      stereo waveform @ 44.1 kHz, 7.8 s
+//     "x":     [1, 4, 2048, 336]   pre-computed magspec (L_re, L_im, R_re, R_im)
+//   outputs:
+//     "output": [1, 4, 4, 2048, 336]  separated spectrogram branch
+//     "add_67": [1, 4, 2, 343980]     separated time branch
+//                                     stem order: drums, bass, other, vocals
+const FREQ_OUTPUT_NAME = "output";
+const TIME_OUTPUT_NAME = "add_67";
 const WAVEFORM_INPUT_NAME = "input";
 const MAGSPEC_INPUT_NAME = "x";
 
@@ -69,7 +79,7 @@ async function loadOrt(forceWasm: boolean | undefined): Promise<Ort> {
 }
 
 function getOrtVersion(): string {
-  return "1.26.0";
+  return "1.30.0";
 }
 
 async function handleInit(variant: VocalModelVariant, forceWasm?: boolean) {
@@ -142,10 +152,6 @@ async function handleProcess(channels: Float32Array[], totalFrames: number) {
   const vocalChunks: Chunk[] = [];
   const normalized = normalizeForDemucs(channels, totalFrames);
 
-  const isSplitModel = session.inputNames.includes("spec_real");
-  const waveOutputName = session.outputNames.find((n) => n === "out_wave" || n === "add_67") ?? session.outputNames[0];
-  const freqOutputName = session.outputNames.find((n) => n === "output");
-
   let chunkIndex = 0;
   for (const chunk of iterateChunks(normalized.channels)) {
     if (cancelled) {
@@ -153,51 +159,44 @@ async function handleProcess(channels: Float32Array[], totalFrames: number) {
       return;
     }
 
-    // Build stereo waveform tensor: [1, 2, 343980], laid out [L..., R...].
+    // Build "input" waveform tensor: [1, 2, 343980], laid out [L..., R...].
     const waveformFlat = new Float32Array(2 * SEGMENT_SAMPLES);
     waveformFlat.set(chunk.data[0], 0);
     waveformFlat.set(chunk.data[1], SEGMENT_SAMPLES);
+    const waveformTensor = new ort.Tensor("float32", waveformFlat, [1, 2, SEGMENT_SAMPLES]);
 
-    let feeds: Record<string, OrtTensor>;
+    // Build "x" magspec tensor: [1, 4, 2048, 336].
+    let magspecFlat: Float32Array;
     try {
-      if (isSplitModel) {
-        const { real, imag } = computeSplitMagspec(chunk.data);
-        feeds = {
-          audio: new ort.Tensor("float32", waveformFlat, [1, 2, SEGMENT_SAMPLES]),
-          spec_real: new ort.Tensor("float32", real, [...SPLIT_MAGSPEC_DIMS]),
-          spec_imag: new ort.Tensor("float32", imag, [...SPLIT_MAGSPEC_DIMS]),
-        };
-      } else {
-        const magspecFlat = computeMagspec(chunk.data);
-        feeds = {
-          [WAVEFORM_INPUT_NAME]: new ort.Tensor("float32", waveformFlat, [1, 2, SEGMENT_SAMPLES]),
-          [MAGSPEC_INPUT_NAME]: new ort.Tensor("float32", magspecFlat, [...MAGSPEC_DIMS]),
-        };
-      }
+      magspecFlat = computeMagspec(chunk.data);
     } catch (err) {
       post({ type: "error", code: "ort-failed", message: (err as Error).message });
       return;
     }
+    const magspecTensor = new ort.Tensor("float32", magspecFlat, [...MAGSPEC_DIMS]);
 
     let result: Record<string, OrtTensor>;
     try {
-      result = await session.run(feeds);
+      result = await session.run({
+        [WAVEFORM_INPUT_NAME]: waveformTensor,
+        [MAGSPEC_INPUT_NAME]: magspecTensor,
+      });
     } catch (err) {
       post({ type: "error", code: "ort-failed", message: (err as Error).message });
       return;
     }
 
-    const waveTensor = waveOutputName ? result[waveOutputName] : undefined;
-    if (!waveTensor) {
+    const timeTensor = result[TIME_OUTPUT_NAME];
+    const freqTensor = result[FREQ_OUTPUT_NAME];
+    if (!timeTensor || !freqTensor) {
       post({
         type: "error",
         code: "ort-failed",
-        message: `Missing output tensor ${waveOutputName}. Available: ${Object.keys(result).join(", ")}`,
+        message: `Missing output tensor ${!timeTensor ? TIME_OUTPUT_NAME : FREQ_OUTPUT_NAME}. Available: ${Object.keys(result).join(", ")}`,
       });
       return;
     }
-    const freqTensor = freqOutputName ? result[freqOutputName] : undefined;
-    const vocalsChannels = extractVocalsStem(waveTensor, freqTensor);
+    const vocalsChannels = extractVocalsStem(timeTensor, freqTensor);
     vocalChunks.push({ start: chunk.start, end: chunk.end, data: vocalsChannels });
 
     chunkIndex++;

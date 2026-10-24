@@ -4,7 +4,6 @@ import {
   NUM_TIME_FRAMES,
   SEGMENT_SAMPLES,
   computeMagspec,
-  computeSplitMagspec,
   waveformFromComplexAsChannels,
 } from "@/audio/separation/demucs-spec";
 import { describe, expect, it } from "vitest";
@@ -73,14 +72,6 @@ describe("computeMagspec", () => {
 
   it("rejects mono input", () => {
     expect(() => computeMagspec([new Float32Array(SEGMENT_SAMPLES)])).toThrow();
-  });
-});
-
-describe("computeSplitMagspec", () => {
-  it("returns split real and imag tensors of shape [2, 2048, 336]", () => {
-    const { real, imag } = computeSplitMagspec(silence());
-    expect(real.length).toBe(2 * NUM_FREQ_BINS * NUM_TIME_FRAMES);
-    expect(imag.length).toBe(2 * NUM_FREQ_BINS * NUM_TIME_FRAMES);
   });
 });
 

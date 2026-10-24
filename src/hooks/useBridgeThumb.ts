@@ -5,6 +5,7 @@ import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { getThumbFromBridge } from "@/utils/composer-bridge-api";
+import { isDesktop } from "@/utils/platform";
 
 // -- Constants ----------------------------------------------------------------
 
@@ -14,8 +15,7 @@ const QUERY_KEY = "composer-bridge-thumb";
 
 function useBridgeThumb(): UseQueryResult<string | null, Error> {
   const source = useAudioStore((s) => s.source);
-  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
-  const bridgeEnabled = isDesktop || useSettingsStore((s) => s.experiments.youtubeBridge);
+  const bridgeEnabled = isDesktop() || useSettingsStore((s) => s.experiments.youtubeBridge);
   const bridgeUrl = useSettingsStore((s) => s.composerBridgeUrl);
   const persistedThumb = useProjectStore((s) => s.metadata.thumbnailDataUrl);
   const persistedFor = useProjectStore((s) => s.metadata.thumbnailForVideoId);

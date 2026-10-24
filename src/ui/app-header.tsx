@@ -3,6 +3,7 @@ import { ProjectBreadcrumb } from "@/ui/projects/project-breadcrumb";
 import { TabBar } from "@/ui/tab-bar";
 import { ThemeMenu } from "@/ui/theme-menu";
 import { type AppScreen, LIBRARY_PATH } from "@/utils/app-routes";
+import { isDesktop } from "@/utils/platform";
 import { IconHelp, IconMinus, IconRoute, IconSettings, IconSquare, IconX } from "@tabler/icons-react";
 import { Link } from "react-router-dom";
 
@@ -46,21 +47,27 @@ const LibraryBrand: React.FC = () => (
 const HEADER_ICON_STYLES = "size-9 rounded-[10px] text-(--muted) hover:text-composer-text hover:bg-(--layer-2)";
 
 const AppHeader: React.FC<AppHeaderProps> = ({ screen, onSettingsOpen, onHelpOpen, onTourStart }) => {
-  const isWails = typeof window !== "undefined" && typeof window.runtime !== "undefined";
+  const isWails = isDesktop();
 
   return (
     <header
-      className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-14 shrink-0 pl-4 pr-3 select-none"
+      className="grid grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] items-center gap-4 h-14 shrink-0 pl-4 pr-3 select-none"
       style={isWails ? ({ "--wails-draggable": "drag" } as React.CSSProperties) : undefined}
     >
-      <div style={isWails ? ({ "--wails-draggable": "no-drag" } as React.CSSProperties) : undefined}>
+      <div
+        className="min-w-0 overflow-hidden"
+        style={isWails ? ({ "--wails-draggable": "no-drag" } as React.CSSProperties) : undefined}
+      >
         {screen === "editor" ? <EditorBrand /> : <LibraryBrand />}
       </div>
-      <div style={isWails ? ({ "--wails-draggable": "no-drag" } as React.CSSProperties) : undefined}>
+      <div
+        className="shrink-0"
+        style={isWails ? ({ "--wails-draggable": "no-drag" } as React.CSSProperties) : undefined}
+      >
         {screen === "editor" ? <TabBar /> : <span />}
       </div>
       <div
-        className="flex items-center justify-end gap-1 min-w-0"
+        className="flex items-center justify-end gap-1 shrink-0 ml-auto"
         style={isWails ? ({ "--wails-draggable": "no-drag" } as React.CSSProperties) : undefined}
       >
         <ThemeMenu />
@@ -76,18 +83,18 @@ const AppHeader: React.FC<AppHeaderProps> = ({ screen, onSettingsOpen, onHelpOpe
           icon={<IconRoute className="size-[18px]" />}
           variant="ghost"
           onClick={onTourStart}
-          className={HEADER_ICON_STYLES}
+          className={`${HEADER_ICON_STYLES} max-[1200px]:hidden`}
         />
         <IconButton
           label="Keyboard shortcuts (?)"
           icon={<IconHelp className="size-[18px]" />}
           variant="ghost"
           onClick={onHelpOpen}
-          className={HEADER_ICON_STYLES}
+          className={`${HEADER_ICON_STYLES} max-[1100px]:hidden`}
         />
         {isWails && (
-          <>
-            <div className="w-px h-5 bg-composer-border mx-1" />
+          <div className="flex items-center gap-0.5 shrink-0 ml-1">
+            <div className="w-px h-5 bg-composer-border mx-1 shrink-0" />
             <IconButton
               label="Minimize"
               icon={<IconMinus className="size-4" />}
@@ -107,9 +114,12 @@ const AppHeader: React.FC<AppHeaderProps> = ({ screen, onSettingsOpen, onHelpOpe
               icon={<IconX className="size-4" />}
               variant="ghost"
               className={`${HEADER_ICON_STYLES} hover:bg-red-500 hover:text-white`}
-              onClick={() => window.runtime?.Quit()}
+              onClick={() => {
+                window.go?.app?.App?.MarkQuitting();
+                window.runtime?.Quit();
+              }}
             />
-          </>
+          </div>
         )}
       </div>
     </header>

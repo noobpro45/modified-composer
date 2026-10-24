@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"net/http"
+	"path/filepath"
 	goruntime "runtime"
 	"strconv"
+	"strings"
 )
 
 // htmlBufferingWriter captures the response from the inner asset handler so
@@ -35,28 +37,37 @@ func (w *htmlBufferingWriter) WriteHeader(status int) {
 	w.status = status
 }
 
+func isSPARoute(path string) bool {
+	if path == "/" || path == "/index.html" {
+		return true
+	}
+	if strings.HasPrefix(path, "/wails/") ||
+		strings.HasPrefix(path, "/audio/") ||
+		strings.HasPrefix(path, "/thumb/") ||
+		strings.HasPrefix(path, "/debug/") ||
+		path == "/health" ||
+		path == "/import" {
+		return false
+	}
+	// Static assets with extensions (.js, .css, .wasm, .png, etc.) pass through
+	if filepath.Ext(path) != "" {
+		return false
+	}
+	return true
+}
+
 // platformInjectMiddleware stamps the served index.html with `window.__platform`
 // set to Go's `runtime.GOOS`. The React app reads this synchronously, before
 // any other JS runs, to render correct window-chrome insets on the first
 // paint (the macOS title-bar inset is wasted space on Windows and Linux).
-//
-// Why this and not navigator.userAgent: UA strings can change across webview
-// versions. runtime.GOOS is a Go compile-time constant baked into the binary
-// by `wails build -platform <os>/<arch>`, so it is the ground truth and is
-// never wrong for the host the binary is running on.
-//
-// Why this and not Environment() from the Wails JS runtime: Environment is a
-// Promise (IPC roundtrip). Reading it from React forces a first-frame layout
-// flash or an awaited delay before mount. Injecting at HTML-serve time means
-// the variable is set before any JS in the document runs.
-//
-// We only buffer the response when the path is the root index.html. Static
-// asset requests (JS bundles, CSS, images) pass straight through.
 func platformInjectMiddleware(next http.Handler) http.Handler {
 	script := []byte(`<script>window.__platform=` + strconv.Quote(goruntime.GOOS) + `;</script>`)
 	closingHead := []byte("</head>")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+		if isSPARoute(r.URL.Path) {
+			r.URL.Path = "/"
+		}
+		if r.URL.Path != "/" && r.URL.Path != "/index.html" && !strings.HasSuffix(r.URL.Path, ".html") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -79,3 +90,4 @@ func platformInjectMiddleware(next http.Handler) http.Handler {
 		_, _ = w.Write(body)
 	})
 }
+

@@ -3,6 +3,7 @@
 // See `experiments/composer-bridge/README.md` for what the binary is.
 
 import { composeAbortSignals } from "@/utils/abort-signals";
+import { isDesktop } from "@/utils/platform";
 import { stripTrailingSlashes } from "@/utils/url";
 
 const DEFAULT_BRIDGE_URL = "http://localhost:7777";
@@ -58,7 +59,7 @@ async function checkBridgeHealth(baseUrl: string, signal?: AbortSignal): Promise
   const timeoutId = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
   const composed = composeAbortSignals(signal, controller.signal);
   try {
-    const isWails = typeof window !== "undefined" && typeof window.go !== "undefined";
+    const isWails = isDesktop();
     const targetUrl = isWails ? "/health" : `${normalizeBaseUrl(baseUrl)}/health`;
     let res: Response;
     try {
@@ -91,7 +92,7 @@ async function getAudioFromBridge(baseUrl: string, videoId: string, signal?: Abo
   const timeoutId = setTimeout(() => controller.abort(), AUDIO_TIMEOUT_MS);
   const composed = composeAbortSignals(signal, controller.signal);
   try {
-    const isWails = typeof window !== "undefined" && typeof window.go !== "undefined";
+    const isWails = isDesktop();
     const audioPath = `/audio/${encodeURIComponent(videoId)}`;
     const targetUrl = isWails ? audioPath : `${normalizeBaseUrl(baseUrl)}${audioPath}`;
     let res: Response;
@@ -136,7 +137,7 @@ async function getThumbFromBridge(baseUrl: string, videoId: string, signal?: Abo
   const timeoutId = setTimeout(() => controller.abort(), THUMB_TIMEOUT_MS);
   const composed = composeAbortSignals(signal, controller.signal);
   try {
-    const isWails = typeof window !== "undefined" && typeof window.go !== "undefined";
+    const isWails = isDesktop();
     const thumbPath = `/thumb/${encodeURIComponent(videoId)}`;
     const targetUrl = isWails ? thumbPath : `${normalizeBaseUrl(baseUrl)}${thumbPath}`;
     let res: Response;

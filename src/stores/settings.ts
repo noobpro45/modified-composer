@@ -18,6 +18,7 @@ type PreviewRenderer = "braccato" | "am-lyrics";
 type VocalModelVariant = "fp16" | "fp32";
 type LanguageAutoGenerate = "auto" | "manual";
 type RomanizationCase = "preserve" | "lowercase";
+type TimelineVisualization = "waveform" | "spectrogram";
 
 interface ExperimentFlags {
   youtubeBridge: boolean;
@@ -45,7 +46,6 @@ interface SettingsState {
   rememberVolume: boolean;
   lastVolume: number;
   audioScrubPreview: boolean;
-
   defaultZoom: number;
   defaultRowHeight: number;
   followPlayhead: boolean;
@@ -60,7 +60,8 @@ interface SettingsState {
   snapPlayheadToPoints: boolean;
   syllablesFollowRolling: boolean;
   timelineHorizontalScroll: boolean;
-
+  timelineVisualization: TimelineVisualization;
+  spectrogramGain: number;
   nudgeAmount: number;
   defaultWordDuration: number;
   minWordDuration: number;
@@ -68,17 +69,14 @@ interface SettingsState {
   selectionLeadIn: number;
   syncCountIn: number;
   defaultGranularity: GranularityDefault;
-
   autoSaveDelay: number;
   keepYouTubeAudio: KeepYouTubeAudio;
   musicBrainzLookup: MusicBrainzLookup;
   smartCleanup: boolean;
   storageLimit: StorageLimit;
-
   libraryView: LibraryView;
   librarySort: LibrarySort;
   launchScreen: LaunchScreen;
-
   showShortcutHints: boolean;
   showSyllableIndicators: boolean;
   splitCharacter: string;
@@ -88,7 +86,6 @@ interface SettingsState {
   languageAutoGenerate: LanguageAutoGenerate;
   languageDefaultTarget: string;
   romanizationCase: RomanizationCase;
-
   confirmReplaceLyrics: boolean;
   confirmSyncReset: boolean;
   confirmClearProject: boolean;
@@ -99,16 +96,12 @@ interface SettingsState {
   confirmConformToGroup: boolean;
   confirmClearImportedSongDetails: boolean;
   linkedDivergenceAction: LinkedDivergenceAction;
-
   previewRenderer: PreviewRenderer;
-
   autoSeparateOnImport: boolean;
   vocalModelVariant: VocalModelVariant;
-
   cobaltInstances: CobaltInstance[];
   selectedCobaltInstanceId: string;
   cobaltInstanceStatus: Record<string, CobaltInstanceStatus>;
-
   experiments: ExperimentFlags;
   composerBridgeUrl: string;
 }
@@ -133,7 +126,6 @@ const DEFAULTS: SettingsState = {
   rememberVolume: true,
   lastVolume: 1,
   audioScrubPreview: true,
-
   defaultZoom: 100,
   defaultRowHeight: 44,
   followPlayhead: true,
@@ -148,7 +140,8 @@ const DEFAULTS: SettingsState = {
   snapPlayheadToPoints: true,
   syllablesFollowRolling: false,
   timelineHorizontalScroll: false,
-
+  timelineVisualization: "waveform",
+  spectrogramGain: 1,
   nudgeAmount: 0.05,
   defaultWordDuration: 0.3,
   minWordDuration: DEFAULT_MIN_WORD_DURATION,
@@ -156,17 +149,14 @@ const DEFAULTS: SettingsState = {
   selectionLeadIn: 0.3,
   syncCountIn: 3,
   defaultGranularity: "word",
-
   autoSaveDelay: 2000,
   keepYouTubeAudio: "auto",
   musicBrainzLookup: "auto",
   smartCleanup: true,
   storageLimit: "2gb",
-
   libraryView: "list",
   librarySort: "edited",
   launchScreen: "projects",
-
   showShortcutHints: true,
   showSyllableIndicators: true,
   splitCharacter: "|",
@@ -176,7 +166,6 @@ const DEFAULTS: SettingsState = {
   languageAutoGenerate: "auto",
   languageDefaultTarget: "en",
   romanizationCase: "preserve",
-
   confirmReplaceLyrics: true,
   confirmSyncReset: true,
   confirmClearProject: true,
@@ -187,9 +176,7 @@ const DEFAULTS: SettingsState = {
   confirmConformToGroup: true,
   confirmClearImportedSongDetails: true,
   linkedDivergenceAction: "ask",
-
   previewRenderer: "braccato",
-
   autoSeparateOnImport: false,
   vocalModelVariant: "fp32",
 
@@ -290,4 +277,11 @@ export {
   getActiveCobaltInstance,
   isUsingDefaultCobaltInstance,
 };
-export type { SettingsState, CobaltInstanceStatus, VocalModelVariant, LanguageAutoGenerate, RomanizationCase };
+export type {
+  SettingsState,
+  CobaltInstanceStatus,
+  TimelineVisualization,
+  VocalModelVariant,
+  LanguageAutoGenerate,
+  RomanizationCase,
+};

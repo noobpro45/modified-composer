@@ -58,6 +58,11 @@ const LANGUAGE_DEFAULT_TARGET_OPTIONS: SelectOption[] = [
   { value: "tr", label: "Turkish" },
 ];
 
+const TIMELINE_VISUALIZATION_OPTIONS: SelectOption[] = [
+  { value: "waveform", label: "Waveform (Default)" },
+  { value: "spectrogram", label: "Spectrogram" },
+];
+
 const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
   showShortcutHints: TOGGLE,
   showSyllableIndicators: TOGGLE,
@@ -130,6 +135,10 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
       label: "Use current",
       onClick: () => useSettingsStore.getState().set("defaultRowHeight", useTimelineStore.getState().defaultRowHeight),
     },
+  },
+  timelineVisualization: {
+    kind: "select",
+    options: TIMELINE_VISUALIZATION_OPTIONS,
   },
   timelineSnap: TOGGLE,
   vocalOnsetSnap: TOGGLE,
