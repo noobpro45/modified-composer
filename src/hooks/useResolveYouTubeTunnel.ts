@@ -22,6 +22,7 @@ import {
   isBridgeUnreachable,
 } from "@/utils/composer-bridge-api";
 import { normalizeIsrc } from "@/utils/isrc";
+import { isDesktop } from "@/utils/platform";
 import { isYouTubeSourceFor } from "@/utils/youtube-source";
 import { useQuery } from "@tanstack/react-query";
 import { createElement, useEffect, useRef } from "react";
@@ -132,8 +133,7 @@ async function fetchViaCobalt(
 }
 
 function fetchTunnel(videoId: string, signal: AbortSignal, ensureAuth: () => Promise<string>): Promise<TunnelResult> {
-  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
-  if (isDesktop || useSettingsStore.getState().experiments.youtubeBridge) {
+  if (isDesktop() || useSettingsStore.getState().experiments.youtubeBridge) {
     return fetchViaBridge(videoId, signal);
   }
   return fetchViaCobalt(videoId, signal, ensureAuth);
@@ -147,8 +147,7 @@ function useResolveYouTubeTunnel(): void {
   ensureRef.current = ensureAuth;
 
   const source = useAudioStore((s) => s.source);
-  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
-  const bridgeEnabled = isDesktop || useSettingsStore((s) => s.experiments.youtubeBridge);
+  const bridgeEnabled = isDesktop() || useSettingsStore((s) => s.experiments.youtubeBridge);
   const bridgeUrl = useSettingsStore((s) => s.composerBridgeUrl);
   const videoId = source?.type === "youtube" && !source.file ? source.videoId : null;
 

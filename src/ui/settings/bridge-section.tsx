@@ -5,6 +5,7 @@ import { BridgeInstallGuide } from "@/ui/settings/bridge-install-guide";
 import { BridgeUrlField } from "@/ui/settings/bridge-url-field";
 import { Switch } from "@/ui/switch";
 import { hasBridgeEverBeenDetected, markBridgeDetected } from "@/utils/bridge-detection";
+import { isDesktop } from "@/utils/platform";
 import {
   type BridgeHealth,
   DEFAULT_BRIDGE_URL,
@@ -77,7 +78,7 @@ const BridgeStoppedHint: React.FC = () => (
 // -- Section ------------------------------------------------------------------
 
 const BridgeSection: React.FC = () => {
-  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
+  const isDesktopApp = isDesktop();
 
   const enabled = useSettingsStore((s) => s.experiments.youtubeBridge);
   const bridgeUrl = useSettingsStore((s) => s.composerBridgeUrl);
@@ -97,10 +98,10 @@ const BridgeSection: React.FC = () => {
   const health = useQuery({
     queryKey: [HEALTH_QUERY_KEY, bridgeUrl],
     queryFn: ({ signal }) => checkBridgeHealth(bridgeUrl, signal),
-    enabled: enabled && !isDesktop,
+    enabled: enabled && !isDesktopApp,
     staleTime: 0,
     gcTime: 0,
-    refetchInterval: enabled && !isDesktop ? HEALTH_REFETCH_INTERVAL : false,
+    refetchInterval: enabled && !isDesktopApp ? HEALTH_REFETCH_INTERVAL : false,
     retry: false,
   });
 
@@ -112,7 +113,7 @@ const BridgeSection: React.FC = () => {
     health.isFetching && !health.data ? "checking" : health.data ? "ok" : "error";
   const errorMessage = health.error instanceof Error ? health.error.message : undefined;
 
-  if (isDesktop) {
+  if (isDesktopApp) {
     return (
       <div data-testid="bridge-section" className="py-2">
         <NativeBridgeControls />

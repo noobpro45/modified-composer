@@ -35,6 +35,7 @@ interface SeparationState {
   jobKey: string | null;
   stemUrls: Partial<Record<Stem, string>>;
   hostingConfigured: boolean;
+  visualizationStem: Stem | null;
 }
 
 interface SeparationActions {
@@ -43,6 +44,7 @@ interface SeparationActions {
   downloadModel: () => Promise<void>;
   separate: () => Promise<void>;
   selectStem: (stem: Stem) => void;
+  selectVisualizationStem: (stem: Stem | null) => void;
   restoreCurrentStem: (stem: Stem) => void;
   cancel: () => void;
   retry: () => Promise<void>;
@@ -55,18 +57,28 @@ let separationRun = 0;
 function endSeparationRun(): void {
   separationRun += 1;
 }
-
 function beginSeparationRun(): () => boolean {
   endSeparationRun();
   const run = separationRun;
   return () => run === separationRun;
 }
-
 function revokeUrls(urls: Partial<Record<Stem, string>>) {
-  for (const url of Object.values(urls)) {
-    if (url) URL.revokeObjectURL(url);
-  }
+  for (const url of Object.values(urls)) if (url) URL.revokeObjectURL(url);
 }
+
+const idleStemState = (jobKey: string | null = null) => ({
+  jobKey,
+  availableStems: ["original"] as Stem[],
+  stemUrls: {},
+  currentStem: "original" as Stem,
+  visualizationStem: null,
+  status: "idle" as const,
+});
+
+const stemUpdate = (stem: Stem): Partial<SeparationState> =>
+  stem === "original"
+    ? { currentStem: stem, visualizationStem: null }
+    : { currentStem: stem, otherStem: stem, visualizationStem: null };
 
 const useSeparationStore = create<SeparationState & SeparationActions>((set, get) => ({
   status: "idle",
@@ -79,6 +91,7 @@ const useSeparationStore = create<SeparationState & SeparationActions>((set, get
   jobKey: null,
   stemUrls: {},
   hostingConfigured: isModelHostingConfigured(),
+  visualizationStem: null,
 
   refreshModelCacheStatus: async () => {
     const variant = useSettingsStore.getState().vocalModelVariant;
@@ -97,7 +110,7 @@ const useSeparationStore = create<SeparationState & SeparationActions>((set, get
     const source = useAudioStore.getState().source;
     const file = source?.type === "file" ? source.file : source?.type === "youtube" ? source.file : null;
     if (!file) {
-      set({ jobKey: null, availableStems: ["original"], stemUrls: {}, currentStem: "original", status: "idle" });
+      set(idleStemState());
       return;
     }
     const variant = useSettingsStore.getState().vocalModelVariant;
@@ -108,7 +121,7 @@ const useSeparationStore = create<SeparationState & SeparationActions>((set, get
     try {
       const has = await hasStems(audioHash, variant);
       if (!has) {
-        set({ jobKey, availableStems: ["original"], stemUrls: {}, currentStem: "original", status: "idle" });
+        set(idleStemState(jobKey));
         return;
       }
 
@@ -130,10 +143,7 @@ const useSeparationStore = create<SeparationState & SeparationActions>((set, get
 
   downloadModel: async () => {
     if (!get().hostingConfigured) {
-      set({
-        status: "error",
-        error: { code: "no-base-url", message: "Vocal model URL is not configured." },
-      });
+      set({ status: "error", error: { code: "no-base-url", message: "Vocal model URL is not configured." } });
       return;
     }
     isCancelling = false;
@@ -145,10 +155,7 @@ const useSeparationStore = create<SeparationState & SeparationActions>((set, get
 
   separate: async () => {
     if (!get().hostingConfigured) {
-      set({
-        status: "error",
-        error: { code: "no-base-url", message: "Vocal model URL is not configured." },
-      });
+      set({ status: "error", error: { code: "no-base-url", message: "Vocal model URL is not configured." } });
       return;
     }
     const source = useAudioStore.getState().source;
@@ -235,20 +242,18 @@ const useSeparationStore = create<SeparationState & SeparationActions>((set, get
   },
 
   selectStem: (stem) => {
-    const available = get().availableStems;
-    if (!available.includes(stem)) return;
-    set(stem === "original" ? { currentStem: stem } : { currentStem: stem, otherStem: stem });
+    if (get().availableStems.includes(stem)) set(stemUpdate(stem));
   },
 
-  // Called once at boot by usePersistence to seed currentStem from the saved
-  // project, before useAutoSeparate's source subscription runs
-  // refreshForCurrentSource. Unlike selectStem this intentionally bypasses the
-  // availableStems guard, because at restore time the available list hasn't
-  // been populated yet. refreshForCurrentSource handles eviction by overwriting
-  // back to "original" when the cached stems are gone.
-  restoreCurrentStem: (stem) => {
-    set(stem === "original" ? { currentStem: stem } : { currentStem: stem, otherStem: stem });
+  selectVisualizationStem: (stem) => {
+    if (stem === null || stem === get().currentStem) {
+      set({ visualizationStem: null });
+      return;
+    }
+    if (get().availableStems.includes(stem)) set({ visualizationStem: stem });
   },
+
+  restoreCurrentStem: (stem) => set(stemUpdate(stem)),
 
   cancel: () => {
     isCancelling = true;
@@ -275,6 +280,7 @@ const useSeparationStore = create<SeparationState & SeparationActions>((set, get
       availableStems: ["original"],
       jobKey: null,
       stemUrls: {},
+      visualizationStem: null,
     });
   },
 }));

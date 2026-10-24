@@ -68,6 +68,7 @@ export default defineConfig({
             enabled: true,
             provider: playwright({
               launchOptions: {
+                channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
                 args: [
                   "--autoplay-policy=no-user-gesture-required",
                   "--enable-unsafe-swiftshader",

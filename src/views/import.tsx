@@ -12,6 +12,7 @@ import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { fileExtensionLabel, fileNameWithoutExtension } from "@/utils/file-name";
 import { formatFileSize } from "@/utils/format-file-size";
+import { isDesktop } from "@/utils/platform";
 import { IMPORT_AREA, ImportZone, OrDivider, SourceCard } from "@/views/import/import-layout";
 import { MissingAudioPanel } from "@/views/import/missing-audio-panel";
 import {
@@ -45,8 +46,7 @@ function formatDuration(seconds: number): string {
 // -- Sub-components -----------------------------------------------------------
 
 const YouTubeSourceThumb: React.FC<{ videoId: string; loading: boolean }> = ({ videoId, loading }) => {
-  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
-  const bridgeEnabled = isDesktop || useSettingsStore((s) => s.experiments.youtubeBridge);
+  const bridgeEnabled = isDesktop() || useSettingsStore((s) => s.experiments.youtubeBridge);
   const persistedThumb = useProjectStore((s) => s.metadata.thumbnailDataUrl);
   const persistedFor = useProjectStore((s) => s.metadata.thumbnailForVideoId);
   const hasMatchingPersistedThumb = Boolean(persistedThumb && persistedFor === videoId);

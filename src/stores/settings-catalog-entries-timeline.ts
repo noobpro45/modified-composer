@@ -16,6 +16,13 @@ const TIMELINE_CATALOG_ENTRIES = {
     description: "Starting height of each lyric row in the timeline.",
     settingKey: "defaultRowHeight",
   },
+  timelineVisualization: {
+    section: "timeline",
+    label: "Audio visualization",
+    description: "Display an amplitude waveform or frequency spectrogram on the timeline.",
+    keywords: ["waveform", "spectrogram", "frequencies", "sonogram", "audio", "display"],
+    settingKey: "timelineVisualization",
+  },
   timelineSnap: {
     section: "timeline",
     label: "Snap (magnet)",

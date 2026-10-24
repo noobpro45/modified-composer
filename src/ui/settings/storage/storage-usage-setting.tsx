@@ -5,6 +5,7 @@ import { useProjectIndex } from "@/hooks/useProjectIndex";
 import { useStorageReport } from "@/hooks/useStorageReport";
 import { useSettingsStore } from "@/stores/settings";
 import { StorageUsagePanel } from "@/ui/settings/storage/storage-usage-panel";
+import { isDesktop } from "@/utils/platform";
 
 // -- Component ----------------------------------------------------------------
 
@@ -12,8 +13,7 @@ const StorageUsageSetting: React.FC = () => {
   const { entries } = useProjectIndex();
   const report = useStorageReport();
   const keepYouTubeAudio = useSettingsStore((s) => s.keepYouTubeAudio);
-  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
-  const bridgeEnabled = isDesktop || useSettingsStore((s) => s.experiments.youtubeBridge);
+  const bridgeEnabled = isDesktop() || useSettingsStore((s) => s.experiments.youtubeBridge);
 
   if (entries === undefined || report === undefined) return null;
 

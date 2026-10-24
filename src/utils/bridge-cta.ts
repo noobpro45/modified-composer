@@ -1,11 +1,11 @@
 import { useSettingsStore } from "@/stores/settings";
 import { BridgeError } from "@/utils/composer-bridge-api";
+import { isDesktop } from "@/utils/platform";
 
 // -- Helpers ------------------------------------------------------------------
 
 function shouldShowBridgeCta(cause: unknown): boolean {
-  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
-  if (isDesktop || useSettingsStore.getState().experiments.youtubeBridge) return false;
+  if (isDesktop() || useSettingsStore.getState().experiments.youtubeBridge) return false;
   if (cause instanceof BridgeError) return false;
   return true;
 }

@@ -19,6 +19,7 @@ import { appQueryClient } from "@/lib/app-query-client";
 import { wireFrameLoop } from "@/lib/frame-loop-wiring";
 import { commitAllPendingDeletions } from "@/lib/pending-deletions";
 import { useAudioStore } from "@/stores/audio";
+import { useConfirmStore } from "@/stores/confirm-store";
 import { useProjectStore } from "@/stores/project";
 import { useUIStore } from "@/stores/ui";
 import { GuideCard } from "@/tour/guide-card";
@@ -31,6 +32,7 @@ import { OverlayHosts } from "@/ui/overlay-hosts";
 import { APP_SETTING_LINK_HOST, SettingLinkContext } from "@/ui/setting-link-context";
 import { SettingsModal } from "@/ui/settings-modal";
 import { EDITOR_PATH, screenForPath } from "@/utils/app-routes";
+import { isDesktop } from "@/utils/platform";
 import { EditorScreen } from "@/views/editor-screen";
 import { LibraryScreen } from "@/views/library/library-screen";
 import { LyricsImportModalHost } from "@/views/lyrics-import-modal/lyrics-import-modal-host";
@@ -110,23 +112,63 @@ const AppShell: React.FC = () => {
   }, [isDirty]);
 
   useEffect(() => {
-    const app = typeof window !== "undefined" ? window.go?.app?.App : undefined;
-    if (!app?.GetStartupProjectFilePath) return;
-    app.GetStartupProjectFilePath().then(async (path: string) => {
-      if (!path) return;
-      try {
-        const text = await app.ReadProjectFile(path);
-        const { parseProjectFileContents } = await import("@/lib/project-file-read");
-        const { importProjectContents } = await import("@/lib/project-import");
-        const contents = parseProjectFileContents(text);
-        const id = await importProjectContents(contents);
-        if (id) {
-          navigate(EDITOR_PATH);
-        }
-      } catch (e) {
-        console.error("Failed to load startup project:", e);
-      }
+    if (!isDesktop()) return;
+    const eventsOn = window.runtime?.EventsOn;
+    if (!eventsOn) return;
+    const cancel = eventsOn("bridge:request-close", () => {
+      useConfirmStore
+        .getState()
+        .open({
+          title: "Unsaved changes",
+          description: "You have unsaved changes. Discard and quit?",
+          confirmLabel: "Discard and quit",
+          variant: "destructive",
+        })
+        .then((confirmed) => {
+          if (!confirmed) return;
+          window.go?.app?.App?.MarkQuitting();
+          window.runtime?.Quit();
+        });
     });
+    return () => cancel();
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktop()) return;
+    let cancelled = false;
+    let timerId: number | null = null;
+
+    const checkStartup = () => {
+      if (cancelled) return;
+      const app = window.go?.app?.App;
+      if (!app?.GetStartupProjectFilePath) {
+        timerId = window.setTimeout(checkStartup, 50);
+        return;
+      }
+
+      app.GetStartupProjectFilePath().then(async (path: string) => {
+        if (!path || cancelled) return;
+        try {
+          const text = await app.ReadProjectFile(path);
+          const { parseProjectFileContents } = await import("@/lib/project-file-read");
+          const { importProjectContents } = await import("@/lib/project-import");
+          const contents = parseProjectFileContents(text);
+          const id = await importProjectContents(contents);
+          if (id && !cancelled) {
+            navigate(EDITOR_PATH);
+          }
+        } catch (e) {
+          console.error("Failed to load startup project:", e);
+        }
+      });
+    };
+
+    checkStartup();
+
+    return () => {
+      cancelled = true;
+      if (timerId !== null) window.clearTimeout(timerId);
+    };
   }, [navigate]);
 
   usePersistence();

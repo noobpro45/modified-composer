@@ -1,4 +1,5 @@
 import { Popover } from "@/ui/popover";
+import { normalizeWheelDelta } from "@/views/timeline/timeline-wheel";
 import { useEffect, useId, useRef, useState } from "react";
 
 // -- Types --------------------------------------------------------------------
@@ -21,6 +22,8 @@ interface DeckKnobProps {
 const DRAG_PIXELS_FOR_FULL_TURN = 160;
 const DRAG_THRESHOLD = 3;
 const KEY_DIRECTIONS: Record<string, 1 | -1> = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 };
+const WHEEL_STEP_PX = 100;
+const WHEEL_IDLE_MS = 200;
 const RADIUS = 17;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const ARC = CIRCUMFERENCE * 0.75;
@@ -90,9 +93,58 @@ const DeckKnob: React.FC<DeckKnobProps> = ({
   children,
 }) => {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const dragged = useRef(false);
   const endDrag = useRef<(() => void) | null>(null);
+  const wheelAccumulator = useRef(0);
+  const wheelTimer = useRef<number | null>(null);
   useEffect(() => () => endDrag.current?.(), []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rawDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? -event.deltaY : event.deltaX;
+      if (rawDelta === 0) return;
+
+      const normalized = normalizeWheelDelta(rawDelta, event.deltaMode);
+
+      if ((normalized > 0 && wheelAccumulator.current < 0) || (normalized < 0 && wheelAccumulator.current > 0)) {
+        wheelAccumulator.current = 0;
+      }
+      wheelAccumulator.current += normalized;
+
+      if (wheelTimer.current !== null) {
+        window.clearTimeout(wheelTimer.current);
+      }
+      wheelTimer.current = window.setTimeout(() => {
+        wheelAccumulator.current = 0;
+        wheelTimer.current = null;
+      }, WHEEL_IDLE_MS);
+
+      while (wheelAccumulator.current >= WHEEL_STEP_PX) {
+        onStep(1);
+        wheelAccumulator.current -= WHEEL_STEP_PX;
+      }
+      while (wheelAccumulator.current <= -WHEEL_STEP_PX) {
+        onStep(-1);
+        wheelAccumulator.current += WHEEL_STEP_PX;
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+      if (wheelTimer.current !== null) {
+        window.clearTimeout(wheelTimer.current);
+        wheelTimer.current = null;
+      }
+    };
+  }, [onStep]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
@@ -150,34 +202,36 @@ const DeckKnob: React.FC<DeckKnobProps> = ({
   };
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={handleOpenChange}
-      placement="top"
-      aria-label={label}
-      trigger={
-        <button
-          type="button"
-          aria-label={`${label}, ${valueText}`}
-          title="Drag to adjust, double-click to reset"
-          onPointerDown={handlePointerDown}
-          onKeyDown={handleKeyDown}
-          onDoubleClick={() => {
-            onReset();
-            setOpen(false);
-          }}
-          className="flex items-center gap-2 -mx-1 px-1 rounded-lg cursor-grab active:cursor-grabbing select-none touch-none"
-        >
-          <KnobFace fraction={fraction} />
-          <span className="flex flex-col w-[52px] text-left leading-[1.15] max-[1279px]:hidden">
-            <span className="text-[11.5px] text-(--muted)">{label}</span>
-            <span className="font-mono text-[13px] tabular-nums text-composer-text">{valueText}</span>
-          </span>
-        </button>
-      }
-    >
-      {children}
-    </Popover>
+    <div ref={containerRef} className="flex items-center">
+      <Popover
+        open={open}
+        onOpenChange={handleOpenChange}
+        placement="top"
+        aria-label={label}
+        trigger={
+          <button
+            type="button"
+            aria-label={`${label}, ${valueText}`}
+            title="Drag or scroll to adjust, double-click to reset"
+            onPointerDown={handlePointerDown}
+            onKeyDown={handleKeyDown}
+            onDoubleClick={() => {
+              onReset();
+              setOpen(false);
+            }}
+            className="flex items-center gap-2 -mx-1 px-1 rounded-lg cursor-grab active:cursor-grabbing select-none touch-none"
+          >
+            <KnobFace fraction={fraction} />
+            <span className="flex flex-col w-[52px] text-left leading-[1.15] max-[1279px]:hidden">
+              <span className="text-[11.5px] text-(--muted)">{label}</span>
+              <span className="font-mono text-[13px] tabular-nums text-composer-text">{valueText}</span>
+            </span>
+          </button>
+        }
+      >
+        {children}
+      </Popover>
+    </div>
   );
 };
 

@@ -169,3 +169,4 @@ build/bin/
 scratch/
 dump_db.go
 package.json.md5
+.agents/

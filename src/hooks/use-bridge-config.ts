@@ -13,6 +13,7 @@ import {
 } from "@/wailsjs/go/app/App";
 import type { app, config } from "@/wailsjs/go/models";
 import { BrowserOpenURL } from "@/wailsjs/runtime/runtime";
+import { isDesktop } from "@/utils/platform";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const SAVE_DEBOUNCE_MS = 300;
@@ -44,46 +45,59 @@ export function useBridgeConfig(): UseBridgeConfigResult {
   const timeoutRef = useRef<number | null>(null);
   const saveSeqRef = useRef(0);
 
-  const isDesktop = typeof window !== "undefined" && Boolean(window.go?.app?.App);
+  const isDesktopApp = isDesktop();
 
   const refreshStatus = useCallback(() => {
-    if (!isDesktop) return;
+    if (!isDesktopApp || !window.go?.app?.App) return;
     BridgeStatus()
       .then((state) => setServerStatus(state.server))
       .catch(() => setServerStatus("unknown"));
     CookiesState()
       .then((status) => setCookiesStatus(status))
       .catch(() => setCookiesStatus(null));
-  }, [isDesktop]);
+  }, [isDesktopApp]);
 
   useEffect(() => {
-    if (!isDesktop) return;
+    if (!isDesktopApp) return;
 
     let cancelled = false;
-    GetConfig()
-      .then((loaded) => {
-        if (cancelled) return;
-        setCfg(loaded);
-        cfgRef.current = loaded;
-      })
-      .catch((err) => {
-        if (!cancelled) console.error("GetConfig failed", err);
-      });
+    let timerId: number | null = null;
 
-    refreshStatus();
+    const init = () => {
+      if (cancelled) return;
+      if (!window.go?.app?.App) {
+        timerId = window.setTimeout(init, 50);
+        return;
+      }
 
-    // Listen for live status events emitted from Wails backend
-    const events = window.runtime?.EventsOn;
-    if (events) {
-      events("bridge:status", () => {
-        if (!cancelled) refreshStatus();
-      });
-    }
+      GetConfig()
+        .then((loaded) => {
+          if (cancelled) return;
+          setCfg(loaded);
+          cfgRef.current = loaded;
+        })
+        .catch((err) => {
+          if (!cancelled) console.error("GetConfig failed", err);
+        });
+
+      refreshStatus();
+
+      // Listen for live status events emitted from Wails backend
+      const events = window.runtime?.EventsOn;
+      if (events) {
+        events("bridge:status", () => {
+          if (!cancelled) refreshStatus();
+        });
+      }
+    };
+
+    init();
 
     return () => {
       cancelled = true;
+      if (timerId !== null) window.clearTimeout(timerId);
     };
-  }, [isDesktop, refreshStatus]);
+  }, [isDesktopApp, refreshStatus]);
 
   const persist = useCallback((next: config.Config) => {
     if (timeoutRef.current !== null) {
@@ -116,7 +130,7 @@ export function useBridgeConfig(): UseBridgeConfigResult {
   );
 
   const toggleServer = useCallback(async () => {
-    if (!isDesktop) return;
+    if (!isDesktopApp || !window.go?.app?.App) return;
     try {
       if (serverStatus === "running") {
         await StopServer();
@@ -127,10 +141,10 @@ export function useBridgeConfig(): UseBridgeConfigResult {
     } catch (err) {
       console.error("Failed to toggle bridge server:", err);
     }
-  }, [isDesktop, serverStatus, refreshStatus]);
+  }, [isDesktopApp, serverStatus, refreshStatus]);
 
   const chooseDownloadDir = useCallback(async () => {
-    if (!isDesktop) return;
+    if (!isDesktopApp || !window.go?.app?.App) return;
     try {
       const selected = await ShowDirectoryDialog(cfgRef.current?.download_dir || "");
       if (selected) {
@@ -139,25 +153,25 @@ export function useBridgeConfig(): UseBridgeConfigResult {
     } catch (err) {
       console.error("Failed to choose directory:", err);
     }
-  }, [isDesktop, update]);
+  }, [isDesktopApp, update]);
 
   const uploadCookies = useCallback(
     async (content: string) => {
-      if (!isDesktop) return;
+      if (!isDesktopApp || !window.go?.app?.App) return;
       await UploadCookies(content);
       refreshStatus();
     },
-    [isDesktop, refreshStatus],
+    [isDesktopApp, refreshStatus],
   );
 
   const removeCookies = useCallback(async () => {
-    if (!isDesktop) return;
+    if (!isDesktopApp || !window.go?.app?.App) return;
     await RemoveCookies();
     refreshStatus();
-  }, [isDesktop, refreshStatus]);
+  }, [isDesktopApp, refreshStatus]);
 
   const openLogFile = useCallback(async () => {
-    if (!isDesktop) return;
+    if (!isDesktopApp || !window.go?.app?.App) return;
     try {
       const url = await OpenLogFile();
       if (url) {
@@ -170,12 +184,12 @@ export function useBridgeConfig(): UseBridgeConfigResult {
     } catch (err) {
       console.error("Failed to open log file:", err);
     }
-  }, [isDesktop]);
+  }, [isDesktopApp]);
 
   const forceUpdateYtdlp = useCallback(async () => {
-    if (!isDesktop) return "";
+    if (!isDesktopApp || !window.go?.app?.App) return "";
     return ForceYtdlpUpdate();
-  }, [isDesktop]);
+  }, [isDesktopApp]);
 
   return {
     config: cfg,

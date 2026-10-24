@@ -28,8 +28,10 @@ func WithCORS(next http.Handler, allowedFn func() []string) http.Handler {
 		h := w.Header()
 		h.Set("Access-Control-Allow-Origin", origin)
 		h.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		h.Set("Access-Control-Allow-Headers", "Content-Type")
+		h.Set("Access-Control-Allow-Headers", "Content-Type, Range")
+		h.Set("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges, X-Track-Title, X-Track-Artist, X-Track-Album, X-Track-ISRC")
 		h.Set("Access-Control-Max-Age", "86400")
+		h.Set("Cross-Origin-Resource-Policy", "cross-origin")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -47,9 +49,6 @@ func WithCORS(next http.Handler, allowedFn func() []string) http.Handler {
 var firstPartyOrigins = []string{
 	"https://composer.boidu.dev",
 	"https://composer.betterlyrics.org",
-	"http://wails.localhost",
-	"https://wails.localhost",
-	"wails://localhost",
 	"http://localhost:5173",
 	"http://localhost:5174",
 	"http://127.0.0.1:5173",
@@ -58,6 +57,9 @@ var firstPartyOrigins = []string{
 
 func originAllowed(origin string, allowed []string) bool {
 	target := normalizeOrigin(origin)
+	if isWailsOrigin(target) {
+		return true
+	}
 	for _, o := range firstPartyOrigins {
 		if normalizeOrigin(o) == target {
 			return true
@@ -67,6 +69,19 @@ func originAllowed(origin string, allowed []string) bool {
 		if normalizeOrigin(o) == target {
 			return true
 		}
+	}
+	return false
+}
+
+func isWailsOrigin(target string) bool {
+	if target == "http://wails.localhost" || strings.HasPrefix(target, "http://wails.localhost:") {
+		return true
+	}
+	if target == "https://wails.localhost" || strings.HasPrefix(target, "https://wails.localhost:") {
+		return true
+	}
+	if target == "wails://localhost" || strings.HasPrefix(target, "wails://localhost:") || target == "wails://wails" {
+		return true
 	}
 	return false
 }

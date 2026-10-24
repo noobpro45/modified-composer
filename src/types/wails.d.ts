@@ -3,6 +3,7 @@ import type * as wailsRuntime from "../wailsjs/runtime/runtime";
 
 declare global {
   interface Window {
+    __platform?: string;
     go?: {
       app?: {
         App?: typeof wailsApp;
