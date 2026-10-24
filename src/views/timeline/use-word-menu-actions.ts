@@ -101,7 +101,9 @@ function useWordMenuActions(targets: ContextMenuTargets, clearContextMenu: () =>
     } else {
       updateLineWithHistory(lineId, manualBackgroundWordEdit(words));
     }
-    useTimelineStore.getState().setEditingWord({ lineId, wordIndex: newIndex, type });
+    const timeline = useTimelineStore.getState();
+    timeline.clearSelection();
+    timeline.setEditingWord({ lineId, wordIndex: newIndex, type });
     clearContextMenu();
   }, [contextMenu, lines, duration, updateLineWithHistory, clearContextMenu]);
 

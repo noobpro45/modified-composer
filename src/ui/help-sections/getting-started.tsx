@@ -2,49 +2,43 @@ import { LYRICS_FORMATS_PROSE } from "@/domain/lyrics-file/supported-formats";
 import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
 import { HelpTopic } from "@/ui/help-topic";
 import { InlineKeyBadge } from "@/ui/inline-key-badge";
-import { PROSE } from "@/ui/typography";
+import { PROSE, PROSE_LINK } from "@/ui/typography";
 import { MOD_KEY } from "@/utils/platform";
 import { PROJECT_FILE_PROSE } from "@/views/lyrics-import-modal/accepted-files";
 
 // -- Getting Started ----------------------------------------------------------
 
 const GettingStartedSection: React.FC = () => (
-  <div className="space-y-5">
-    <p className={PROSE}>
-      Composer is the lyrics editor for{" "}
-      <a
-        href="https://betterlyrics.org"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-composer-text underline underline-offset-2 hover:text-composer-text-bright"
-      >
-        Better Lyrics
-      </a>
-      . It guides you through four steps to create synced lyrics. Follow the tabs left-to-right for a guided experience,
-      or jump straight to the Timeline for a DAW-like workflow.
-      <br /> As of now, Composer is still in early access, so expect some rough edges. If you run into any issues or
-      have feedback, please reach out on{" "}
-      <a
-        href="https://discord.gg/UsHE3d5fWF"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-composer-text underline underline-offset-2 hover:text-composer-text-bright"
-      >
-        Discord
-      </a>{" "}
-      or submit an issue on{" "}
-      <a
-        href="https://github.com/better-lyrics/composer/issues/new/choose"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-composer-text underline underline-offset-2 hover:text-composer-text-bright"
-      >
-        GitHub
-      </a>
-      .
-    </p>
+  <div className="space-y-[22px] max-w-[68ch]">
+    <div className="space-y-3">
+      <p className={PROSE}>
+        Composer is the lyrics editor for{" "}
+        <a href="https://betterlyrics.org" target="_blank" rel="noopener noreferrer" className={PROSE_LINK}>
+          Better Lyrics
+        </a>
+        . It guides you through four steps to create synced lyrics. Follow the tabs left-to-right for a guided
+        experience, or jump straight to the Timeline for a DAW-like workflow.
+      </p>
+      <p className={PROSE}>
+        As of now, Composer is still in early access, so expect some rough edges. If you run into any issues or have
+        feedback, please reach out on{" "}
+        <a href="https://discord.gg/UsHE3d5fWF" target="_blank" rel="noopener noreferrer" className={PROSE_LINK}>
+          Discord
+        </a>{" "}
+        or submit an issue on{" "}
+        <a
+          href="https://github.com/better-lyrics/composer/issues/new/choose"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={PROSE_LINK}
+        >
+          GitHub
+        </a>
+        .
+      </p>
+    </div>
 
-    <div className="space-y-4">
+    <div className="space-y-[22px]">
       <HelpTopic title="1. Import your audio">
         <p className={PROSE}>
           Drop an audio file (MP3, WAV, M4A, OGG, FLAC) into the Import tab, or paste a YouTube URL to pull the audio

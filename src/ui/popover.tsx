@@ -1,3 +1,4 @@
+import { unscaledReference, useFloatingEntrance } from "@/ui/floating-motion";
 import {
   FloatingFocusManager,
   FloatingPortal,
@@ -5,6 +6,7 @@ import {
   flip,
   offset,
   shift,
+  size,
   useClick,
   useDismiss,
   useFloating,
@@ -13,7 +15,15 @@ import {
   useRole,
 } from "@floating-ui/react";
 import type { Placement } from "@floating-ui/react";
-import { type MutableRefObject, type ReactElement, type ReactNode, cloneElement, useRef, useState } from "react";
+import {
+  type MutableRefObject,
+  type ReactElement,
+  type ReactNode,
+  cloneElement,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 
 // -- Types --------------------------------------------------------------------
 
@@ -36,6 +46,9 @@ interface PopoverProps {
   onOpenChange?: (open: boolean) => void;
   "aria-label"?: string;
   listNavigation?: PopoverListNavigation;
+  // Positions against this element instead of the trigger, such as the whole control group the trigger sits in.
+  positionAnchor?: HTMLElement | null;
+  instant?: boolean;
 }
 
 // -- Component ----------------------------------------------------------------
@@ -50,6 +63,8 @@ const Popover: React.FC<PopoverProps> = ({
   onOpenChange,
   "aria-label": ariaLabel,
   listNavigation,
+  positionAnchor,
+  instant = false,
 }) => {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isOpen = open ?? uncontrolledOpen;
@@ -62,9 +77,30 @@ const Popover: React.FC<PopoverProps> = ({
     open: isOpen,
     onOpenChange: setIsOpen,
     placement,
-    middleware: [offset(offsetPx), flip(), shift({ padding: 8 })],
+    middleware: [
+      offset(offsetPx),
+      flip(),
+      shift({ padding: 8 }),
+      size({
+        padding: 8,
+        apply: ({ availableHeight, elements }) => {
+          elements.floating.style.maxHeight = `${availableHeight}px`;
+        },
+      }),
+    ],
     whileElementsMounted: autoUpdate,
   });
+
+  const { isMounted, styles: entranceStyles } = useFloatingEntrance(context, instant);
+  const { setReference, setPositionReference } = refs;
+  const setTrigger = useCallback(
+    (element: HTMLElement | null) => {
+      setReference(element);
+      const anchor = positionAnchor ?? element;
+      setPositionReference(anchor ? unscaledReference(anchor) : null);
+    },
+    [setReference, setPositionReference, positionAnchor],
+  );
 
   const click = useClick(context);
   // Dismissing on click, after mousedown moved focus to the body, lets focus return to the trigger.
@@ -85,12 +121,12 @@ const Popover: React.FC<PopoverProps> = ({
   return (
     <>
       {cloneElement(trigger, {
-        ref: refs.setReference,
-        ...getReferenceProps(),
+        ref: setTrigger,
+        ...getReferenceProps(trigger.props as React.HTMLProps<Element>),
         "aria-haspopup": hasPopup,
-      } as React.HTMLAttributes<HTMLElement> & { ref: typeof refs.setReference })}
+      } as React.HTMLAttributes<HTMLElement> & { ref: typeof setTrigger })}
 
-      {isOpen && (
+      {isMounted && (
         <FloatingPortal>
           <FloatingFocusManager context={context} modal={false}>
             <div
@@ -98,9 +134,15 @@ const Popover: React.FC<PopoverProps> = ({
               style={floatingStyles}
               {...getFloatingProps()}
               aria-label={ariaLabel}
-              className="layer-floating border select-none shadow-2xl rounded-xl bg-composer-bg border-composer-border"
+              className="layer-floating w-max max-w-[calc(100vw-16px)] outline-none"
             >
-              {typeof children === "function" ? children(() => setIsOpen(false), getItemProps) : children}
+              {/* The entrance scales this inner surface: a scale on the positioned layer would also scale its translate. */}
+              <div
+                style={entranceStyles}
+                className="flex flex-col max-h-[inherit] select-none rounded-[14px] surface-floating"
+              >
+                {typeof children === "function" ? children(() => setIsOpen(false), getItemProps) : children}
+              </div>
             </div>
           </FloatingFocusManager>
         </FloatingPortal>

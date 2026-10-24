@@ -1,4 +1,5 @@
 import { isLinked } from "@/domain/instance/predicates";
+import { hasTransliteration } from "@/domain/language/has-transliteration";
 import { isLineSynced } from "@/domain/line/predicates";
 import type { WordTiming } from "@/domain/word/timing";
 import { useAudioStore } from "@/stores/audio";
@@ -7,10 +8,12 @@ import { useSettingsStore } from "@/stores/settings";
 import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
 import { Button } from "@/ui/button";
 import { InlineKeyBadge } from "@/ui/inline-key-badge";
+import { ShortcutToggleButton } from "@/ui/shortcut-toggle-button";
 import { cn } from "@/utils/cn";
 import { MOD_KEY } from "@/utils/platform";
 import { convertLineToWord, splitIntoWordsWithMeta } from "@/utils/sync-helpers";
-import { TimelineToggleButton, TimelineZoomControls } from "@/views/timeline/timeline-header-controls";
+import { TimelineZoomControls } from "@/views/timeline/timeline-header-controls";
+import { TimelineNotices } from "@/views/timeline/timeline-notices";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import {
   IconArrowBarBoth,
@@ -51,10 +54,7 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
   const setInstanceCollapsed = useTimelineStore((s) => s.setInstanceCollapsed);
   const textVariant = useTimelineStore((s) => s.textVariant);
   const toggleTextVariant = useTimelineStore((s) => s.toggleTextVariant);
-  const hasTransliteration = useMemo(
-    () => lines.some((line) => !!(line.transliteration?.text || line.transliteration?.backgroundText)),
-    [lines],
-  );
+  const linesHaveTransliteration = useMemo(() => hasTransliteration(lines), [lines]);
   const hasUnexpandedLines = useMemo(() => lines.some((l) => !l.words?.length && l.text.trim().length > 0), [lines]);
 
   const instanceKeys = useMemo(() => {
@@ -132,113 +132,127 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
   }, [handleExpandAll]);
 
   return (
-    <div className="flex items-center justify-between px-6 py-3 border-b border-composer-border">
-      <h2 className="text-lg font-medium select-none">Timeline</h2>
-
-      <div className="flex items-center gap-4">
-        <TimelineToggleButton
-          active={textVariant !== "original"}
-          label={textVariant === "both" ? "Both" : textVariant === "transliteration" ? "Transliteration" : "Original"}
-          stateInLabel
-          shortcut="timeline.toggleTextVariant"
-          onClick={toggleTextVariant}
-          disabled={!hasTransliteration}
-          title="Toggle original / transliteration / both labels"
-        >
-          <IconLanguage size={16} />
-        </TimelineToggleButton>
-        {/* Follow toggle */}
-        <TimelineToggleButton
-          active={followEnabled}
-          label="Follow"
-          shortcut="timeline.toggleFollow"
-          onClick={toggleFollow}
-        >
-          <IconFocusCentered size={16} />
-        </TimelineToggleButton>
-
-        {/* Rolling edit toggle */}
-        <TimelineToggleButton
-          active={rollingEditMode}
-          label="Rolling"
-          shortcut="timeline.toggleRollingEdit"
-          onClick={toggleRollingEditMode}
-          title="Rolling edit: drag a shared word boundary and both words move together"
-        >
-          <IconArrowBarBoth size={16} />
-        </TimelineToggleButton>
-
-        {/* Preview sidebar toggle */}
-        <TimelineToggleButton
-          active={previewSidebarOpen}
-          label="Preview"
-          shortcut="timeline.togglePreview"
-          onClick={togglePreviewSidebar}
-        >
-          <IconEye size={16} />
-        </TimelineToggleButton>
-
-        <TimelineToggleButton
-          active={snapEnabled}
-          label="Snap"
-          shortcut="timeline.toggleSnap"
-          onClick={() => setSetting("timelineSnap", !snapEnabled)}
-          className={cn(isBypassing && "opacity-50")}
-          title={`Snap${toggleSnapKeys.length ? ` (${toggleSnapKeys.join(" ")})` : ""} · hold ${MOD_KEY} to bypass`}
-        >
-          <IconMagnet size={16} />
-        </TimelineToggleButton>
-
-        {/* Marker mode toggle */}
-        <TimelineToggleButton
-          active={markerMode}
-          label="Marker"
-          shortcut="timeline.toggleMarkerMode"
-          onClick={toggleMarkerMode}
-          title={`Marker mode${toggleMarkerKeys.length ? ` (${toggleMarkerKeys.join(" ")})` : ""}`}
-        >
-          <IconMapPin size={16} />
-        </TimelineToggleButton>
-
-        {/* Import lyrics */}
-        {onImportLyrics && (
-          <Button variant="ghost" size="sm" onClick={onImportLyrics} hasIcon className="opacity-60">
-            <IconTextPlus size={16} />
-            <span>Import</span>
-            {showHints && <InlineKeyBadge keys={getEffectiveKeysArray("timeline.importLyrics")} />}
-          </Button>
-        )}
-
-        {/* Expand all unexpanded lines */}
-        {hasUnexpandedLines && (
-          <Button variant="ghost" size="sm" onClick={handleExpandAll} hasIcon className="opacity-60">
-            <IconLayoutDistributeHorizontal size={16} />
-            <span>Expand All</span>
-            {showHints && <InlineKeyBadge keys={getEffectiveKeysArray("timeline.expandAll")} />}
-          </Button>
-        )}
-
-        {/* Collapse / expand all groups */}
-        {hasGroups && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggleAllCollapsed}
-            hasIcon
-            className="opacity-60"
-            title={anyExpanded ? "Collapse all groups" : "Expand all groups"}
+    <div className="@container flex items-center justify-between gap-4 h-13 shrink-0 px-2 border-b border-(--divider) @max-[72rem]:[&_[data-inline-key-badge]]:hidden">
+      <h2 className="sr-only">Timeline</h2>
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="tray">
+          <ShortcutToggleButton
+            active={textVariant !== "original"}
+            label={textVariant === "both" ? "Both" : textVariant === "transliteration" ? "Transliteration" : "Original"}
+            stateInLabel
+            shortcut="timeline.toggleTextVariant"
+            onClick={toggleTextVariant}
+            disabled={!linesHaveTransliteration}
+            title="Toggle original / transliteration / both labels"
           >
-            {anyExpanded ? <IconChevronsUp size={16} /> : <IconChevronsDown size={16} />}
-            <span>{anyExpanded ? "Collapse all" : "Expand all"}</span>
-            {showHints && <InlineKeyBadge keys={getEffectiveKeysArray("timeline.toggleAllCollapsed")} />}
-          </Button>
+            <IconLanguage />
+          </ShortcutToggleButton>
+        </div>
+
+        <div className="tray">
+          <ShortcutToggleButton
+            active={followEnabled}
+            label="Follow"
+            shortcut="timeline.toggleFollow"
+            onClick={toggleFollow}
+          >
+            <IconFocusCentered />
+          </ShortcutToggleButton>
+          <ShortcutToggleButton
+            active={rollingEditMode}
+            label="Rolling"
+            shortcut="timeline.toggleRollingEdit"
+            onClick={toggleRollingEditMode}
+            title="Rolling edit: drag a shared word boundary and both words move together"
+          >
+            <IconArrowBarBoth />
+          </ShortcutToggleButton>
+          <ShortcutToggleButton
+            active={previewSidebarOpen}
+            label="Preview"
+            shortcut="timeline.togglePreview"
+            onClick={togglePreviewSidebar}
+          >
+            <IconEye />
+          </ShortcutToggleButton>
+        </div>
+
+        <div className="tray">
+          <ShortcutToggleButton
+            active={snapEnabled}
+            label="Snap"
+            shortcut="timeline.toggleSnap"
+            onClick={() => setSetting("timelineSnap", !snapEnabled)}
+            className={cn(isBypassing && "opacity-50")}
+            title={`Snap${toggleSnapKeys.length ? ` (${toggleSnapKeys.join(" ")})` : ""} · hold ${MOD_KEY} to bypass`}
+          >
+            <IconMagnet />
+          </ShortcutToggleButton>
+          <ShortcutToggleButton
+            active={markerMode}
+            label="Marker"
+            shortcut="timeline.toggleMarkerMode"
+            onClick={toggleMarkerMode}
+            title={`Marker mode${toggleMarkerKeys.length ? ` (${toggleMarkerKeys.join(" ")})` : ""}`}
+          >
+            <IconMapPin />
+          </ShortcutToggleButton>
+        </div>
+
+        {onImportLyrics && (
+          <HeaderAction onClick={onImportLyrics} label="Import" shortcut="timeline.importLyrics" showHint={showHints}>
+            <IconTextPlus />
+          </HeaderAction>
         )}
 
+        {hasUnexpandedLines && (
+          <HeaderAction onClick={handleExpandAll} label="Expand All" shortcut="timeline.expandAll" showHint={showHints}>
+            <IconLayoutDistributeHorizontal />
+          </HeaderAction>
+        )}
+
+        {hasGroups && (
+          <HeaderAction
+            onClick={handleToggleAllCollapsed}
+            label={anyExpanded ? "Collapse all" : "Expand all"}
+            title={anyExpanded ? "Collapse all groups" : "Expand all groups"}
+            shortcut="timeline.toggleAllCollapsed"
+            showHint={showHints}
+          >
+            {anyExpanded ? <IconChevronsUp /> : <IconChevronsDown />}
+          </HeaderAction>
+        )}
+      </div>
+
+      <div className="flex flex-1 min-w-0 items-center justify-end gap-3">
+        <TimelineNotices />
         <TimelineZoomControls scrollContainerRef={scrollContainerRef} />
       </div>
     </div>
   );
 };
+
+const HeaderAction: React.FC<{
+  onClick: () => void;
+  label: string;
+  shortcut: string;
+  showHint: boolean;
+  title?: string;
+  children: React.ReactNode;
+}> = ({ onClick, label, shortcut, showHint, title, children }) => (
+  <Button
+    variant="ghost"
+    size="lg"
+    hasIcon
+    onClick={onClick}
+    title={title}
+    className={cn("shrink-0 [&>svg]:size-4 [&>[data-inline-key-badge]]:ml-0", showHint && "pr-2")}
+  >
+    {children}
+    <span>{label}</span>
+    {showHint && <InlineKeyBadge keys={getEffectiveKeysArray(shortcut)} />}
+  </Button>
+);
 
 // -- Exports -------------------------------------------------------------------
 

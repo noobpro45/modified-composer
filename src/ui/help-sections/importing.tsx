@@ -3,7 +3,7 @@ import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
 import { HelpTopic } from "@/ui/help-topic";
 import { InlineKeyBadge } from "@/ui/inline-key-badge";
 import { SettingLink } from "@/ui/setting-link";
-import { INLINE_CODE, PROSE } from "@/ui/typography";
+import { INLINE_CODE, PROSE, PROSE_LINK } from "@/ui/typography";
 import { providerLabelsProse } from "@/utils/lyrics-search/provider-labels";
 import { PROJECT_FILE_PROSE } from "@/views/lyrics-import-modal/accepted-files";
 import { OPEN_PROJECT_LABEL, USE_PROJECT_LYRICS_LABEL } from "@/views/lyrics-import-modal/import-lyrics-source";
@@ -11,10 +11,10 @@ import { OPEN_PROJECT_LABEL, USE_PROJECT_LYRICS_LABEL } from "@/views/lyrics-imp
 // -- Importing ----------------------------------------------------------------
 
 const ImportSection: React.FC = () => (
-  <div className="space-y-5">
+  <div className="space-y-[22px] max-w-[68ch]">
     <HelpTopic title="Audio files">
       <p className={PROSE}>Supported formats: MP3, WAV, M4A, OGG, FLAC.</p>
-      <ul className={`${PROSE} list-disc pl-4 mt-1.5 space-y-1`}>
+      <ul className={`${PROSE} list-disc pl-[18px] marker:text-(--muted) mt-1.5 space-y-1`}>
         <li>Use the Import tab's drop zone, or drop a file directly onto the Timeline empty state.</li>
         <li>Once loaded, the waveform renders across the top of Timeline.</li>
         <li>The file name auto-fills the project title in metadata.</li>
@@ -27,7 +27,7 @@ const ImportSection: React.FC = () => (
         Paste any YouTube link (full URL, share link, or just the video ID) into the Import tab. Composer downloads the
         audio once and keeps it in memory, so seeking and waveform rendering stay instant after that.
       </p>
-      <ul className={`${PROSE} list-disc pl-4 mt-1.5 space-y-1`}>
+      <ul className={`${PROSE} list-disc pl-[18px] marker:text-(--muted) mt-1.5 space-y-1`}>
         <li>The video title fills in as your project title.</li>
         <li>To swap videos, paste a new URL into the same input on the Import tab.</li>
         <li>If a download fails, check that the URL is right and that the video is public.</li>
@@ -58,7 +58,7 @@ const ImportSection: React.FC = () => (
         leaves your machine. Turn on <SettingLink setting="youtubeBridge" /> and every YouTube import routes through the
         bridge instead of Cobalt.
       </p>
-      <ul className={`${PROSE} list-disc pl-4 mt-1.5 space-y-1`}>
+      <ul className={`${PROSE} list-disc pl-[18px] marker:text-(--muted) mt-1.5 space-y-1`}>
         <li>
           If the bridge isn't installed yet, an inline guide appears with a one-line install command for macOS and
           Linux, plus a link to the Windows download.
@@ -79,7 +79,7 @@ const ImportSection: React.FC = () => (
           href="https://github.com/better-lyrics/composer-bridge"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-composer-text underline underline-offset-2 hover:text-composer-text-bright"
+          className={PROSE_LINK}
         >
           GitHub
         </a>
@@ -92,7 +92,7 @@ const ImportSection: React.FC = () => (
         Open the lyrics modal from the import button in Edit or the Timeline header (or press{" "}
         <InlineKeyBadge keys={getEffectiveKeysArray("timeline.importLyrics")} /> in Timeline). It has three sections:
       </p>
-      <ul className={`${PROSE} list-disc pl-4 mt-1.5 space-y-1`}>
+      <ul className={`${PROSE} list-disc pl-[18px] marker:text-(--muted) mt-1.5 space-y-1`}>
         <li>
           <strong>Search</strong>: queries {providerLabelsProse()} in parallel. Type a track or paste a video ID;
           artist, album, and duration narrow the results. Each row shows its sync precision (syllable, word, line, or

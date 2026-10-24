@@ -1,9 +1,12 @@
 import { cn } from "@/utils/cn";
 import type { SyllablePosition } from "@/domain/word/syllable-groups";
+import { wordBlockWidth } from "@/views/timeline/row-geometry";
 import { selfKey } from "@/views/timeline/snap";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { WordEdgeHandle } from "@/views/timeline/word-edge-handle";
+import { wordFit } from "@/views/timeline/word-fit";
 import { useDraggable } from "@dnd-kit/core";
+import { useMemo } from "react";
 
 // -- Types ---------------------------------------------------------------------
 
@@ -24,8 +27,9 @@ interface WordBlockProps {
   isSelected: boolean;
   isExplicit?: boolean;
   syllablePosition?: SyllablePosition;
-  syllableEdgesJoin?: boolean;
   gapBefore?: boolean;
+  gapAfter?: boolean;
+  syllableEdgesJoin?: boolean;
   leftHighlighted?: boolean;
   rightHighlighted?: boolean;
   leftConjoined?: boolean;
@@ -41,26 +45,11 @@ interface WordBlockProps {
 
 // -- Component -----------------------------------------------------------------
 
-const SYLLABLE_RADIUS: Record<SyllablePosition, string> = {
-  none: "rounded-xl",
-  first: "rounded-l-xl rounded-r-none",
-  middle: "rounded-none",
-  last: "rounded-r-xl rounded-l-none",
-};
-
-function syllableBorderStyle(
-  position: SyllablePosition,
-  isSelected: boolean,
-  gapBefore: boolean | undefined,
-): React.CSSProperties {
-  if (isSelected) return {};
-  const style: React.CSSProperties = {};
-  if (position === "first" || position === "middle") style.borderRightStyle = "dashed";
-  if (position === "middle" || position === "last") {
-    if (gapBefore) style.borderLeftStyle = "dashed";
-    else style.borderLeftWidth = 0;
-  }
-  return style;
+// A syllable squares the corners it shares with its neighbours; a timing gap keeps the facing corners round.
+function syllableRadius(position: SyllablePosition, gapBefore?: boolean, gapAfter?: boolean): string | undefined {
+  const squareLeft = (position === "middle" || position === "last") && !gapBefore;
+  const squareRight = (position === "first" || position === "middle") && !gapAfter;
+  return cn(squareLeft && "rounded-l-none", squareRight && "rounded-r-none") || undefined;
 }
 
 const WordBlock: React.FC<WordBlockProps> = ({
@@ -82,6 +71,7 @@ const WordBlock: React.FC<WordBlockProps> = ({
   syllablePosition = "none",
   syllableEdgesJoin = true,
   gapBefore,
+  gapAfter,
   leftHighlighted,
   rightHighlighted,
   leftConjoined,
@@ -95,10 +85,9 @@ const WordBlock: React.FC<WordBlockProps> = ({
   onContextMenu,
 }) => {
   const left = begin * zoom;
-  const naturalWidth = (end - begin) * zoom;
-  const width = Math.max(naturalWidth, 4);
-  const showText = naturalWidth >= 20;
-  const canShowBoth = showBoth && Boolean(transliteration) && naturalWidth >= 28;
+  const width = wordBlockWidth(begin, end, zoom);
+  const { fit, cut } = useMemo(() => wordFit(text, width), [text, width]);
+  const canShowBoth = showBoth && Boolean(transliteration) && width >= 28;
 
   const myKey = selfKey(lineId, wordIndex, trackType);
   const isSnapped = useTimelineStore((s) => s.snappedBlockId === myKey);
@@ -117,31 +106,28 @@ const WordBlock: React.FC<WordBlockProps> = ({
     },
   });
 
-  const syllableBorder = syllableBorderStyle(syllablePosition, isSelected, gapBefore);
-
   return (
     <div
       ref={setNodeRef}
       id={id}
       data-word-block
       data-syllable-position={syllablePosition}
+      data-lane={trackType}
+      data-fit={fit}
+      data-cut={cut || undefined}
+      data-begin={begin}
+      data-end={end}
+      data-selected={isSelected || undefined}
       className={cn(
-        "absolute top-1 bottom-1 flex items-center justify-center",
-        "text-xs text-composer-text whitespace-nowrap select-none cursor-grab",
-        "border transition-opacity duration-100",
-        SYLLABLE_RADIUS[syllablePosition],
+        "word-face absolute flex items-center justify-center whitespace-nowrap select-none cursor-grab",
+        "inset-y-[5px]",
+        syllableRadius(syllablePosition, gapBefore, gapAfter),
         isDimmed && "opacity-30",
         isDragging && "opacity-50 cursor-grabbing z-50",
         isExplicit && "is-explicit-word",
         isSnapped && !isDragging && "is-snapped",
       )}
-      style={{
-        left,
-        width,
-        backgroundColor: isSelected ? `${color}60` : `${color}40`,
-        borderColor: isSelected ? `${color}B0` : `${color}70`,
-        ...syllableBorder,
-      }}
+      style={{ left, width, "--agent": color }}
       onClick={(e) => {
         e.stopPropagation();
         onClick(e);
@@ -167,7 +153,6 @@ const WordBlock: React.FC<WordBlockProps> = ({
         edge="left"
         syllablePosition={syllablePosition}
         syllableEdgesJoin={syllableEdgesJoin}
-        borderless={syllableBorder.borderLeftWidth === 0}
         conjoined={leftConjoined}
         highlighted={leftHighlighted}
         showGrip={showLeftGrip}
@@ -175,7 +160,7 @@ const WordBlock: React.FC<WordBlockProps> = ({
         onEdgeHover={onEdgeHover}
       />
 
-      {showText &&
+      {fit !== "tick" &&
         (canShowBoth && transliteration ? (
           <div className="flex flex-col items-center justify-center leading-none px-1 pointer-events-none overflow-hidden max-w-full">
             <span className="text-[11px] font-medium truncate max-w-full leading-tight">{text}</span>
@@ -184,7 +169,7 @@ const WordBlock: React.FC<WordBlockProps> = ({
             </span>
           </div>
         ) : (
-          <span className="px-1 pointer-events-none truncate">{text}</span>
+          <span className="min-w-0 overflow-hidden whitespace-nowrap pointer-events-none">{text}</span>
         ))}
 
       <WordEdgeHandle
