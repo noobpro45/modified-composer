@@ -1,3 +1,5 @@
+import { HeaderAction } from "@/views/timeline/header-action";
+import { TimelineAutoAlign } from "@/views/timeline/timeline-auto-align";
 import { isLinked } from "@/domain/instance/predicates";
 import { hasTransliteration } from "@/domain/language/has-transliteration";
 import { isLineSynced } from "@/domain/line/predicates";
@@ -6,8 +8,6 @@ import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
-import { Button } from "@/ui/button";
-import { InlineKeyBadge } from "@/ui/inline-key-badge";
 import { ShortcutToggleButton } from "@/ui/shortcut-toggle-button";
 import { cn } from "@/utils/cn";
 import { MOD_KEY } from "@/utils/platform";
@@ -199,6 +199,8 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
           </ShortcutToggleButton>
         </div>
 
+        <TimelineAutoAlign />
+
         {onImportLyrics && (
           <HeaderAction onClick={onImportLyrics} label="Import" shortcut="timeline.importLyrics" showHint={showHints}>
             <IconTextPlus />
@@ -231,28 +233,6 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
     </div>
   );
 };
-
-const HeaderAction: React.FC<{
-  onClick: () => void;
-  label: string;
-  shortcut: string;
-  showHint: boolean;
-  title?: string;
-  children: React.ReactNode;
-}> = ({ onClick, label, shortcut, showHint, title, children }) => (
-  <Button
-    variant="ghost"
-    size="lg"
-    hasIcon
-    onClick={onClick}
-    title={title}
-    className={cn("shrink-0 [&>svg]:size-4 [&>[data-inline-key-badge]]:ml-0", showHint && "pr-2")}
-  >
-    {children}
-    <span>{label}</span>
-    {showHint && <InlineKeyBadge keys={getEffectiveKeysArray(shortcut)} />}
-  </Button>
-);
 
 // -- Exports -------------------------------------------------------------------
 

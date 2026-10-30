@@ -1,3 +1,4 @@
+import { useAutoAlign } from "@/hooks/use-auto-align";
 import { isSharedLine } from "@/domain/group/shared-timing";
 import { instanceName } from "@/domain/instance/name";
 import { isLinked } from "@/domain/instance/predicates";
@@ -26,7 +27,8 @@ function sharedInstanceNameOf(lines: readonly LyricLine[], lineId: string): stri
 // -- Hook ---------------------------------------------------------------------
 
 function useLineMenuActions(targets: ContextMenuTargets, clearContextMenu: () => void) {
-  const { lines, gutterLineGroupInfo, placeAtPlayheadInfo } = targets;
+  const { lines, gutterLineGroupInfo, placeAtPlayheadInfo, autoAlignInfo } = targets;
+  const { autoAlign } = useAutoAlign();
   const contextMenu = useTimelineStore((s) => s.contextMenu);
   const selectedWords = useTimelineStore((s) => s.selectedWords);
   const rawLines = useProjectStore((s) => s.lines);
@@ -101,7 +103,14 @@ function useLineMenuActions(targets: ContextMenuTargets, clearContextMenu: () =>
     clearContextMenu();
   }, [contextMenu, selectedWords, lines, clearContextMenu]);
 
+  const handleAutoAlign = useCallback(() => {
+    if (!autoAlignInfo) return;
+    void autoAlign(autoAlignInfo.lineIds, { realign: autoAlignInfo.realign });
+    clearContextMenu();
+  }, [autoAlignInfo, autoAlign, clearContextMenu]);
+
   return {
+    handleAutoAlign,
     handlePlaceLineHere,
     handlePlaceAtPlayhead,
     handleAddLine,

@@ -1,3 +1,4 @@
+import { AlignmentModelSetting } from "@/ui/settings/alignment-model-setting";
 import { useSettingsStore } from "@/stores/settings";
 import type { SettingId } from "@/stores/settings-catalog";
 import { LAUNCH_SCREEN_OPTIONS, LIBRARY_SORT_OPTIONS } from "@/ui/projects/library-options";
@@ -114,6 +115,8 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
     ],
   },
   autoSeparateOnImport: TOGGLE,
+  alignmentModelId: { kind: "custom", Component: AlignmentModelSetting },
+  keepAlignmentModelLoaded: TOGGLE,
   vocalModelVariant: {
     kind: "select",
     options: [

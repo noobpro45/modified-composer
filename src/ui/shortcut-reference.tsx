@@ -97,6 +97,7 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
       { keys: ["T"], description: "Toggle snap (magnet)", shortcutId: "timeline.toggleSnap" },
       { keys: ["N"], description: "Insert line below selected word", shortcutId: "timeline.insertLineBelow" },
       { keys: ["Shift", "N"], description: "Insert line above selected word", shortcutId: "timeline.insertLineAbove" },
+      { keys: ["Shift", "A"], description: "Auto-align the selected line", shortcutId: "timeline.autoAlign" },
       { keys: ["X"], description: "Expand all lines", shortcutId: "timeline.expandAll" },
       { keys: ["Space"], description: "Jump viewport to playhead", shortcutId: "timeline.jumpToPlayhead" },
       { keys: ["Escape"], description: "Deselect / cancel paste" },
