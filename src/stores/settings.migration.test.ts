@@ -162,3 +162,12 @@ describe("selectionLeadIn migration", () => {
     expect(migrated.selectionLeadIn).toBe(0);
   });
 });
+
+describe("alignmentModelId migration", () => {
+  it("moves the alignment model saved by the old default to the recommended one, but keeps a picked model", async () => {
+    await rehydrateAt(9, legacyBlob({ alignmentModelId: "hubertfa-v007" }));
+    expect(useSettingsStore.getState().alignmentModelId).toBe("recommended");
+    await rehydrateAt(9, legacyBlob({ alignmentModelId: "hubertfa-pt-run2-s3000" }));
+    expect(useSettingsStore.getState().alignmentModelId).toBe("hubertfa-pt-run2-s3000");
+  });
+});

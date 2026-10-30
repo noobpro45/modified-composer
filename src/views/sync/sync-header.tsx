@@ -1,6 +1,7 @@
 import { Button } from "@/ui/button";
 import { SegmentedControl } from "@/ui/segmented-control";
 import { ShortcutToggleButton } from "@/ui/shortcut-toggle-button";
+import { AutoAlignDropdown } from "@/views/sync/auto-align-dropdown";
 import { IconLanguage, IconLock, IconLockOpen, IconPlayerPlayFilled, IconRefresh } from "@tabler/icons-react";
 
 // -- Interfaces ---------------------------------------------------------------
@@ -22,11 +23,11 @@ interface SyncHeaderProps {
 // -- Constants ----------------------------------------------------------------
 
 const GRANULARITY_OPTIONS = [
-  { value: "line", label: "Line" },
-  { value: "word", label: "Word" },
-] as const;
+  { value: "line" as const, label: "Line" },
+  { value: "word" as const, label: "Word" },
+];
 
-// -- Components ---------------------------------------------------------------
+// -- Component ----------------------------------------------------------------
 
 const SyncHeader: React.FC<SyncHeaderProps> = ({
   progress,
@@ -68,6 +69,7 @@ const SyncHeader: React.FC<SyncHeaderProps> = ({
           options={GRANULARITY_OPTIONS}
           onChange={handleGranularityChange}
         />
+        <AutoAlignDropdown disabled={editMode} />
         <Button
           hasIcon
           size="lg"

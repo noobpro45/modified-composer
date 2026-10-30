@@ -45,6 +45,8 @@ func isSPARoute(path string) bool {
 		strings.HasPrefix(path, "/audio/") ||
 		strings.HasPrefix(path, "/thumb/") ||
 		strings.HasPrefix(path, "/debug/") ||
+		strings.HasPrefix(path, "/boidu-lyrics/") ||
+		strings.HasPrefix(path, "/composer-models/") ||
 		path == "/health" ||
 		path == "/import" {
 		return false

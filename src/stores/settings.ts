@@ -1,3 +1,4 @@
+import { RECOMMENDED_ALIGNMENT_MODEL } from "@/audio/alignment/hubertfa/model-manifest";
 import type { LibrarySort } from "@/domain/project/library-order";
 import type { MusicBrainzLookup } from "@/domain/musicbrainz/lookup-mode";
 import type { LaunchScreen, LibraryView } from "@/domain/project/library-preferences";
@@ -19,6 +20,9 @@ type VocalModelVariant = "fp16" | "fp32";
 type LanguageAutoGenerate = "auto" | "manual";
 type RomanizationCase = "preserve" | "lowercase";
 type TimelineVisualization = "waveform" | "spectrogram";
+type BooleanSettingKey = {
+  [K in keyof SettingsState]: SettingsState[K] extends boolean ? K : never;
+}[keyof SettingsState];
 
 interface ExperimentFlags {
   youtubeBridge: boolean;
@@ -46,6 +50,7 @@ interface SettingsState {
   rememberVolume: boolean;
   lastVolume: number;
   audioScrubPreview: boolean;
+  scrubStyle: "smooth" | "classic";
   defaultZoom: number;
   defaultRowHeight: number;
   followPlayhead: boolean;
@@ -68,6 +73,7 @@ interface SettingsState {
   redoPreroll: number;
   selectionLeadIn: number;
   syncCountIn: number;
+  seekStep: number;
   defaultGranularity: GranularityDefault;
   autoSaveDelay: number;
   keepYouTubeAudio: KeepYouTubeAudio;
@@ -99,6 +105,8 @@ interface SettingsState {
   previewRenderer: PreviewRenderer;
   autoSeparateOnImport: boolean;
   vocalModelVariant: VocalModelVariant;
+  alignmentModelId: string;
+  keepAlignmentModelLoaded: boolean;
   cobaltInstances: CobaltInstance[];
   selectedCobaltInstanceId: string;
   cobaltInstanceStatus: Record<string, CobaltInstanceStatus>;
@@ -108,6 +116,7 @@ interface SettingsState {
 
 interface SettingsActions {
   set: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void;
+  toggle: (key: BooleanSettingKey) => void;
   resetToDefaults: () => void;
   addCobaltInstance: (instance: Omit<CobaltInstance, "id">) => void;
   updateCobaltInstance: (id: string, updates: Partial<Omit<CobaltInstance, "id">>) => void;
@@ -126,6 +135,7 @@ const DEFAULTS: SettingsState = {
   rememberVolume: true,
   lastVolume: 1,
   audioScrubPreview: true,
+  scrubStyle: "smooth",
   defaultZoom: 100,
   defaultRowHeight: 44,
   followPlayhead: true,
@@ -148,6 +158,7 @@ const DEFAULTS: SettingsState = {
   redoPreroll: 1.5,
   selectionLeadIn: 0.3,
   syncCountIn: 3,
+  seekStep: 5,
   defaultGranularity: "word",
   autoSaveDelay: 2000,
   keepYouTubeAudio: "auto",
@@ -179,6 +190,8 @@ const DEFAULTS: SettingsState = {
   previewRenderer: "braccato",
   autoSeparateOnImport: false,
   vocalModelVariant: "fp32",
+  alignmentModelId: RECOMMENDED_ALIGNMENT_MODEL,
+  keepAlignmentModelLoaded: false,
 
   cobaltInstances: [],
   selectedCobaltInstanceId: DEFAULT_COBALT_INSTANCE_ID,
@@ -202,6 +215,7 @@ const useSettingsStore = create<SettingsState & SettingsActions>()(
       ...DEFAULTS,
 
       set: (key, value) => set({ [key]: value }),
+      toggle: (key) => set((state) => ({ [key]: !state[key] })),
       resetToDefaults: () =>
         set((state) => ({
           ...DEFAULTS,
@@ -269,19 +283,5 @@ function isUsingDefaultCobaltInstance(): boolean {
 
 // -- Exports ------------------------------------------------------------------
 
-export {
-  useSettingsStore,
-  DEFAULTS,
-  BUILTIN_COBALT_INSTANCE,
-  DEFAULT_COBALT_INSTANCE_ID,
-  getActiveCobaltInstance,
-  isUsingDefaultCobaltInstance,
-};
-export type {
-  SettingsState,
-  CobaltInstanceStatus,
-  TimelineVisualization,
-  VocalModelVariant,
-  LanguageAutoGenerate,
-  RomanizationCase,
-};
+export { useSettingsStore, DEFAULTS, BUILTIN_COBALT_INSTANCE, DEFAULT_COBALT_INSTANCE_ID, getActiveCobaltInstance, isUsingDefaultCobaltInstance };
+export type { BooleanSettingKey, CobaltInstanceStatus, LanguageAutoGenerate, RomanizationCase, SettingsState, TimelineVisualization, VocalModelVariant };

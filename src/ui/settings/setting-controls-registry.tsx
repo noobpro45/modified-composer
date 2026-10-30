@@ -1,3 +1,4 @@
+import { AlignmentModelSetting } from "@/ui/settings/alignment-model-setting";
 import { useSettingsStore } from "@/stores/settings";
 import type { SettingId } from "@/stores/settings-catalog";
 import { LAUNCH_SCREEN_OPTIONS, LIBRARY_SORT_OPTIONS } from "@/ui/projects/library-options";
@@ -106,7 +107,16 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
   rememberPlaybackRate: TOGGLE,
   rememberVolume: TOGGLE,
   audioScrubPreview: TOGGLE,
+  scrubStyle: {
+    kind: "select",
+    options: [
+      { value: "smooth", label: "Smooth (Time-stretched)" },
+      { value: "classic", label: "Classic (Snippets)" },
+    ],
+  },
   autoSeparateOnImport: TOGGLE,
+  alignmentModelId: { kind: "custom", Component: AlignmentModelSetting },
+  keepAlignmentModelLoaded: TOGGLE,
   vocalModelVariant: {
     kind: "select",
     options: [
@@ -157,6 +167,7 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
   defaultWordDuration: { kind: "slider", min: 0.1, max: 1, step: 0.05, format: asMilliseconds },
   minWordDuration: { kind: "slider", min: 0.01, max: 0.2, step: 0.01, format: asMilliseconds },
   redoPreroll: { kind: "slider", min: 0, max: 5, step: 0.1, format: asMilliseconds },
+  seekStep: { kind: "slider", min: 1, max: 10, step: 1, format: (v) => `${v}s` },
   syncCountIn: { kind: "slider", min: 0, max: 10, step: 1, format: (v) => (v === 0 ? "Off" : `${v}s`) },
   defaultGranularity: {
     kind: "select",

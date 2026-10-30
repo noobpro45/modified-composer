@@ -21,7 +21,7 @@ interface SettingsSection {
   label: string;
 }
 
-type SettingsGroupId = "Usage" | "Audio" | "Saving";
+type SettingsGroupId = "Usage" | "Audio" | "Saving" | "Vocal separation" | "Auto-align";
 
 interface SettingEntryCommon {
   section: SettingsSectionId;

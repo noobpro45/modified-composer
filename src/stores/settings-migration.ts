@@ -1,3 +1,4 @@
+import { BUILTIN_ALIGNMENT_MODEL, RECOMMENDED_ALIGNMENT_MODEL } from "@/audio/alignment/hubertfa/model-manifest";
 import { isLibrarySort } from "@/domain/project/library-order";
 import { isLaunchScreen, isLibraryView } from "@/domain/project/library-preferences";
 import { isKeepYouTubeAudio } from "@/domain/storage/audio-retention";
@@ -12,7 +13,7 @@ interface RetiredSettings {
 
 // -- Constants ----------------------------------------------------------------
 
-const SETTINGS_PERSIST_VERSION = 9;
+const SETTINGS_PERSIST_VERSION = 10;
 
 // -- Migration ----------------------------------------------------------------
 
@@ -39,6 +40,10 @@ function migrateSettings(persistedState: unknown, version: number): unknown {
   // Before 9 every speed change was written into the default, so the default is the speed last used.
   if (version < 9 && next.lastPlaybackRate === undefined && typeof next.defaultPlaybackRate === "number") {
     next.lastPlaybackRate = next.defaultPlaybackRate;
+  }
+  // The built-in model was the default before 10, so a saved one is the old default, not a choice.
+  if (version < 10 && next.alignmentModelId === BUILTIN_ALIGNMENT_MODEL.id) {
+    next.alignmentModelId = RECOMMENDED_ALIGNMENT_MODEL;
   }
   const { librarySort, libraryView, launchScreen, keepYouTubeAudio, smartCleanup, storageLimit, ...rest } = next;
   return {

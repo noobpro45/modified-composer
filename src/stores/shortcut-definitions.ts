@@ -19,6 +19,7 @@ interface ShortcutDefinition {
   description: string;
   defaultBinding: ShortcutBinding;
   repeatable?: true;
+  needsCommandKey?: true;
 }
 
 // -- Registry -----------------------------------------------------------------
@@ -29,6 +30,43 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     scope: "global",
     description: "Play / Pause",
     defaultBinding: { key: "Enter" },
+  },
+  {
+    id: "global.playPauseWhileTyping",
+    scope: "global",
+    description: "Play / Pause (works while typing)",
+    defaultBinding: { key: "Enter", mod: true },
+    needsCommandKey: true,
+  },
+  {
+    id: "global.seekBackward",
+    scope: "global",
+    description: "Seek back",
+    defaultBinding: { key: "<", shift: true },
+    repeatable: true,
+  },
+  {
+    id: "global.seekForward",
+    scope: "global",
+    description: "Seek forward",
+    defaultBinding: { key: ">", shift: true },
+    repeatable: true,
+  },
+  {
+    id: "global.seekBackwardWhileTyping",
+    scope: "global",
+    description: "Seek back (works while typing)",
+    defaultBinding: { key: "<", shift: true, mod: true },
+    repeatable: true,
+    needsCommandKey: true,
+  },
+  {
+    id: "global.seekForwardWhileTyping",
+    scope: "global",
+    description: "Seek forward (works while typing)",
+    defaultBinding: { key: ">", shift: true, mod: true },
+    repeatable: true,
+    needsCommandKey: true,
   },
   {
     id: "global.togglePlaybackSpeed",
@@ -421,6 +459,12 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     scope: "timeline",
     description: "Toggle rolling edit tool",
     defaultBinding: { key: "r" },
+  },
+  {
+    id: "timeline.autoAlign",
+    scope: "timeline",
+    description: "Align the selected line",
+    defaultBinding: { key: "a", shift: true },
   },
   {
     id: "timeline.toggleMarkerMode",

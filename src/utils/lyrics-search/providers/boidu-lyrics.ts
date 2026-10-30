@@ -4,6 +4,7 @@ import { detectTtmlSyncType } from "@/domain/lyrics-search/sync-type";
 import { isAbortError } from "@/utils/abort-error";
 import { hasNonEmptyString } from "@/utils/lyrics-search/query-guards";
 import type { LyricsSearchProvider, LyricsSearchQuery } from "@/utils/lyrics-search/types";
+import { isDesktop } from "@/utils/platform";
 
 // -- Constants ----------------------------------------------------------------
 
@@ -29,7 +30,7 @@ function canSearch(query: LyricsSearchQuery): boolean {
 }
 
 function buildSearchUrl(query: LyricsSearchQuery): URL {
-  const url = new URL(BOIDU_BASE_URL);
+  const url = isDesktop() ? new URL("/boidu-lyrics/getLyrics", window.location.href) : new URL(BOIDU_BASE_URL);
   url.searchParams.set("s", (query.track ?? "").trim());
   url.searchParams.set("a", (query.artist ?? "").trim());
   url.searchParams.set("d", Math.round(query.durationSec as number).toString());

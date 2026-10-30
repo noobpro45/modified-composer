@@ -26,6 +26,23 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
       { keys: ["Shift", "?"], description: "Show keyboard shortcuts", shortcutId: "global.help" },
       { keys: ["Enter"], description: "Play / Pause audio", shortcutId: "global.playPause" },
       {
+        keys: ["Mod", "Enter"],
+        description: "Play / Pause audio, even while typing",
+        shortcutId: "global.playPauseWhileTyping",
+      },
+      { keys: ["Shift", "<"], description: "Seek back", shortcutId: "global.seekBackward" },
+      { keys: ["Shift", ">"], description: "Seek forward", shortcutId: "global.seekForward" },
+      {
+        keys: ["Mod", "Shift", "<"],
+        description: "Seek back, even while typing",
+        shortcutId: "global.seekBackwardWhileTyping",
+      },
+      {
+        keys: ["Mod", "Shift", ">"],
+        description: "Seek forward, even while typing",
+        shortcutId: "global.seekForwardWhileTyping",
+      },
+      {
         keys: ["Shift", "R"],
         description: "Switch between normal speed and the last speed you used (0.75x at first)",
         shortcutId: "global.togglePlaybackSpeed",
@@ -80,6 +97,7 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
       { keys: ["T"], description: "Toggle snap (magnet)", shortcutId: "timeline.toggleSnap" },
       { keys: ["N"], description: "Insert line below selected word", shortcutId: "timeline.insertLineBelow" },
       { keys: ["Shift", "N"], description: "Insert line above selected word", shortcutId: "timeline.insertLineAbove" },
+      { keys: ["Shift", "A"], description: "Auto-align the selected line", shortcutId: "timeline.autoAlign" },
       { keys: ["X"], description: "Expand all lines", shortcutId: "timeline.expandAll" },
       { keys: ["Space"], description: "Jump viewport to playhead", shortcutId: "timeline.jumpToPlayhead" },
       { keys: ["Escape"], description: "Deselect / cancel paste" },

@@ -42,6 +42,7 @@ import { pingGroup } from "@/views/timeline/ping-group";
 import { scrollToInstanceHeader } from "@/views/timeline/scroll-helpers";
 import { clearLoopRegion, playSelection } from "@/views/timeline/selection-playback";
 import { adjacentSnapPoint } from "@/views/timeline/snap-marker-math";
+import { AUTO_ALIGN_EVENT } from "@/views/timeline/timeline-auto-align";
 import { splitLinesIntoWords } from "@/views/timeline/split-lines-into-words";
 import { GUTTER_WIDTH, WAVEFORM_HEIGHT, useTimelineStore } from "@/views/timeline/timeline-store";
 import { useTimelineClipboard } from "@/views/timeline/use-timeline-clipboard";
@@ -342,6 +343,10 @@ function useTimelineKeyboard(
         }
         case "timeline.toggleRollingEdit":
           useTimelineStore.getState().toggleRollingEditMode();
+          break;
+        case "timeline.autoAlign":
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent(AUTO_ALIGN_EVENT));
           break;
         case "timeline.toggleMarkerMode":
           e.preventDefault();

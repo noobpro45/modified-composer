@@ -1,30 +1,43 @@
+import { getClassicActiveSnippet, playClassic, setClassicBuffer, stopClassic } from "@/audio/scrub-classic";
+import { SCRUB_HOLD_S, scrubTo, silenceStretch, useStretchBuffer } from "@/audio/scrub-stretch";
 import { sharedAudioContext } from "@/audio/shared-audio-context";
 import { useAudioStore } from "@/stores/audio";
 import { useSettingsStore } from "@/stores/settings";
 
-const SNIPPET_S = 0.12;
-const CROSSFADE_S = 0.008;
+// -- Types --------------------------------------------------------------------
+
+type ActiveSnippet = { time: number; rate: number };
+type BufferLoader = () => Promise<AudioBuffer>;
+
+// -- Constants ----------------------------------------------------------------
+
 const MIN_AUDIBLE_RATE = 0.1;
 const MAX_BUFFER_DURATION_S = 60 * 60;
 const LOG_PREFIX = "[ScrubPreview]";
 
-type ActiveSnippet = { time: number; rate: number };
-type BufferLoader = () => Promise<AudioBuffer>;
+// -- State --------------------------------------------------------------------
 
 let buffer: AudioBuffer | null = null;
 let loadBuffer: BufferLoader | null = null;
 let bufferToken = 0;
 let loadingToken: number | null = null;
 let pendingSnippet: ActiveSnippet | null = null;
-let currentSource: AudioBufferSourceNode | null = null;
-let currentGain: GainNode | null = null;
 let activeSnippet: ActiveSnippet | null = null;
+let lastEventMs = Number.NEGATIVE_INFINITY;
 
-function getContext(): AudioContext {
+// -- Audio --------------------------------------------------------------------
+
+function resumeContext(): void {
   const ctx = sharedAudioContext();
   if (ctx.state === "suspended") void ctx.resume();
-  return ctx;
 }
+
+function targetVolume(): number {
+  const { isMuted, volume } = useAudioStore.getState();
+  return isMuted ? 0 : volume;
+}
+
+// -- Buffer -------------------------------------------------------------------
 
 function useBuffer(next: AudioBuffer | null): void {
   stop();
@@ -34,9 +47,11 @@ function useBuffer(next: AudioBuffer | null): void {
   if (next && next.duration > MAX_BUFFER_DURATION_S) {
     console.warn(LOG_PREFIX, `buffer exceeds ${MAX_BUFFER_DURATION_S}s cap; scrub preview disabled for this source`);
     buffer = null;
-    return;
+  } else {
+    buffer = next;
   }
-  buffer = next;
+  setClassicBuffer(buffer);
+  useStretchBuffer(buffer);
 }
 
 function useLazyBuffer(load: BufferLoader): void {
@@ -64,18 +79,7 @@ function requestBuffer(time: number, velocity: number): void {
   );
 }
 
-function fadeOutAndStop(source: AudioBufferSourceNode, gain: GainNode): void {
-  const ctx = getContext();
-  const now = ctx.currentTime;
-  gain.gain.cancelScheduledValues(now);
-  gain.gain.setValueAtTime(gain.gain.value, now);
-  gain.gain.linearRampToValueAtTime(0, now + CROSSFADE_S);
-  try {
-    source.stop(now + CROSSFADE_S + 0.002);
-  } catch {
-    /* source already ended; safe to ignore */
-  }
-}
+// -- Playback -----------------------------------------------------------------
 
 function isEnabled(): boolean {
   return useSettingsStore.getState().audioScrubPreview;
@@ -89,55 +93,35 @@ function play(time: number, velocity: number): void {
     return;
   }
 
-  const ctx = getContext();
-  const maxStartTime = Math.max(0, buffer.duration - SNIPPET_S);
-  const clampedTime = Math.max(0, Math.min(time, maxStartTime));
-
-  if (currentSource && currentGain) {
-    fadeOutAndStop(currentSource, currentGain);
+  const { scrubStyle } = useSettingsStore.getState();
+  if (scrubStyle === "classic") {
+    playClassic(time, velocity);
+    return;
   }
 
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-
-  const gain = ctx.createGain();
-  const now = ctx.currentTime;
-  const audioState = useAudioStore.getState();
-  const targetVolume = audioState.isMuted ? 0 : audioState.volume;
-  gain.gain.setValueAtTime(0, now);
-  gain.gain.linearRampToValueAtTime(targetVolume, now + CROSSFADE_S);
-
-  source.connect(gain);
-  gain.connect(ctx.destination);
-
-  source.start(now, clampedTime, SNIPPET_S);
-
-  currentSource = source;
-  currentGain = gain;
+  const clampedTime = Math.max(0, Math.min(time, buffer.duration));
   activeSnippet = { time: clampedTime, rate: velocity };
-
-  source.onended = () => {
-    if (currentSource === source) {
-      currentSource = null;
-      currentGain = null;
-      activeSnippet = null;
-    }
-  };
+  lastEventMs = performance.now();
+  resumeContext();
+  scrubTo({ buffer, time: clampedTime, rate: velocity, volume: targetVolume() });
 }
 
 function stop(): void {
   pendingSnippet = null;
-  if (currentSource && currentGain) {
-    fadeOutAndStop(currentSource, currentGain);
-  }
-  currentSource = null;
-  currentGain = null;
   activeSnippet = null;
+  stopClassic();
+  silenceStretch();
 }
 
 function getActiveSnippet(): ActiveSnippet | null {
-  return activeSnippet;
+  const { scrubStyle } = useSettingsStore.getState();
+  if (scrubStyle === "classic") {
+    return getClassicActiveSnippet();
+  }
+  return performance.now() - lastEventMs > SCRUB_HOLD_S * 1000 ? null : activeSnippet;
 }
+
+// -- Exports ------------------------------------------------------------------
 
 const scrubPreview = { useBuffer, useLazyBuffer, play, stop, getActiveSnippet };
 

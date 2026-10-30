@@ -1,4 +1,5 @@
 import { holdFrames, wake } from "@/lib/frame-loop";
+import { useAlignmentStore } from "@/stores/alignment";
 import { useAudioStore } from "@/stores/audio";
 import { useAuthStore } from "@/stores/auth";
 import { useChoiceStore } from "@/stores/choice-store";
@@ -81,6 +82,7 @@ function wireFrameLoop(): () => void {
   };
 
   const unsubscribes = [
+    useAlignmentStore.subscribe(wakeFromThisWiring),
     useAudioStore.subscribe(syncAudio),
     useAuthStore.subscribe(wakeFromThisWiring),
     useConfirmStore.subscribe(wakeFromThisWiring),
