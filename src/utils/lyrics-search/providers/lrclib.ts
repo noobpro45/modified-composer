@@ -1,6 +1,6 @@
 import { toUsableDurationSec } from "@/domain/lyrics-search/duration";
 import type { LyricsSearchPayload, LyricsSearchResult } from "@/domain/lyrics-search/result";
-import { detectLrcSyncType, type SyncType } from "@/domain/lyrics-search/sync-type";
+import { type SyncType, detectLrcSyncType } from "@/domain/lyrics-search/sync-type";
 import { isAbortError } from "@/utils/abort-error";
 import { hasNonEmptyString } from "@/utils/lyrics-search/query-guards";
 import type { LyricsSearchProvider, LyricsSearchQuery } from "@/utils/lyrics-search/types";
@@ -12,6 +12,10 @@ const SEARCH_PATH = "/api/search";
 const GET_PATH = "/api/get";
 const ID_PREFIX = "lrclib-";
 const LOG_PREFIX = "[LRCLib]";
+const ARTIST_DELIMITERS = [",", "&", "/", "、"] as const;
+const CV_PATTERN = /\s*[\(\[][Cc][Vv][:\s][^\)\]]+[\)\]]/g;
+const FEAT_PAREN_PATTERN = /\s*[\(\[](?:feat|ft)\.?\s+[^\)\]]+[\)\]]/gi;
+const FEAT_INLINE_PATTERN = /\s+(?:feat|ft)\.?\s+.*$/i;
 
 // -- Types --------------------------------------------------------------------
 
@@ -114,12 +118,21 @@ async function fetchGet(query: LyricsSearchQuery, signal: AbortSignal): Promise<
   return body;
 }
 
+function cleanArtist(artist: string | undefined): string | undefined {
+  if (!artist) return undefined;
+  const stripped = artist.replace(CV_PATTERN, "").replace(FEAT_PAREN_PATTERN, "").replace(FEAT_INLINE_PATTERN, "");
+  let primary = stripped;
+  for (const delimiter of ARTIST_DELIMITERS) {
+    const part = primary.split(delimiter)[0];
+    if (part) primary = part;
+  }
+  const trimmed = primary.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 // -- Search -------------------------------------------------------------------
 
-async function search(query: LyricsSearchQuery, signal: AbortSignal): Promise<LyricsSearchResult[]> {
-  if (!hasNonEmptyTrack(query)) return [];
-  if (signal.aborted) return [];
-
+async function executeSearch(query: LyricsSearchQuery, signal: AbortSignal): Promise<LyricsSearchResult[]> {
   const tasks: Promise<unknown>[] = [fetchSearch(query, signal)];
   if (canRunGet(query)) tasks.push(fetchGet(query, signal));
 
@@ -159,6 +172,33 @@ async function search(query: LyricsSearchQuery, signal: AbortSignal): Promise<Ly
   }
 
   return merged;
+}
+
+async function search(query: LyricsSearchQuery, signal: AbortSignal): Promise<LyricsSearchResult[]> {
+  if (!hasNonEmptyTrack(query)) return [];
+  if (signal.aborted) return [];
+
+  const primary = await executeSearch(query, signal);
+  if (primary.length > 0 || signal.aborted) return primary;
+
+  const hasExtraConstraints = hasNonEmptyString(query.album) || typeof query.durationSec === "number";
+  if (hasExtraConstraints) {
+    const relaxed = await executeSearch({ track: query.track, artist: query.artist }, signal);
+    if (relaxed.length > 0 || signal.aborted) return relaxed;
+  }
+
+  const cleanedArtist = cleanArtist(query.artist);
+  if (cleanedArtist && cleanedArtist !== query.artist?.trim()) {
+    const simplified = await executeSearch({ track: query.track, artist: cleanedArtist }, signal);
+    if (simplified.length > 0 || signal.aborted) return simplified;
+  }
+
+  if (hasNonEmptyString(query.artist)) {
+    const trackOnly = await executeSearch({ track: query.track }, signal);
+    if (trackOnly.length > 0) return trackOnly;
+  }
+
+  return [];
 }
 
 function handleSearchRejection(reason: unknown): LrcLibResponse[] {

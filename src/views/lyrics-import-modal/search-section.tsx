@@ -1,15 +1,17 @@
-import { useCallback, useMemo, useRef, useState } from "react";
 import type { LyricsSearchResult } from "@/domain/lyrics-search/result";
 import { useLyricsSearch } from "@/hooks/useLyricsSearch";
 import { useImportModalStore } from "@/stores/import-modal-store";
-import type { LyricsSearchQuery } from "@/utils/lyrics-search/types";
-import { formatDuration, parseDurationInput } from "@/views/lyrics-import-modal/duration-input-utils";
 import { Button } from "@/ui/button";
+import { normalizeIsrc } from "@/utils/isrc";
+import type { LyricsSearchQuery } from "@/utils/lyrics-search/types";
+import { pluralize } from "@/utils/pluralize";
+import { formatDuration, parseDurationInput } from "@/views/lyrics-import-modal/duration-input-utils";
+import { IsrcLookupButton } from "@/views/lyrics-import-modal/isrc-lookup-button";
 import { SearchField } from "@/views/lyrics-import-modal/search-field";
 import { SearchResults } from "@/views/lyrics-import-modal/search-results";
-import { pluralize } from "@/utils/pluralize";
 import {
   IconAlbum,
+  IconBarcode,
   IconBrandYoutube,
   IconClock,
   IconFileText,
@@ -17,13 +19,14 @@ import {
   IconUpload,
   IconUser,
 } from "@tabler/icons-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 // -- Types --------------------------------------------------------------------
 
 interface SearchSectionProps {
   initialPrefill: LyricsSearchQuery | null;
   expectedDurationSec?: number;
-  onSelect: (result: LyricsSearchResult) => void;
+  onSelect: (result: LyricsSearchResult, isrc?: string) => void;
   onSwitchToPaste: () => void;
   onSwitchToUpload: () => void;
 }
@@ -34,6 +37,7 @@ interface InputState {
   album: string;
   duration: string;
   videoId: string;
+  isrc: string;
 }
 
 // -- Helpers ------------------------------------------------------------------
@@ -45,17 +49,20 @@ function buildInitialInputState(prefill: LyricsSearchQuery | null): InputState {
     album: prefill?.album ?? "",
     duration: typeof prefill?.durationSec === "number" ? formatDuration(prefill.durationSec) : "",
     videoId: prefill?.videoId ?? "",
+    isrc: prefill?.isrc ?? "",
   };
 }
 
-function buildQuery(inputs: InputState, isrc: string | undefined): LyricsSearchQuery {
+function buildQuery(inputs: InputState): LyricsSearchQuery {
+  const isrcTrimmed = inputs.isrc.trim();
+  const normalized = isrcTrimmed ? normalizeIsrc(isrcTrimmed) : undefined;
   return {
     track: inputs.track.trim() || undefined,
     artist: inputs.artist.trim() || undefined,
     album: inputs.album.trim() || undefined,
     durationSec: parseDurationInput(inputs.duration),
     videoId: inputs.videoId.trim() || undefined,
-    isrc,
+    isrc: normalized ?? (isrcTrimmed || undefined),
   };
 }
 
@@ -74,9 +81,8 @@ const SearchSection: React.FC<SearchSectionProps> = ({
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const trackInputRef = useRef<HTMLInputElement>(null);
   const listboxRef = useRef<HTMLDivElement>(null);
-  const isrcRef = useRef(initialPrefill?.isrc);
 
-  const query = useMemo(() => buildQuery(inputs, isrcRef.current), [inputs]);
+  const query = useMemo(() => buildQuery(inputs), [inputs]);
   const effectiveExpectedDuration = expectedDurationSec ?? parseDurationInput(inputs.duration);
   const { results, isFetching } = useLyricsSearch(query, {
     expectedDurationSec: effectiveExpectedDuration,
@@ -99,21 +105,24 @@ const SearchSection: React.FC<SearchSectionProps> = ({
   }, []);
 
   const handleClearAll = useCallback(() => {
-    setInputs({ track: "", artist: "", album: "", duration: "", videoId: "" });
-    isrcRef.current = undefined;
+    setInputs({ track: "", artist: "", album: "", duration: "", videoId: "", isrc: "" });
     setFocusedIndex(-1);
     useImportModalStore.getState().clearDefaultPrefill();
     trackInputRef.current?.focus();
   }, []);
 
-  const hasAnyInput = Boolean(inputs.track || inputs.artist || inputs.album || inputs.duration || inputs.videoId);
+  const hasAnyInput = Boolean(
+    inputs.track || inputs.artist || inputs.album || inputs.duration || inputs.videoId || inputs.isrc,
+  );
 
   const handleSelectResult = useCallback(
     (result: LyricsSearchResult) => {
       setSelectingId(result.id);
-      onSelect(result);
+      const isrcTrimmed = inputs.isrc.trim();
+      const normalized = isrcTrimmed ? normalizeIsrc(isrcTrimmed) : undefined;
+      onSelect(result, normalized ?? (isrcTrimmed || undefined));
     },
-    [onSelect],
+    [inputs.isrc, onSelect],
   );
 
   const handleKeyDown = useCallback(
@@ -195,12 +204,29 @@ const SearchSection: React.FC<SearchSectionProps> = ({
             label="Video ID"
             optional
             mono
-            fullWidth
             icon={<IconBrandYoutube size={14} stroke={1.75} />}
             value={inputs.videoId}
             placeholder="dQw4w9WgXcQ"
             onChange={handleInputChange("videoId")}
             onKeyDown={handleKeyDown}
+          />
+          <SearchField
+            label="ISRC"
+            optional
+            mono
+            icon={<IconBarcode size={14} stroke={1.75} />}
+            value={inputs.isrc}
+            placeholder="GBUM71029604"
+            onChange={handleInputChange("isrc")}
+            onKeyDown={handleKeyDown}
+            labelAction={
+              <IsrcLookupButton
+                track={inputs.track}
+                artist={inputs.artist}
+                durationSec={parseDurationInput(inputs.duration)}
+                onFound={handleInputChange("isrc")}
+              />
+            }
           />
         </div>
       </div>

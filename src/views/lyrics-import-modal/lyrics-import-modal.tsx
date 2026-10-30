@@ -71,7 +71,7 @@ const LyricsImportModalShell: React.FC = () => {
   }, [close, importContext, pendingFile]);
 
   const handleSearchSelect = useCallback(
-    async (result: LyricsSearchResult) => {
+    async (result: LyricsSearchResult, queryIsrc?: string) => {
       if (selectionAbortRef.current !== null) selectionAbortRef.current.abort();
       const controller = new AbortController();
       selectionAbortRef.current = controller;
@@ -102,7 +102,7 @@ const LyricsImportModalShell: React.FC = () => {
       }
 
       const filename = syntheticFilenameForResult(result);
-      const ok = await importLyrics({ filename, content, searchResult: result }, importContext);
+      const ok = await importLyrics({ filename, content, searchResult: result, queryIsrc }, importContext);
       if (selectionAbortRef.current === controller) selectionAbortRef.current = null;
       setSelectingResultId((prev) => (prev === result.id ? null : prev));
       if (ok) close();

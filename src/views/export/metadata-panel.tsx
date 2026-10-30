@@ -1,7 +1,9 @@
 import { isValidLanguageTag, normalizeLanguageTag } from "@/domain/project/language";
+import type { ProjectMetadata } from "@/domain/project/metadata";
 import { useProjectStore } from "@/stores/project";
 import { Scroll } from "@/ui/scroll";
 import { isValidIsrc, normalizeIsrc } from "@/utils/isrc";
+import { showMusicBrainzFillToast, triggerLastMetadataUndo } from "@/utils/musicbrainz-toast";
 import { ExtraFieldList } from "@/views/export/extra-field-list";
 import { MetadataFieldList } from "@/views/export/metadata-field-list";
 import { MatchStrip } from "@/views/export/musicbrainz/match-strip";
@@ -11,7 +13,7 @@ import { SuggestedField } from "@/views/export/musicbrainz/suggested-value";
 import { useMusicBrainzPanel } from "@/views/export/musicbrainz/use-musicbrainz-panel";
 import { DETAILS_FIELD_STYLES, DETAILS_LABEL_STYLES } from "@/views/export/song-details-styles";
 import { useNormalizedDraft } from "@/views/export/use-normalized-draft";
-import { useId, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 // -- Component ----------------------------------------------------------------
 
@@ -43,6 +45,32 @@ const MetadataPanel: React.FC = () => {
     setLanguageDraft(value);
     setMetadata({ language: normalizeLanguageTag(value) });
   };
+
+  const applySuggestionWithUndo = <K extends keyof ProjectMetadata>(
+    key: K,
+    value: ProjectMetadata[K],
+    fieldName: string,
+  ) => {
+    const previous = { [key]: metadata[key] };
+    if (key === "isrc") {
+      handleIsrcChange((value as string) ?? "");
+    } else {
+      setMetadata({ [key]: value });
+    }
+    showMusicBrainzFillToast(previous, fieldName);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key.toLowerCase() === "z" || e.code === "KeyZ")) {
+        if (triggerLastMetadataUndo()) {
+          e.preventDefault();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const musicBrainz = useMusicBrainzPanel();
   const { shown, suggestions } = musicBrainz;
@@ -85,7 +113,7 @@ const MetadataPanel: React.FC = () => {
             placeholder="Album name"
             onChange={(e) => setMetadata({ album: e.target.value })}
             suggestion={suggestions.album}
-            onUseSuggestion={(album) => setMetadata({ album })}
+            onUseSuggestion={(album) => applySuggestionWithUndo("album", album, "Album")}
           />
 
           <SuggestedField
@@ -96,7 +124,7 @@ const MetadataPanel: React.FC = () => {
             placeholder="e.g. USQX91700001"
             onChange={(e) => handleIsrcChange(e.target.value)}
             suggestion={suggestions.isrc}
-            onUseSuggestion={handleIsrcChange}
+            onUseSuggestion={(isrc) => applySuggestionWithUndo("isrc", isrc, "ISRC")}
           >
             {isrcInvalid && (
               <span role="alert" className="text-xs text-composer-error-text select-text cursor-text">
@@ -134,7 +162,7 @@ const MetadataPanel: React.FC = () => {
             values={metadata.artists}
             onChange={(next) => setMetadata({ artists: next })}
             suggestion={suggestions.artists}
-            onUseSuggestion={(artists) => setMetadata({ artists })}
+            onUseSuggestion={(artists) => applySuggestionWithUndo("artists", artists, "Artists")}
           />
 
           <MetadataFieldList
@@ -144,7 +172,7 @@ const MetadataPanel: React.FC = () => {
             values={metadata.songwriters ?? []}
             onChange={(next) => setMetadata({ songwriters: next })}
             suggestion={suggestions.songwriters}
-            onUseSuggestion={(songwriters) => setMetadata({ songwriters })}
+            onUseSuggestion={(songwriters) => applySuggestionWithUndo("songwriters", songwriters, "Songwriters")}
           />
 
           <ExtraFieldList values={metadata.extra ?? {}} onChange={(next) => setMetadata({ extra: next })} />

@@ -50,6 +50,7 @@ interface ImportLyricsInput {
   filename: string;
   content: string;
   searchResult?: LyricsSearchResult;
+  queryIsrc?: string;
   parsed?: ParseResult;
 }
 
@@ -82,12 +83,13 @@ function confirmReplace(confirm: ConfirmFn): Promise<boolean> {
   });
 }
 
-function searchResultMetadata(result: LyricsSearchResult | undefined): Partial<ProjectMetadata> {
-  if (!result) return {};
+function searchResultMetadata(result: LyricsSearchResult | undefined, queryIsrc?: string): Partial<ProjectMetadata> {
+  if (!result) return queryIsrc ? { isrc: queryIsrc } : {};
   return {
     ...(result.track ? { title: result.track } : {}),
     ...(result.artist ? { artists: [result.artist] } : {}),
     ...(result.album ? { album: result.album } : {}),
+    ...(queryIsrc ? { isrc: queryIsrc } : {}),
   };
 }
 
@@ -130,7 +132,7 @@ async function importLyrics(input: ImportLyricsInput, ctx: ImportContext): Promi
     workingLines = distributeLinesTiming(workingLines, ctx.audioDuration);
   }
 
-  const reported = replaceLyrics(parsed, workingLines, searchResultMetadata(input.searchResult));
+  const reported = replaceLyrics(parsed, workingLines, searchResultMetadata(input.searchResult, input.queryIsrc));
 
   const skipped = skippedLineCount(parsed.issues);
   if (skipped > 0) toast.warning(partialImportMessage(workingLines.length, skipped));
