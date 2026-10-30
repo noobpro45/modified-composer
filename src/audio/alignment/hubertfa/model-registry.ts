@@ -1,10 +1,10 @@
 import {
   type AlignmentModel,
   DICTIONARY_APPROX_BYTES,
+  getAlignmentModelBaseUrl,
   resolveAlignmentModel,
 } from "@/audio/alignment/hubertfa/model-manifest";
 import { type CachedModel, hasCachedModel } from "@/audio/separation/model-cache";
-import { getModelBaseUrl } from "@/audio/separation/model-registry";
 
 // -- Types --------------------------------------------------------------------
 
@@ -40,7 +40,7 @@ const JAPANESE_DICTIONARY_FILES: Record<string, number> = {
 // The kanji dictionary is hosted next to the vocal separation model whichever
 // alignment model is selected.
 function getAlignmentAssets(model: AlignmentModel): AlignmentAssets | null {
-  const base = getModelBaseUrl();
+  const base = getAlignmentModelBaseUrl();
   if (!base) return null;
   return {
     model: { url: model.modelUrl, approxBytes: model.approxBytes },

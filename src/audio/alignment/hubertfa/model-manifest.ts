@@ -1,5 +1,6 @@
 import { getModelBaseUrl } from "@/audio/separation/model-registry";
 import { baseLanguage, isAlignableLanguage } from "@/domain/alignment/language";
+import { isDesktop } from "@/utils/platform";
 
 // -- Types --------------------------------------------------------------------
 
@@ -135,10 +136,26 @@ async function fetchModels(baseUrl: string): Promise<AlignmentModel[]> {
   }
 }
 
+const DEFAULT_ALIGNMENT_MODEL_BASE_URL = "https://models.composer.dacubeking.com";
+
+function getAlignmentModelBaseUrl(): string {
+  if (isDesktop() && typeof window !== "undefined") {
+    return `${window.location.origin}/composer-models`;
+  }
+  const override = import.meta.env.VITE_ALIGNMENT_MODEL_BASE_URL;
+  if (typeof override === "string" && override.trim().length > 0) {
+    return override.trim().replace(/\/$/, "");
+  }
+  const vocalBase = getModelBaseUrl();
+  if (vocalBase && !vocalBase.includes("huggingface.co")) {
+    return vocalBase;
+  }
+  return DEFAULT_ALIGNMENT_MODEL_BASE_URL;
+}
+
 /** Every selectable model, fetched once per page load. Empty when model hosting isn't configured. */
 function loadAlignmentModels(): Promise<AlignmentModel[]> {
-  const baseUrl = getModelBaseUrl();
-  if (!baseUrl) return Promise.resolve([]);
+  const baseUrl = getAlignmentModelBaseUrl();
   modelsPromise ??= fetchModels(baseUrl);
   return modelsPromise;
 }
@@ -158,6 +175,7 @@ async function resolveAlignmentModel(id: string): Promise<AlignmentModel | null>
 
 export {
   BUILTIN_ALIGNMENT_MODEL,
+  getAlignmentModelBaseUrl,
   DICTIONARY_APPROX_BYTES,
   loadAlignmentModels,
   RECOMMENDED_ALIGNMENT_MODEL,

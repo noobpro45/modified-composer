@@ -35,6 +35,15 @@ export default defineConfig({
           Referer: "https://composer.betterlyrics.org/",
         },
       },
+      "/composer-models": {
+        target: "https://models.composer.dacubeking.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/composer-models/, ""),
+        headers: {
+          Origin: "https://composer.betterlyrics.org",
+          Referer: "https://composer.betterlyrics.org/",
+        },
+      },
     },
   },
   worker: {

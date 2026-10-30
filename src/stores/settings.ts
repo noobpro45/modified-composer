@@ -283,20 +283,5 @@ function isUsingDefaultCobaltInstance(): boolean {
 
 // -- Exports ------------------------------------------------------------------
 
-export {
-  useSettingsStore,
-  DEFAULTS,
-  BUILTIN_COBALT_INSTANCE,
-  DEFAULT_COBALT_INSTANCE_ID,
-  getActiveCobaltInstance,
-  isUsingDefaultCobaltInstance,
-};
-export type {
-  BooleanSettingKey,
-  CobaltInstanceStatus,
-  LanguageAutoGenerate,
-  RomanizationCase,
-  SettingsState,
-  TimelineVisualization,
-  VocalModelVariant,
-};
+export { useSettingsStore, DEFAULTS, BUILTIN_COBALT_INSTANCE, DEFAULT_COBALT_INSTANCE_ID, getActiveCobaltInstance, isUsingDefaultCobaltInstance };
+export type { BooleanSettingKey, CobaltInstanceStatus, LanguageAutoGenerate, RomanizationCase, SettingsState, TimelineVisualization, VocalModelVariant };
