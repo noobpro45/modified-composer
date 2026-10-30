@@ -309,6 +309,14 @@ describe("importLyrics metadata", () => {
     });
   });
 
+  it("fills isrc from search input when importing a search result", async () => {
+    await importLyrics(
+      { filename: "lrclib-42.lrc", content: LRC_WITHOUT_TAGS, searchResult: searchResult(), queryIsrc: "GBUM71029604" },
+      buildContext(),
+    );
+    expect(useProjectStore.getState().metadata.isrc).toBe("GBUM71029604");
+  });
+
   it("replaces the details a search result filled on the next plain import", async () => {
     await importLyrics(
       { filename: "lrclib-42.lrc", content: LRC_WITHOUT_TAGS, searchResult: searchResult() },

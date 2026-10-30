@@ -10,6 +10,7 @@ interface SearchFieldProps {
   icon: React.ReactNode;
   value: string;
   placeholder: string;
+  labelAction?: React.ReactNode;
   onChange: (value: string) => void;
   onBlur?: () => void;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
@@ -26,6 +27,7 @@ const SearchField: React.FC<SearchFieldProps> = ({
   icon,
   value,
   placeholder,
+  labelAction,
   onChange,
   onBlur,
   onKeyDown,
@@ -34,10 +36,13 @@ const SearchField: React.FC<SearchFieldProps> = ({
   const inputId = `field-${label.toLowerCase().replace(/\s+/g, "-")}`;
   return (
     <div className={cn("flex flex-col gap-1.5 select-none", fullWidth && "col-span-2")}>
-      <label htmlFor={inputId} className="text-[11px] font-medium tracking-wide text-composer-text-muted px-0.5">
-        {label}
-        {optional ? <span className="opacity-70"> ・ optional</span> : null}
-      </label>
+      <div className="flex items-center justify-between px-0.5 min-h-[17px]">
+        <label htmlFor={inputId} className="text-[11px] font-medium tracking-wide text-composer-text-muted">
+          {label}
+          {optional ? <span className="opacity-70"> ・ optional</span> : null}
+        </label>
+        {labelAction}
+      </div>
       <div className="flex items-center gap-2 h-9 px-3 bg-(--well) border border-(--edge) rounded-[10px] transition-colors focus-within:border-(--lit-ring)">
         <span className="text-composer-text opacity-50 shrink-0" aria-hidden="true">
           {icon}

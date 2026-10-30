@@ -20,7 +20,7 @@ const SRC_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // Generic tokenization primitives with no domain meaning. Permanent: a pattern
 // belongs here only when every copy of it means nothing beyond "split on
 // whitespace" or "trim a line break".
-const PRIMITIVES = new Set<string>(["\\r?\\n", "\\s+", " +$", "[a-zA-Z0-9]"]);
+const PRIMITIVES = new Set<string>(["\\r?\\n", "\\s+", " +$", "[a-zA-Z0-9]", "[^a-z]"]);
 
 // A ratchet, not a policy. Each entry is a concept that wants the owner named
 // beside it and does not route through one yet. It may only SHRINK: never add

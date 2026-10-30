@@ -154,3 +154,143 @@ describe("lrclibProvider 4xx/5xx handling", () => {
     expect(warn).toHaveBeenCalled();
   });
 });
+
+// -- Regression: cascading search relaxation -----------------------------------
+
+describe("regression: cascading search relaxation", () => {
+  const HIT = {
+    id: 12345,
+    trackName: "あの日のままのぼくら",
+    artistName: "Aqua",
+    albumName: "Anime Song-Box",
+    duration: 190,
+    instrumental: false,
+    plainLyrics: "lyrics",
+    syncedLyrics: "[00:10.00] lyrics",
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("regression: falls back to relaxed search when strict query with album and duration yields no results", async () => {
+    const urlsRequested: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL): Promise<Response> => {
+      const urlStr = String(input);
+      urlsRequested.push(urlStr);
+      if (urlStr.includes("duration=199")) {
+        return new Response(JSON.stringify([]), { headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify([HIT]), { headers: { "content-type": "application/json" } });
+    });
+
+    const results = await lrclibProvider.search(
+      {
+        track: "あの日のままのぼくら",
+        artist: "Aqua",
+        album: "Different Album",
+        durationSec: 199,
+      },
+      new AbortController().signal,
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].track).toBe("あの日のままのぼくら");
+    expect(urlsRequested.some((u) => !u.includes("duration="))).toBe(true);
+  });
+
+  it("regression: falls back to cleaned artist when voice-actor artist tags yield no results", async () => {
+    const urlsRequested: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL): Promise<Response> => {
+      const urlStr = String(input);
+      urlsRequested.push(urlStr);
+      if (urlStr.includes("CV%3A") || urlStr.includes("CV:")) {
+        return new Response(JSON.stringify([]), { headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify([HIT]), { headers: { "content-type": "application/json" } });
+    });
+
+    const results = await lrclibProvider.search(
+      {
+        track: "あの日のままのぼくら",
+        artist: "Aqua (CV: Sora Amamiya), Megumin (CV: Rie Takahashi) & Darkness (CV: Ai Kayano)",
+      },
+      new AbortController().signal,
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].track).toBe("あの日のままのぼくら");
+    expect(urlsRequested.some((u) => u.includes("artist_name=Aqua"))).toBe(true);
+  });
+});
+
+// -- Regression: cascading search relaxation -----------------------------------
+
+describe("regression: cascading search relaxation", () => {
+  const HIT = {
+    id: 12345,
+    trackName: "あの日のままのぼくら",
+    artistName: "Aqua",
+    albumName: "Anime Song-Box",
+    duration: 190,
+    instrumental: false,
+    plainLyrics: "lyrics",
+    syncedLyrics: "[00:10.00] lyrics",
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("regression: falls back to relaxed search when strict query with album and duration yields no results", async () => {
+    const urlsRequested: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL): Promise<Response> => {
+      const urlStr = String(input);
+      urlsRequested.push(urlStr);
+      if (urlStr.includes("duration=199")) {
+        return new Response(JSON.stringify([]), { headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify([HIT]), { headers: { "content-type": "application/json" } });
+    });
+
+    const results = await lrclibProvider.search(
+      {
+        track: "あの日のままのぼくら",
+        artist: "Aqua",
+        album: "Different Album",
+        durationSec: 199,
+      },
+      new AbortController().signal,
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].track).toBe("あの日のままのぼくら");
+    expect(urlsRequested.some((u) => !u.includes("duration="))).toBe(true);
+  });
+
+  it("regression: falls back to cleaned artist when voice-actor artist tags yield no results", async () => {
+    const urlsRequested: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL): Promise<Response> => {
+      const urlStr = String(input);
+      urlsRequested.push(urlStr);
+      if (urlStr.includes("CV%3A") || urlStr.includes("CV:")) {
+        return new Response(JSON.stringify([]), { headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify([HIT]), { headers: { "content-type": "application/json" } });
+    });
+
+    const results = await lrclibProvider.search(
+      {
+        track: "あの日のままのぼくら",
+        artist: "Aqua (CV: Sora Amamiya), Megumin (CV: Rie Takahashi) & Darkness (CV: Ai Kayano)",
+      },
+      new AbortController().signal,
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].track).toBe("あの日のままのぼくら");
+    expect(urlsRequested.some((u) => u.includes("artist_name=Aqua"))).toBe(true);
+  });
+});

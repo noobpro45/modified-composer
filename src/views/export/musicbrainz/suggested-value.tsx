@@ -1,8 +1,8 @@
 import type { Suggestion } from "@/domain/musicbrainz/suggestion";
 import { Button } from "@/ui/button";
-import { DETAILS_FIELD_STYLES, DETAILS_LABEL_STYLES } from "@/views/export/song-details-styles";
 import { cn } from "@/utils/cn";
-import { IconArrowBackUp } from "@tabler/icons-react";
+import { DETAILS_FIELD_STYLES, DETAILS_LABEL_STYLES } from "@/views/export/song-details-styles";
+import { IconSparkles } from "@tabler/icons-react";
 import { useId } from "react";
 
 // -- Interfaces ---------------------------------------------------------------
@@ -47,7 +47,7 @@ const UseSuggestionButton: React.FC<UseSuggestionButtonProps> = ({ value, fieldN
       className,
     )}
   >
-    <IconArrowBackUp className="size-[13px]" />
+    <IconSparkles className="size-[12px] opacity-90" />
     Use
   </Button>
 );
