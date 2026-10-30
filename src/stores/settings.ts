@@ -46,6 +46,7 @@ interface SettingsState {
   rememberVolume: boolean;
   lastVolume: number;
   audioScrubPreview: boolean;
+  scrubStyle: "smooth" | "classic";
   defaultZoom: number;
   defaultRowHeight: number;
   followPlayhead: boolean;
@@ -127,6 +128,7 @@ const DEFAULTS: SettingsState = {
   rememberVolume: true,
   lastVolume: 1,
   audioScrubPreview: true,
+  scrubStyle: "smooth",
   defaultZoom: 100,
   defaultRowHeight: 44,
   followPlayhead: true,

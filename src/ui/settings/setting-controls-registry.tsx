@@ -106,6 +106,13 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
   rememberPlaybackRate: TOGGLE,
   rememberVolume: TOGGLE,
   audioScrubPreview: TOGGLE,
+  scrubStyle: {
+    kind: "select",
+    options: [
+      { value: "smooth", label: "Smooth (Time-stretched)" },
+      { value: "classic", label: "Classic (Snippets)" },
+    ],
+  },
   autoSeparateOnImport: TOGGLE,
   vocalModelVariant: {
     kind: "select",

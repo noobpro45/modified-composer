@@ -74,6 +74,13 @@ const SETTINGS_CATALOG = {
     keywords: ["scrub", "sound"],
     settingKey: "audioScrubPreview",
   },
+  scrubStyle: {
+    section: "playback",
+    label: "Scrub preview style",
+    description: "Choose between smooth time-stretched audio or classic snippet playback.",
+    keywords: ["scrub", "sound", "signalsmith", "stretch", "classic", "style"],
+    settingKey: "scrubStyle",
+  },
   seekStep: {
     section: "playback",
     label: "Seek step",
