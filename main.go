@@ -275,6 +275,12 @@ func main() {
 							w.Header().Set("Content-Type", "application/wasm")
 						}
 
+						// Proxy lyrics requests to bypass Cloudflare/CORS origin restriction
+						if strings.HasPrefix(r.URL.Path, "/boidu-lyrics/") {
+							handleBoiduLyricsProxy(w, r)
+							return
+						}
+
 						// Intercept API routes and serve them directly from Wails AssetServer
 						// instead of requiring the frontend to hit localhost:7777
 						if strings.HasPrefix(r.URL.Path, "/audio/") || strings.HasPrefix(r.URL.Path, "/thumb/") || r.URL.Path == "/health" || r.URL.Path == "/import" {

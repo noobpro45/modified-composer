@@ -26,6 +26,15 @@ export default defineConfig({
       "/audio": "http://localhost:7777",
       "/thumb": "http://localhost:7777",
       "/health": "http://localhost:7777",
+      "/boidu-lyrics": {
+        target: "https://lyrics-api.boidu.dev",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/boidu-lyrics/, ""),
+        headers: {
+          Origin: "https://composer.betterlyrics.org",
+          Referer: "https://composer.betterlyrics.org/",
+        },
+      },
     },
   },
   worker: {

@@ -4,6 +4,7 @@ import { detectQrcSyncType } from "@/domain/lyrics-search/sync-type";
 import { isAbortError } from "@/utils/abort-error";
 import { hasNonEmptyString } from "@/utils/lyrics-search/query-guards";
 import type { LyricsSearchProvider, LyricsSearchQuery } from "@/utils/lyrics-search/types";
+import { isDesktop } from "@/utils/platform";
 
 // -- Constants ----------------------------------------------------------------
 
@@ -28,7 +29,7 @@ function canSearch(query: LyricsSearchQuery): boolean {
 }
 
 function buildSearchUrl(query: LyricsSearchQuery): URL {
-  const url = new URL(PORTATO_BASE_URL);
+  const url = isDesktop() ? new URL("/boidu-lyrics/qq/getLyrics", window.location.href) : new URL(PORTATO_BASE_URL);
   url.searchParams.set("song", (query.track ?? "").trim());
   url.searchParams.set("artist", (query.artist ?? "").trim());
   if (hasNonEmptyString(query.album)) url.searchParams.set("album", query.album.trim());
