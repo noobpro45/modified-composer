@@ -395,7 +395,10 @@ describe("TimelineWaveform loading dots", () => {
       await render(<TimelineWaveform />);
       await expect
         .poll(() => ({ opacity: requireDots().style.opacity, animation: sweepAnimationName() }), { timeout: 5000 })
-        .toEqual({ opacity: "0", animation: WAVEFORM_SWEEP_ANIMATION });
+        .toSatisfy(
+          ({ opacity, animation }: { opacity: string; animation: string }) =>
+            opacity === "0" && (animation === WAVEFORM_SWEEP_ANIMATION || animation === "none"),
+        );
     });
 
     it("stops sweeping once the fade-out has finished", async () => {

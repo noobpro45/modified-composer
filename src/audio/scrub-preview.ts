@@ -99,7 +99,8 @@ function play(time: number, velocity: number): void {
     return;
   }
 
-  const clampedTime = Math.max(0, Math.min(time, buffer.duration));
+  const maxStartTime = Math.max(0, buffer.duration - SCRUB_HOLD_S);
+  const clampedTime = Math.max(0, Math.min(time, maxStartTime));
   activeSnippet = { time: clampedTime, rate: velocity };
   lastEventMs = performance.now();
   resumeContext();
