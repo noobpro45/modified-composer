@@ -1,174 +1,140 @@
 <p align="center">
-  <img src="public/logo.svg" width="80" height="80" alt="Composer" />
+  <img src="public/logo.svg" width="90" height="90" alt="Composer Logo" />
 </p>
 
-<h1 align="center">Composer</h1>
+<h1 align="center">Composer (Modified Edition)</h1>
 
 <p align="center">
-  The lyrics editor for <a href="https://betterlyrics.org">Better Lyrics</a>.<br/>
-  Create word-synced TTML lyrics with a visual timeline, tap-to-sync, and live preview.
+  <b>A fast, beautiful, and DAW-grade editor for word-synced lyrics (TTML, LRC, QRC, SRT).</b><br/>
+  Enhanced with a native Windows desktop app, Unison provider, smart syllable merging, and timeline controls.
 </p>
 
 <p align="center">
-  <a href="https://composer.betterlyrics.org"><img src="https://img.shields.io/badge/Open-composer.betterlyrics.org-F50032?style=flat-square" alt="Open Composer" /></a>
-  <a href="https://www.w3.org/TR/2018/REC-ttml1-20181108/"><img src="https://img.shields.io/badge/TTML%201-W3C%20subset-4caf50?style=flat-square" alt="TTML 1 W3C subset" /></a>
+  <a href="https://github.com/noobpro45/modified-composer/releases/latest"><img src="https://img.shields.io/github/v/release/noobpro45/modified-composer?color=F50032&style=flat-square&label=Release" alt="Latest Release" /></a>
+  <a href="https://github.com/noobpro45/modified-composer/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/noobpro45/modified-composer/test.yml?branch=master&style=flat-square&label=CI%20Build" alt="CI Build Status" /></a>
+  <a href="https://github.com/noobpro45/modified-composer/releases"><img src="https://img.shields.io/badge/Platform-Windows%20x64%20|%20Web-blue?style=flat-square" alt="Platform" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL%203.0-2196f3?style=flat-square" alt="AGPL 3.0 License" /></a>
-  <a href="https://betterlyrics.org"><img src="https://img.shields.io/badge/Built%20for-Better%20Lyrics-F50032?style=flat-square" alt="Built for Better Lyrics" /></a>
+  <a href="https://github.com/better-lyrics/composer"><img src="https://img.shields.io/badge/Upstream-better--lyrics%2Fcomposer-black?style=flat-square" alt="Upstream" /></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/noobpro45/modified-composer/releases/latest"><b>Download for Windows (.zip)</b></a> •
+  <a href="#key-enhancements"><b>Key Enhancements</b></a> •
+  <a href="#core-features"><b>Core Features</b></a> •
+  <a href="#quick-start"><b>Quick Start</b></a> •
+  <a href="#upstream--credits"><b>Credits</b></a>
+</p>
+
+<p align="center">
+  <img src="public/og-image.png" alt="Composer Preview Banner" width="90%" style="border-radius: 8px;" />
 </p>
 
 ---
 
-## Why Composer
+## Key Enhancements
 
-Tools like [AMLL TTML Tool](https://amll-ttml-tool.stevexmh.net/) are powerful, and if you already know TTML they're great. If you're new to syncing lyrics, the learning curve is steep. There's no obvious place to start, and the interface expects you to understand word-level timing and agent roles before you've synced a single line.
+This repository is an enhanced distribution of [Better Lyrics Composer](https://github.com/better-lyrics/composer), introducing native desktop packaging and workflow improvements for lyrics syncers:
 
-Composer is built around one linear path: import, edit, sync, export. Each tab is one step. You don't need to know what TTML is. Paste your lyrics, tap along with the music, and you have a synced file.
+### 💻 Native Windows Desktop Application
+* Built as a high-performance, standalone Windows x64 binary with [Wails v2](https://wails.io).
+* Runs locally with hardware-accelerated WebGPU/DirectX rendering, free of browser memory and storage limitations.
+* Integrated desktop window controls (Minimize, Maximize, Close) elevated above modals and preview popups.
 
-When you want more control, the Timeline does everything from one screen: load audio, add lyrics, drag word blocks on the waveform, split syllables, assign singers, and preview the result. Most people start with the tabs and move to the Timeline once they're comfortable.
+### 🔍 Extended Lyrics Search (Unison Provider)
+* Added the **Unison** provider alongside LRCLib and Binimum for searching synced lyrics.
+* Supports exact **ISRC** queries and standard Track / Artist searches to automatically find matching synced lyrics.
 
-## How it works
+### 🗣️ Smart Word Merge & Pronunciation Protection
+* Merging words or split syllables preserves existing phonetic transliterations and pronunciations without corrupting custom edits.
+* Line transliterations updated manually are tagged with `manual` origin to prevent accidental overwrites from Google Auto-Refresh.
 
-1. **Import** an audio file (MP3, WAV, M4A, OGG, FLAC) or paste a YouTube link
-2. **Edit** the lyrics, assign singers, and add background vocals
-3. **Sync** by tapping along with the music, or by dragging word blocks on the Timeline
-4. **Export** TTML, or keep working later from the projects library
+### 🎛️ Timeline Zoom & Smooth Audio Scrubbing
+* Predictable timeline zoom stepping (20% intervals) anchored precisely around the playhead and cursor.
+* Ultra-smooth time-stretched audio scrubbing powered by [Signalsmith Stretch](https://signalsmith-audio.co.uk/code/stretch/), with a toggle for classic snippet playback.
 
-Your work saves automatically in the browser as you go. Audio files you load stay on your machine.
+### 🌐 Bilingual Timeline Display
+* View original text, romanization / transliteration, or both simultaneously directly on the timeline word blocks.
+* Optimized for syncing international songs (Japanese, Korean, Chinese, etc.).
 
-## Features
+---
 
-### Syncing
+## Core Features
 
-- Tap-to-sync: press Space in time with the music to stamp each word, or hold to stretch it. Works with touch too.
-- Timeline editor: a DAW-style view with draggable word blocks on a waveform, multi-select, and proportional stretch
-- Snapping to neighboring words, the playhead, your own markers, and detected vocal onsets
-- Syllable splitting, so each part of a word gets its own timing
-- Linked groups for repeated sections like choruses. Edit one instance and the others follow, timing included.
-- Vocal separation that isolates the vocal stem in the browser, so you can sync against the voice alone
+Composer provides a linear, intuitive path: **Import → Edit → Sync → Export**.
 
-### Lyrics
+### 1. Syncing
+* **Tap-to-sync**: Tap <kbd>Space</kbd> in time with the music to stamp words, or hold to stretch syllable timing.
+* **DAW-Style Timeline**: Drag word blocks directly on the audio waveform, multi-select, and proportionally stretch regions.
+* **Snapping**: Snap to neighboring words, the playhead, custom markers, and detected vocal onsets.
+* **Syllable Splitting**: Split words into individual syllables so every phoneme gets precise timing.
+* **Linked Groups**: Synchronize repeated sections (e.g. choruses). Edit timing or text on one instance and all other instances update automatically.
+* **In-Browser Vocal Separation**: Extract vocal stems with the HTDemucs AI model to sync against vocals cleanly.
 
-- Multiple singers, each with their own color, plus background vocals exported with the TTML `x-bg` role
-- Translations and romanization, generated automatically or written by hand
-- Song details and songwriter credits
-- A lyric best practices guide that checks your lyrics against common conventions
+### 2. Lyrics & Roles
+* Multiple singers with dedicated color badges and custom vocal agent roles.
+* Background vocals exported with the standard TTML `x-bg` role.
+* Automatic translations and romanizations via Google Language Provider.
+* Integrated Lyric Best Practices linter to catch common timing and formatting issues.
 
-### Import and export
+### 3. Import & Export
+* Import lyrics from `.ttml`, `.lrc`, `.srt`, `.qrc`, and `.txt` files.
+* Export standardized, publication-ready TTML 1 (W3C subset) compatible with Apple Music and Better Lyrics players.
+* Built-in format converters between TTML, LRC, SRT, and QRC.
+* Self-contained `.composer` project files and backup bundles.
 
-- Lyrics import from `.txt`, `.lrc`, `.srt`, `.ttml`, and `.qrc` files, or pasted straight into the Edit tab
-- TTML export, with an editable TTML view before you download
-- Standalone converters between TTML and LRC, SRT, and QRC
-- Project files and backup bundles you can share or restore on another machine
+---
 
-### Everything else
+## Quick Start
 
-- Projects library with search, recent projects, and storage management
-- Live preview rendered with Better Lyrics' own engine
-- Themes, with dark and light presets and a custom theme editor
-- Keyboard shortcuts for nearly everything, all of them remappable
-- Searchable help and settings, plus [written guides](https://composer.betterlyrics.org/guides) on TTML and syncing
+### Download Desktop App (Windows)
+1. Go to the [Latest Release](https://github.com/noobpro45/modified-composer/releases/latest).
+2. Download `composer-windows-x64.zip`.
+3. Extract and launch `composer.exe`. No installation required!
 
-## Standards
+### Running Web / Dev Build Locally
 
-Composer emits a restricted subset of **TTML 1** ([W3C Recommendation, Nov 2018](https://www.w3.org/TR/2018/REC-ttml1-20181108/)). Word-span times are absolute and timestamps omit the hours field when it is zero, so the output is not strict TTML 1. Linked groups and per-instance metadata use foreign-namespace extensions, which the spec allows and downstream tools can ignore.
-
-For the full breakdown, see **Help → TTML & standards** in the app.
-
-## Services Composer talks to
-
-Composer is a static site, and almost everything runs in the browser. A few optional features need a network service:
-
-| Feature | Service | Without it |
-| --- | --- | --- |
-| YouTube import | [Composer Bridge](https://github.com/better-lyrics/composer-bridge) running on your own machine, or a [Cobalt](https://github.com/imputnet/cobalt) instance (`VITE_COBALT_API_URL`) | Load audio files instead |
-| Translations and romanization | Google Translate, called from the browser | Write them by hand or paste them in |
-| Vocal separation | The HTDemucs model, downloaded once from `VITE_VOCAL_MODEL_BASE_URL` | The stem picker is hidden |
-
-## Self-hosting
+Prerequisites: Node 24 and pnpm 10.
 
 ```bash
+# Clone the repository
+git clone https://github.com/noobpro45/modified-composer.git
+cd modified-composer
+
+# Install dependencies
 pnpm install
+
+# Start local dev server (Web)
+pnpm dev
+
+# Build production web bundle
 pnpm build
 ```
 
-Serve `dist/` with any static file server, for example `npx serve dist`, nginx, Caddy, or Cloudflare. The hosted version deploys to Cloudflare Workers with `wrangler.jsonc`.
+### Building Desktop App (Wails)
 
-## Development
-
-Requires Node 24 and pnpm 10.
+Prerequisites: Go 1.22+ and Wails CLI.
 
 ```bash
-pnpm install
-pnpm dev               # Start dev server with HMR
-pnpm test              # Run all tests (unit + browser)
-pnpm test:unit         # Unit tests only (jsdom)
-pnpm test:component    # Component tests only (Chromium via Playwright)
-pnpm lint:fix          # Format and lint
-pnpm typecheck         # Type check
+# Run desktop dev mode
+wails dev
+
+# Build standalone Windows executable
+wails build -platform windows/amd64
 ```
 
-## Vocal separation hosting
+Output binary is located at `build/bin/composer.exe`.
 
-Vocal separation uses HTDemucs (Hybrid Transformer Demucs v4) and runs entirely in the browser through ONNX Runtime Web, on WebGPU when available and WASM otherwise. The model is larger than Cloudflare's 25 MiB static asset limit, so it isn't bundled. It's served from a public Cloudflare R2 bucket instead: R2 egress is free, and a custom domain keeps the file cached at Cloudflare's edge without a Worker in the way.
+---
 
-If `VITE_VOCAL_MODEL_BASE_URL` is unset, the vocal separation picker is hidden.
+## TTML Standards
 
-### Where the model comes from
+Composer outputs a subset of **TTML 1** ([W3C Recommendation, Nov 2018](https://www.w3.org/TR/2018/REC-ttml1-20181108/)). Word-span times are absolute, timestamps omit the zero hours field, and linked groups use non-conflicting foreign namespace attributes (`itunes:key`, `composer:*`).
 
-HTDemucs is the official Facebook AI Research model (`facebookresearch/demucs`, the Hybrid Transformer variant from Nov 2022). The `demucs` Python package downloads the PyTorch weights from `dl.fbaipublicfiles.com` on its own. Two community projects handle the ONNX side:
+---
 
-- [`sevagh/demucs.onnx`](https://github.com/sevagh/demucs.onnx) has the most complete PyTorch to ONNX export. Its fork of `demucs` moves STFT and iSTFT outside the graph so the model exports cleanly. The build script below uses it.
-- [`gianlourbano/demucs-onnx`](https://github.com/gianlourbano/demucs-onnx) is an onnxruntime-web reference, useful for checking the STFT and inference shapes on the JS side.
+## Upstream & Credits
 
-### Build the ONNX models
+This project is a fork of [Composer](https://github.com/better-lyrics/composer), created and maintained by [@boidushya](https://github.com/boidushya) for the [Better Lyrics](https://betterlyrics.org) ecosystem.
 
-```bash
-# 1. Build fp32 + fp16 ONNX models into ./htdemucs-onnx-out/.
-#    Takes 10 to 30 minutes on CPU and needs about 10 GB of free disk.
-./scripts/build-htdemucs-onnx.sh
-
-# 2. Upload to your R2 bucket (run `wrangler login` first).
-./scripts/upload-htdemucs.sh composer-vocal-models
-```
-
-`build-htdemucs-onnx.sh` clones `sevagh/demucs.onnx` into `/tmp/composer-htdemucs-build/`, sets up a Python venv, runs the official converter, then converts the fp32 export to fp16 with `onnxconverter-common`. At the end it prints the model's input and output names and its SHA-256. Check those against `src/audio/separation/worker.ts` and `src/audio/separation/model-registry.ts`.
-
-### One-time R2 setup
-
-1. Create a public R2 bucket (for example `composer-vocal-models`).
-2. Bind a custom domain to it (for example `models.composer.betterlyrics.org`). Avoid `r2.dev`: it's rate-limited and meant for development.
-3. Add a Cloudflare `Cache Everything` page rule for that hostname so the model is cached at the edge.
-4. Add a CORS rule that allows your site's origin.
-5. Set `VITE_VOCAL_MODEL_BASE_URL=https://models.composer.betterlyrics.org` at build time.
-
-Cost: free egress, and about $0.0015 a month to store the fp16 model.
-
-## Tech stack
-
-React, TypeScript, Vite, Tailwind CSS v4, Zustand, Motion, Vitest
-
-## Funding
-
-> [!IMPORTANT]
->
-> Composer is free for everyone, hosted or self-hosted. If it saves you time or you find it useful, a donation helps keep it going!
->
-> Releasing lyrics made with Composer commercially, as a label, distributor or company? See [License](#license) or reach out at composer@boidu.dev.
-
-<a href="https://www.buymeacoffee.com/boidu" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="42" /></a>
-
-[![Github Sponsors](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23F20C33)](https://github.com/sponsors/boidushya)
-
-## License
-
-Composer is dual-licensed.
-
-The open-source license is [AGPL-3.0](LICENSE). You are free to use, modify, and self-host Composer under its terms.
-
-A commercial license is also available. It removes the AGPL copyleft obligations and covers commercial use of Composer's output, such as a record label or distributor publishing generated lyrics as part of a release. For commercial or enterprise licensing, reach out to composer@boidu.dev.
-
-## Contributors
-
-<a href="https://github.com/better-lyrics/composer/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=better-lyrics/composer" />
-</a>
+* Upstream Repository: [better-lyrics/composer](https://github.com/better-lyrics/composer)
+* Licensed under [AGPL-3.0](LICENSE).
