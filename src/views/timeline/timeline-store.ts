@@ -178,8 +178,8 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     vocalOnsetDetectionError: null,
 
     setZoom: (zoom) => set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
-    zoomIn: () => set((s) => ({ zoom: Math.min(MAX_ZOOM, s.zoom + Math.max(10, Math.round(s.zoom * 0.2))) })),
-    zoomOut: () => set((s) => ({ zoom: Math.max(MIN_ZOOM, s.zoom - Math.max(10, Math.round(s.zoom * 0.2))) })),
+    zoomIn: () => set((s) => ({ zoom: Math.min(MAX_ZOOM, s.zoom + ZOOM_STEP) })),
+    zoomOut: () => set((s) => ({ zoom: Math.max(MIN_ZOOM, s.zoom - ZOOM_STEP) })),
     toggleFollow: () => set((s) => ({ followEnabled: !s.followEnabled })),
     togglePreviewSidebar: () => set((s) => ({ previewSidebarOpen: !s.previewSidebarOpen })),
     toggleTextVariant: () =>

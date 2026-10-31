@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { Toaster, toast } from "sonner";
-import { userEvent } from "vitest/browser";
 import { useSettingsStore } from "@/stores/settings";
 import { useUIStore } from "@/stores/ui";
 import { render } from "@/test/render";
 import { SettingHint } from "@/ui/setting-hint";
 import { SettingLink } from "@/ui/setting-link";
 import { APP_SETTING_LINK_HOST, SettingLinkContext, type SettingLinkHost } from "@/ui/setting-link-context";
+import { Toaster, toast } from "sonner";
+import { describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 const inApp = (node: React.ReactNode, host: SettingLinkHost = APP_SETTING_LINK_HOST) => (
   <SettingLinkContext value={host}>{node}</SettingLinkContext>
@@ -70,7 +70,7 @@ describe("SettingLink", () => {
       useSettingsStore.setState({ experiments: { ...useSettingsStore.getState().experiments, youtubeBridge: true } });
       const screen = await render(inApp(<SettingLink setting="youtubeBridge" />));
       await expect
-        .element(screen.getByRole("button", { name: "Open setting Composer Bridge for YouTube, on" }))
+        .element(screen.getByRole("button", { name: "Open setting Composer Bridge, on" }))
         .toBeInTheDocument();
     });
 

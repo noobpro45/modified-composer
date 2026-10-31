@@ -2,10 +2,10 @@ import { languageSourceFingerprint } from "@/domain/language/fingerprint";
 import type { LyricLine } from "@/domain/line/model";
 import { googleLanguageProvider } from "@/services/google-language-provider";
 import { useProjectStore } from "@/stores/project";
+import { render } from "@/test/render";
 import { LanguagesPanel } from "@/views/languages";
 import { Activity } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render } from "@/test/render";
 
 const source = "こんにちは";
 
@@ -132,7 +132,7 @@ describe("language generation lifecycle", () => {
     await roman.fill("Temporary romanization");
     await roman.fill("");
     await releaseRequests();
-    await expect.element(screen.getByRole("button", { name: "Regenerate all", exact: true })).toBeEnabled();
+    await expect.element(screen.getByRole("button", { name: "Generate all", exact: true })).toBeEnabled();
     await expect.element(english).toHaveValue("");
     await expect.element(roman).toHaveValue("");
     expect(useProjectStore.getState().lines[0].translations?.en).toBeUndefined();
@@ -146,7 +146,7 @@ describe("language generation lifecycle", () => {
     await expect.poll(() => pending.length).toBe(2);
     useProjectStore.getState().updateLine("line", { text: "別の歌詞" });
     await releaseRequests();
-    await expect.element(screen.getByRole("button", { name: "Regenerate all", exact: true })).toBeEnabled();
+    await expect.element(screen.getByRole("button", { name: "Generate all", exact: true })).toBeEnabled();
     expect(useProjectStore.getState().lines[0].translations).toBeUndefined();
     expect(useProjectStore.getState().lines[0].transliteration).toBeUndefined();
     expect(useProjectStore.getState().metadata.language).toBeUndefined();
@@ -208,7 +208,7 @@ describe("language generation lifecycle", () => {
     defer = true;
     await screen.getByRole("button", { name: "Add language", exact: true }).click();
     await screen.getByRole("option", { name: "Spanish" }).click();
-    await expect.poll(() => pending.length).toBe(2);
+    await expect.poll(() => pending.length).toBe(1);
     useProjectStore.getState().setActiveTab("edit");
     await expect.element(screen.getByRole("button", { name: "Remove Spanish", exact: true })).not.toBeInTheDocument();
     useProjectStore.getState().startProjectSession();
@@ -233,7 +233,7 @@ describe("language generation lifecycle", () => {
     defer = true;
     await screen.getByRole("button", { name: "Add language", exact: true }).click();
     await screen.getByRole("option", { name: "Spanish" }).click();
-    await expect.poll(() => pending.length).toBe(2);
+    await expect.poll(() => pending.length).toBe(1);
     useProjectStore.getState().setActiveTab("edit");
     await expect.element(screen.getByRole("button", { name: "Remove Spanish", exact: true })).not.toBeInTheDocument();
     await releaseRequests();
