@@ -124,6 +124,19 @@ before writing a new one.
 - No em dashes in code, copy or commit messages.
 - Commit messages are one line: `type: brief description` (for example `fix: timing offset`).
 
+## Documentation and metadata sync
+
+Keep documentation, repository appearance, and user guides in sync with the codebase. When adding or
+modifying features, providers, core workflows, UI controls, or shipping releases:
+
+- **README sync**: Update `README.md` if any user-facing feature, workflow, key enhancement, keyboard
+  shortcut, or build instruction is added or changed. Keep the feature breakdown, screenshots, and
+  badges accurate and modern.
+- **Repository metadata**: When introducing major capabilities (e.g. new audio format, AI model, sync
+  provider), check and update GitHub topics, description, or release URL via `gh repo edit`.
+- **Definition of done**: A feature or release change is not finished until its corresponding
+  documentation in `README.md` and release notes (if applicable) are updated.
+
 ## Pull requests
 
 If an AI agent wrote or substantially wrote the change, say so in the PR description, naming the
