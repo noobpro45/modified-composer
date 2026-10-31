@@ -1,18 +1,18 @@
 import { appQueryClient } from "@/lib/app-query-client";
+import { resetMusicBrainzQueue } from "@/lib/musicbrainz-client";
 import { forgetOpenProjectId } from "@/lib/open-project-session";
 import { __resetPendingDeletionsForTests } from "@/lib/pending-deletions";
 import { __resetPersistenceSettledForTests } from "@/lib/persistence-settled";
-import { resetMusicBrainzQueue } from "@/lib/musicbrainz-client";
 import { resetSaveStatus } from "@/lib/save-status";
+import { useSettingsStore } from "@/stores/settings";
 import { addGlobalAllowedConsolePattern, registerConsoleGuard } from "@/test/console-guard";
 import { deleteDatabase } from "@/test/idb";
 import { installPromptIdleCallbacks } from "@/test/idle-callbacks";
-import { useSettingsStore } from "@/stores/settings";
 import { resetAllStores } from "@/test/stores";
 import { toast } from "sonner";
 import { beforeAll, beforeEach } from "vitest";
-import { cdp } from "vitest/browser";
 import { cleanup } from "vitest-browser-react/pure";
+import { cdp } from "vitest/browser";
 
 const COMPOSER_DBS = ["ttml-composer"];
 
@@ -44,4 +44,5 @@ beforeEach(async () => {
 addGlobalAllowedConsolePattern(/Reduced Motion enabled/);
 addGlobalAllowedConsolePattern(/React Router Future Flag Warning/);
 addGlobalAllowedConsolePattern(/v7_startTransition/);
+addGlobalAllowedConsolePattern(/\[alignment-models\]/);
 registerConsoleGuard();
