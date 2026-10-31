@@ -1,8 +1,8 @@
 import type { ResumePosition } from "@/domain/project/resume-position";
 import type { LoopRegion } from "@/domain/selection/loop-region";
-import type { Bounds } from "@/domain/word/bounds";
 import type { WordSelection } from "@/domain/selection/model";
 import { toggleWordSelection } from "@/domain/selection/set-ops";
+import type { Bounds } from "@/domain/word/bounds";
 import { useSettingsStore } from "@/stores/settings";
 import type { GroupFocus } from "@/views/timeline/group-focus";
 import type { ClipboardData, PasteMode } from "@/views/timeline/selection-types";
@@ -178,8 +178,8 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     vocalOnsetDetectionError: null,
 
     setZoom: (zoom) => set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
-    zoomIn: () => set((s) => ({ zoom: Math.min(MAX_ZOOM, s.zoom + ZOOM_STEP) })),
-    zoomOut: () => set((s) => ({ zoom: Math.max(MIN_ZOOM, s.zoom - ZOOM_STEP) })),
+    zoomIn: () => set((s) => ({ zoom: Math.min(MAX_ZOOM, s.zoom + Math.max(10, Math.round(s.zoom * 0.2))) })),
+    zoomOut: () => set((s) => ({ zoom: Math.max(MIN_ZOOM, s.zoom - Math.max(10, Math.round(s.zoom * 0.2))) })),
     toggleFollow: () => set((s) => ({ followEnabled: !s.followEnabled })),
     togglePreviewSidebar: () => set((s) => ({ previewSidebarOpen: !s.previewSidebarOpen })),
     toggleTextVariant: () =>
@@ -259,6 +259,15 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     setVocalOnsetDetectionStatus: (vocalOnsetDetectionStatus, error = null) =>
       set({ vocalOnsetDetectionStatus, vocalOnsetDetectionError: error }),
   };
+});
+
+useSettingsStore.subscribe((state, prev) => {
+  if (state.defaultRowHeight !== prev.defaultRowHeight) {
+    useTimelineStore.setState({ defaultRowHeight: state.defaultRowHeight });
+  }
+  if (state.defaultZoom !== prev.defaultZoom) {
+    useTimelineStore.getState().setZoom(state.defaultZoom);
+  }
 });
 
 // -- Functions -----------------------------------------------------------------

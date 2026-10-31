@@ -4,7 +4,12 @@ import { livePlaybackTime, useAudioStore } from "@/stores/audio";
 import { useSettingsStore } from "@/stores/settings";
 import { computeAnchoredScrollLeft } from "@/utils/timeline/zoom-anchor";
 import { GUTTER_WIDTH, MAX_ZOOM, MIN_ZOOM, WAVEFORM_HEIGHT, useTimelineStore } from "@/views/timeline/timeline-store";
-import { computeScrubTime, decideWheelAction, normalizeWheelDelta } from "@/views/timeline/timeline-wheel";
+import {
+  computeScrubTime,
+  computeWheelZoom,
+  decideWheelAction,
+  normalizeWheelDelta,
+} from "@/views/timeline/timeline-wheel";
 import { type RefObject, useCallback, useEffect, useRef } from "react";
 
 // -- Constants -----------------------------------------------------------------
@@ -45,8 +50,7 @@ function useTimelineWheel(scrollContainerRef: RefObject<HTMLDivElement | null>, 
       if (action.kind === "zoom") {
         const anchorViewportX = e.clientX - rect.left - GUTTER_WIDTH;
         const cursorTime = (anchorViewportX + container.scrollLeft) / zoom;
-        const delta = e.deltaY > 0 ? -20 : 20;
-        const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom + delta));
+        const newZoom = computeWheelZoom(zoom, e.deltaY, e.deltaMode, MIN_ZOOM, MAX_ZOOM);
         if (newZoom === zoom) return;
         useTimelineStore.getState().setZoom(newZoom);
         container.scrollLeft = computeAnchoredScrollLeft(cursorTime, anchorViewportX, newZoom);

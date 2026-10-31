@@ -25,7 +25,7 @@ import { setBgWordBoundary } from "@/utils/timing/bg-word-timing";
 import { setWordBoundary } from "@/utils/timing/word-timing";
 import { isTypingTarget } from "@/utils/typing-target";
 import { handleWordChangeWithDivergenceCheck } from "@/utils/word-divergence-flow";
-import { mergeWordText } from "@/utils/word-merge";
+import { mergeWordText, mergeWordTransliteration } from "@/utils/word-merge";
 import { centerTimeScrollLeft, revealTimeScrollLeft } from "@/views/timeline/coords";
 import { copyInstanceToClipboardAndPreview } from "@/views/timeline/copy-instance-to-clipboard";
 import { decideAddInstancePlacement } from "@/views/timeline/decide-add-instance-placement";
@@ -410,23 +410,32 @@ function useTimelineKeyboard(
           const run = contiguousSelectionRun(mSel);
           if (!run) break;
           const mLine = lines.find((l) => l.id === run.lineId);
-          const mWords = mLine ? trackWords(mLine, run.type) : undefined;
+          if (!mLine) break;
+          const mWords = trackWords(mLine, run.type);
           if (!mWords) break;
           e.preventDefault();
           const firstIdx = run.indices[0];
           const lastIdx = run.indices[run.indices.length - 1];
-          const mergedText = mergeWordText(run.indices.map((idx) => mWords[idx].text));
-          const merged = { text: mergedText, begin: mWords[firstIdx].begin, end: mWords[lastIdx].end };
+          const wordsToMerge = run.indices.map((idx) => mWords[idx]);
+          const mergedText = mergeWordText(wordsToMerge.map((w) => w.text));
+          const mergedTrans = mergeWordTransliteration(wordsToMerge);
+          const merged = {
+            text: mergedText,
+            begin: mWords[firstIdx].begin,
+            end: mWords[lastIdx].end,
+            ...mergedTrans,
+          };
           const updatedWords = [...mWords.slice(0, firstIdx), merged, ...mWords.slice(lastIdx + 1)];
+          const extraUpdates = mLine.transliteration
+            ? { transliteration: { ...mLine.transliteration, origin: "manual" as const } }
+            : {};
           if (run.type === "word") {
-            void handleWordChangeWithDivergenceCheck(run.lineId, updatedWords, "words");
+            void handleWordChangeWithDivergenceCheck(run.lineId, updatedWords, "words", extraUpdates);
           } else {
-            void handleWordChangeWithDivergenceCheck(
-              run.lineId,
-              updatedWords,
-              "backgroundWords",
-              manualBackgroundWordEdit(updatedWords),
-            );
+            void handleWordChangeWithDivergenceCheck(run.lineId, updatedWords, "backgroundWords", {
+              ...manualBackgroundWordEdit(updatedWords),
+              ...extraUpdates,
+            });
           }
           useTimelineStore.getState().clearSelection();
           break;

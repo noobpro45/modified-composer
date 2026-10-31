@@ -44,6 +44,17 @@ function normalizeWheelDelta(delta: number, deltaMode: number): number {
   return delta;
 }
 
+function computeWheelZoom(currentZoom: number, deltaY: number, deltaMode: number, minZoom = 20, maxZoom = 500): number {
+  if (deltaY === 0) return currentZoom;
+  const normalizedDelta = normalizeWheelDelta(deltaY, deltaMode);
+  const factor = Math.exp(-normalizedDelta * 0.0018);
+  let next = Math.round(currentZoom * factor);
+  if (next === currentZoom) {
+    next = normalizedDelta < 0 ? currentZoom + 1 : currentZoom - 1;
+  }
+  return Math.max(minZoom, Math.min(maxZoom, next));
+}
+
 // -- Exports -------------------------------------------------------------------
 
-export { decideWheelAction, computeScrubTime, normalizeWheelDelta };
+export { decideWheelAction, computeScrubTime, computeWheelZoom, normalizeWheelDelta };
