@@ -1,5 +1,3 @@
-import { useCallback } from "react";
-import { IconPlus } from "@tabler/icons-react";
 import type { TimeRange } from "@/domain/group/shared-timing";
 import { backgroundFields, manualBackgroundWordEdit } from "@/domain/line/background";
 import type { LyricLine } from "@/domain/line/model";
@@ -15,6 +13,8 @@ import { elementXToTime } from "@/views/timeline/coords";
 import { BG_DROP_ZONE_HEIGHT } from "@/views/timeline/row-geometry";
 import { storedLineTimeRange } from "@/views/timeline/stored-line-range";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
+import { IconPlus } from "@tabler/icons-react";
+import { useCallback } from "react";
 
 // -- Types ---------------------------------------------------------------------
 
@@ -138,6 +138,8 @@ const EmptyWordTrack: React.FC<EmptyWordTrackProps> = ({ line, lineIndex, durati
     label = truncateLabel(transText, MAIN_LABEL_MAX_CHARS);
   }
 
+  const labelFontSize = Math.round(Math.min(22, Math.max(12, rowHeight * 0.28)));
+
   return (
     <div
       className="relative cursor-pointer"
@@ -146,10 +148,22 @@ const EmptyWordTrack: React.FC<EmptyWordTrackProps> = ({ line, lineIndex, durati
       onContextMenu={(e) => openTrackContextMenu(e, line.id, lineIndex, "word")}
     >
       <div
-        className="sticky left-[48px] z-10 inline-flex items-center gap-2 px-3 text-xs text-composer-text-muted italic bg-composer-bg/80 backdrop-blur-sm"
-        style={{ height: rowHeight, maxWidth: "calc(100% - 48px)" }}
+        className="sticky left-[48px] z-10 inline-flex items-center gap-2 px-3 text-composer-text-muted italic bg-composer-bg/80 backdrop-blur-sm"
+        style={{ height: rowHeight, maxWidth: "calc(100% - 48px)", fontSize: `${labelFontSize}px` }}
       >
-        <span className="truncate pr-0.5">{label}</span>
+        {textVariant === "both" && transText ? (
+          <div className="flex flex-col justify-center leading-tight overflow-hidden">
+            <span className="truncate pr-0.5 font-medium">{truncateLabel(displayText, 36)}</span>
+            <span
+              className="truncate pr-0.5 text-composer-accent font-mono opacity-90"
+              style={{ fontSize: `${Math.round(labelFontSize * 0.8)}px` }}
+            >
+              {truncateLabel(transText, 36)}
+            </span>
+          </div>
+        ) : (
+          <span className="truncate pr-0.5">{label}</span>
+        )}
         {displayText.length > 0 && (
           <SyncLineButton lineId={line.id} wordCount={splitIntoWordsWithMeta(line.text).parts.length} />
         )}

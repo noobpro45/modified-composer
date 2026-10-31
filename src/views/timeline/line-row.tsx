@@ -62,7 +62,7 @@ const LineRow: React.FC<LineRowProps> = ({ line, lineIndex, duration, onUpdateWo
       data-row-line={lineIndex}
       data-in-group={groupColor ? "" : undefined}
       className="group/row relative flex"
-      style={{ "--agent": color, "--group": groupColor }}
+      style={{ "--agent": color, "--group": groupColor, "--row-height": `${rowHeight}px` } as React.CSSProperties}
     >
       <div className="line-cell shrink-0 w-12 sticky left-0 z-60">
         <GutterAgentPicker lineId={line.id} lineIndex={lineIndex} agentId={line.agentId} numberHeight={rowHeight} />

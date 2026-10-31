@@ -6,7 +6,7 @@ import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { createTrackWordsFromTextAt } from "@/utils/sync-helpers";
-import { mergeWordText } from "@/utils/word-merge";
+import { mergeWordText, mergeWordTransliteration } from "@/utils/word-merge";
 import { findInsertionSlot } from "@/utils/word-spaces";
 import { deleteSelectedWords } from "@/views/timeline/delete-selected-words";
 import { storedLineTimeRange } from "@/views/timeline/stored-line-range";
@@ -132,16 +132,27 @@ function useWordMenuActions(targets: ContextMenuTargets, clearContextMenu: () =>
 
     const firstIdx = indices[0];
     const lastIdx = indices[indices.length - 1];
-    const mergedText = mergeWordText(indices.map((idx) => wordsArray[idx].text));
+    const wordsToMerge = indices.map((idx) => wordsArray[idx]);
+    const mergedText = mergeWordText(wordsToMerge.map((w) => w.text));
+    const mergedTrans = mergeWordTransliteration(wordsToMerge);
     const merged: WordTiming = {
       text: mergedText,
       begin: wordsArray[firstIdx].begin,
       end: wordsArray[lastIdx].end,
+      ...mergedTrans,
     };
 
     const updatedWords = [...wordsArray.slice(0, firstIdx), merged, ...wordsArray.slice(lastIdx + 1)];
+    const extraUpdates = line.transliteration
+      ? { transliteration: { ...line.transliteration, origin: "manual" as const } }
+      : {};
 
-    updateLineWithHistory(lineId, type === "word" ? { words: updatedWords } : manualBackgroundWordEdit(updatedWords));
+    updateLineWithHistory(
+      lineId,
+      type === "word"
+        ? { words: updatedWords, ...extraUpdates }
+        : { ...manualBackgroundWordEdit(updatedWords), ...extraUpdates },
+    );
 
     useTimelineStore.getState().clearSelection();
     clearContextMenu();

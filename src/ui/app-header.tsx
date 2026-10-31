@@ -93,7 +93,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ screen, onSettingsOpen, onHelpOpe
           className={`${HEADER_ICON_STYLES} max-[1100px]:hidden`}
         />
         {isWails && (
-          <div className="flex items-center gap-0.5 shrink-0 ml-1">
+          <div className="relative layer-window-controls flex items-center gap-0.5 shrink-0 ml-1">
             <div className="w-px h-5 bg-composer-border mx-1 shrink-0" />
             <IconButton
               label="Minimize"

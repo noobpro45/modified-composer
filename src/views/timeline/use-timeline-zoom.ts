@@ -1,6 +1,6 @@
 import { livePlaybackTime } from "@/stores/audio";
 import { computeAnchoredScrollLeft } from "@/utils/timeline/zoom-anchor";
-import { GUTTER_WIDTH, MAX_ZOOM, MIN_ZOOM, ZOOM_STEP, useTimelineStore } from "@/views/timeline/timeline-store";
+import { GUTTER_WIDTH, MAX_ZOOM, MIN_ZOOM, useTimelineStore } from "@/views/timeline/timeline-store";
 import { type RefObject, useCallback } from "react";
 
 // -- Helpers -------------------------------------------------------------------
@@ -46,15 +46,17 @@ function useTimelineZoom(scrollContainerRef: RefObject<HTMLDivElement | null>) {
 
   const zoomIn = useCallback(() => {
     const z = useTimelineStore.getState().zoom;
-    applyZoom(Math.min(MAX_ZOOM, z + ZOOM_STEP));
+    const step = Math.max(10, Math.round(z * 0.2));
+    applyZoom(Math.min(MAX_ZOOM, z + step));
   }, [applyZoom]);
 
   const zoomOut = useCallback(() => {
     const z = useTimelineStore.getState().zoom;
-    applyZoom(Math.max(MIN_ZOOM, z - ZOOM_STEP));
+    const step = Math.max(10, Math.round(z * 0.2));
+    applyZoom(Math.max(MIN_ZOOM, z - step));
   }, [applyZoom]);
 
-  return { zoomIn, zoomOut };
+  return { zoomIn, zoomOut, applyZoom };
 }
 
 // -- Exports -------------------------------------------------------------------

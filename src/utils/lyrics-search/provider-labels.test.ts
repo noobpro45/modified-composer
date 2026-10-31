@@ -97,7 +97,7 @@ describe("providerLabelsProse", () => {
   });
 
   it("joins the registered providers with an Oxford comma", () => {
-    expect(providerLabelsProse()).toBe("LRCLib, Binimum, Better Lyrics, and Better Lyrics Portato");
+    expect(providerLabelsProse()).toBe("Unison, LRCLib, Binimum, Better Lyrics, and Better Lyrics Portato");
   });
 
   describe("edge cases", () => {

@@ -25,7 +25,13 @@ describe("getProviders", () => {
   });
 
   it("registers every built-in provider, with Better Lyrics Portato last", () => {
-    expect(getProviders().map((provider) => provider.name)).toEqual(["lrclib", "binimum", "boidu-lyrics", "portato"]);
+    expect(getProviders().map((provider) => provider.name)).toEqual([
+      "unison",
+      "lrclib",
+      "binimum",
+      "boidu-lyrics",
+      "portato",
+    ]);
   });
 
   it("labels every built-in provider", () => {

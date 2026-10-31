@@ -258,10 +258,7 @@ const useSettingsStore = create<SettingsState & SettingsActions>()(
       selectCobaltInstance: (id) => set({ selectedCobaltInstanceId: id }),
       recordCobaltInstanceResult: (id, status, errorMessage) =>
         set((state) => ({
-          cobaltInstanceStatus: {
-            ...state.cobaltInstanceStatus,
-            [id]: { status, errorMessage, at: Date.now() },
-          },
+          cobaltInstanceStatus: { ...state.cobaltInstanceStatus, [id]: { status, errorMessage, at: Date.now() } },
         })),
     }),
     { name: "composer-settings", version: SETTINGS_PERSIST_VERSION, migrate: migrateSettings },
@@ -269,19 +266,33 @@ const useSettingsStore = create<SettingsState & SettingsActions>()(
 );
 
 function getActiveCobaltInstance(): CobaltInstance {
-  const state = useSettingsStore.getState();
-  if (state.selectedCobaltInstanceId === DEFAULT_COBALT_INSTANCE_ID) return BUILTIN_COBALT_INSTANCE;
-  const found = state.cobaltInstances.find((i) => i.id === state.selectedCobaltInstanceId);
-  return found ?? BUILTIN_COBALT_INSTANCE;
+  const { selectedCobaltInstanceId: id, cobaltInstances } = useSettingsStore.getState();
+  return id === DEFAULT_COBALT_INSTANCE_ID
+    ? BUILTIN_COBALT_INSTANCE
+    : (cobaltInstances.find((i) => i.id === id) ?? BUILTIN_COBALT_INSTANCE);
 }
 
 function isUsingDefaultCobaltInstance(): boolean {
-  const state = useSettingsStore.getState();
-  if (state.selectedCobaltInstanceId === DEFAULT_COBALT_INSTANCE_ID) return true;
-  return !state.cobaltInstances.some((i) => i.id === state.selectedCobaltInstanceId);
+  const { selectedCobaltInstanceId: id, cobaltInstances } = useSettingsStore.getState();
+  return id === DEFAULT_COBALT_INSTANCE_ID || !cobaltInstances.some((i) => i.id === id);
 }
 
 // -- Exports ------------------------------------------------------------------
 
-export { useSettingsStore, DEFAULTS, BUILTIN_COBALT_INSTANCE, DEFAULT_COBALT_INSTANCE_ID, getActiveCobaltInstance, isUsingDefaultCobaltInstance };
-export type { BooleanSettingKey, CobaltInstanceStatus, LanguageAutoGenerate, RomanizationCase, SettingsState, TimelineVisualization, VocalModelVariant };
+export {
+  useSettingsStore,
+  DEFAULTS,
+  BUILTIN_COBALT_INSTANCE,
+  DEFAULT_COBALT_INSTANCE_ID,
+  getActiveCobaltInstance,
+  isUsingDefaultCobaltInstance,
+};
+export type {
+  BooleanSettingKey,
+  CobaltInstanceStatus,
+  LanguageAutoGenerate,
+  RomanizationCase,
+  SettingsState,
+  TimelineVisualization,
+  VocalModelVariant,
+};

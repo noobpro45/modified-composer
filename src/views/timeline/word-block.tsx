@@ -1,5 +1,5 @@
-import { cn } from "@/utils/cn";
 import type { SyllablePosition } from "@/domain/word/syllable-groups";
+import { cn } from "@/utils/cn";
 import { wordBlockWidth } from "@/views/timeline/row-geometry";
 import { selfKey } from "@/views/timeline/snap";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
@@ -163,8 +163,8 @@ const WordBlock: React.FC<WordBlockProps> = ({
       {fit !== "tick" &&
         (canShowBoth && transliteration ? (
           <div className="flex flex-col items-center justify-center leading-none px-1 pointer-events-none overflow-hidden max-w-full">
-            <span className="text-[11px] font-medium truncate max-w-full leading-tight">{text}</span>
-            <span className="text-[9px] text-composer-accent font-mono truncate max-w-full leading-tight opacity-90">
+            <span className="word-both-main font-medium truncate max-w-full leading-tight">{text}</span>
+            <span className="word-both-sub text-composer-accent font-mono truncate max-w-full leading-tight opacity-90">
               {transliteration}
             </span>
           </div>

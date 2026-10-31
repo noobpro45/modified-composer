@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from "vitest";
-import { computeScrubTime, decideWheelAction, normalizeWheelDelta } from "./timeline-wheel";
+import { computeScrubTime, computeWheelZoom, decideWheelAction, normalizeWheelDelta } from "./timeline-wheel";
 
 // -- Fixtures ------------------------------------------------------------------
 
@@ -133,5 +133,35 @@ describe("normalizeWheelDelta", () => {
 
   it("preserves sign when scaling", () => {
     expect(normalizeWheelDelta(-3, 1)).toBe(-120);
+  });
+});
+
+// -- computeWheelZoom ----------------------------------------------------------
+
+describe("computeWheelZoom", () => {
+  it("returns currentZoom when deltaY is zero", () => {
+    expect(computeWheelZoom(100, 0, 0)).toBe(100);
+  });
+
+  it("zooms in proportionally on negative deltaY", () => {
+    expect(computeWheelZoom(100, -100, 0)).toBe(120);
+    expect(computeWheelZoom(300, -100, 0)).toBe(359);
+    expect(computeWheelZoom(20, -100, 0)).toBe(24);
+  });
+
+  it("zooms out proportionally on positive deltaY", () => {
+    expect(computeWheelZoom(120, 100, 0)).toBe(100);
+    expect(computeWheelZoom(300, 100, 0)).toBe(251);
+    expect(computeWheelZoom(30, 100, 0)).toBe(25);
+  });
+
+  it("clamps to minZoom and maxZoom", () => {
+    expect(computeWheelZoom(20, 500, 0, 20, 500)).toBe(20);
+    expect(computeWheelZoom(500, -500, 0, 20, 500)).toBe(500);
+  });
+
+  it("advances at least 1px on micro-deltas to prevent trackpad deadzones", () => {
+    expect(computeWheelZoom(100, -1, 0)).toBe(101);
+    expect(computeWheelZoom(100, 1, 0)).toBe(99);
   });
 });
