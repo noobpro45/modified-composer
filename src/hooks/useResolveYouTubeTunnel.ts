@@ -1,6 +1,11 @@
+import { YOUTUBE_TUNNEL_QUERY_KEY, beginDownloadProgress } from "@/audio/youtube-download";
+import { metadataForNewSource } from "@/domain/project/source-metadata";
 import { useEnsureAuth } from "@/hooks/useEnsureAuth";
+import { correctPrimingForProjectAudio } from "@/lib/attach-audio-priming";
+import { openProjectIdSnapshot } from "@/lib/open-project-session";
 import { flushPendingSaveQuietly } from "@/lib/persistence-debounce";
 import { getPersistenceSettled } from "@/lib/persistence-settled";
+import { videoSourceMetadata } from "@/lib/source-metadata";
 import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import {
@@ -21,8 +26,8 @@ import {
   getAudioFromBridge,
   isBridgeUnreachable,
 } from "@/utils/composer-bridge-api";
-import { normalizeIsrc } from "@/utils/isrc";
 import { isDesktop } from "@/utils/platform";
+import { type BodyProgress, readBodyWithProgress } from "@/utils/read-response-body";
 import { isYouTubeSourceFor } from "@/utils/youtube-source";
 import { useQuery } from "@tanstack/react-query";
 import { createElement, useEffect, useRef } from "react";
@@ -65,15 +70,33 @@ class TunnelError extends Error {
 
 // -- Helpers ------------------------------------------------------------------
 
+// Times and stems are corrected before the file is published, so no stem loads before its repair.
+async function correctBeforePublishing(file: File): Promise<void> {
+  const projectId = openProjectIdSnapshot();
+  if (!projectId) return;
+  try {
+    await correctPrimingForProjectAudio(projectId, file);
+  } catch (error) {
+    console.error(LOG_PREFIX, "could not correct the project's MP3 timings", error);
+  }
+}
+
 function buildAudioFile(buffer: ArrayBuffer, filename: string | undefined, videoId: string): File {
   const safeName = (filename ?? videoId).replace(/[\\/:*?"<>|]/g, "").trim() || videoId;
   return new File([buffer], `${safeName}.opus`, { type: AUDIO_MIME });
 }
 
-async function fetchViaBridge(videoId: string, signal: AbortSignal): Promise<TunnelResult> {
+type ReportProgress = (progress: BodyProgress) => void;
+
+async function fetchViaBridge(videoId: string, signal: AbortSignal, onProgress: ReportProgress): Promise<TunnelResult> {
   const baseUrl = useSettingsStore.getState().composerBridgeUrl;
   try {
-    const { buffer, mimeType, title, artist, album, isrc } = await getAudioFromBridge(baseUrl, videoId, signal);
+    const { buffer, mimeType, title, artist, album, isrc } = await getAudioFromBridge(
+      baseUrl,
+      videoId,
+      signal,
+      onProgress,
+    );
     if (signal.aborted) throw new DOMException("aborted", "AbortError");
     const filename = [artist, title].filter(Boolean).join(" - ") || title;
     return {
@@ -88,7 +111,9 @@ async function fetchViaBridge(videoId: string, signal: AbortSignal): Promise<Tun
       wasDefault: false,
     };
   } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    if (signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+      throw new DOMException("aborted", "AbortError");
+    }
     throw new TunnelError(err, BRIDGE_INSTANCE_ID, BRIDGE_INSTANCE_LABEL, false);
   }
 }
@@ -97,6 +122,7 @@ async function fetchViaCobalt(
   videoId: string,
   signal: AbortSignal,
   ensureAuth: () => Promise<string>,
+  onProgress: ReportProgress,
 ): Promise<TunnelResult> {
   const instanceAtStart = getActiveCobaltInstance();
   const wasDefault = isUsingDefaultCobaltInstance();
@@ -115,7 +141,7 @@ async function fetchViaCobalt(
 
     const res = await fetch(tunnelUrl, { signal });
     if (!res.ok) throw new CobaltApiError("cobalt_failed", res.status);
-    const buffer = await res.arrayBuffer();
+    const buffer = await readBodyWithProgress(res, onProgress);
     if (signal.aborted) throw new DOMException("aborted", "AbortError");
     if (buffer.byteLength === 0) throw new CobaltApiError("empty_audio", res.status);
 
@@ -132,11 +158,20 @@ async function fetchViaCobalt(
   }
 }
 
-function fetchTunnel(videoId: string, signal: AbortSignal, ensureAuth: () => Promise<string>): Promise<TunnelResult> {
-  if (isDesktop() || useSettingsStore.getState().experiments.youtubeBridge) {
-    return fetchViaBridge(videoId, signal);
+async function fetchTunnel(
+  videoId: string,
+  signal: AbortSignal,
+  ensureAuth: () => Promise<string>,
+): Promise<TunnelResult> {
+  const progress = beginDownloadProgress();
+  try {
+    if (isDesktop() || useSettingsStore.getState().experiments.youtubeBridge) {
+      return await fetchViaBridge(videoId, signal, progress.report);
+    }
+    return await fetchViaCobalt(videoId, signal, ensureAuth, progress.report);
+  } finally {
+    progress.end();
   }
-  return fetchViaCobalt(videoId, signal, ensureAuth);
 }
 
 // -- Hook ---------------------------------------------------------------------
@@ -152,7 +187,7 @@ function useResolveYouTubeTunnel(): void {
   const videoId = source?.type === "youtube" && !source.file ? source.videoId : null;
 
   const query = useQuery<TunnelResult>({
-    queryKey: ["youtube-tunnel", videoId, bridgeEnabled, bridgeUrl],
+    queryKey: [YOUTUBE_TUNNEL_QUERY_KEY, videoId, bridgeEnabled, bridgeUrl],
     enabled: videoId !== null,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
@@ -171,32 +206,37 @@ function useResolveYouTubeTunnel(): void {
     const data = query.data;
     if (!data || !videoId) return;
     let cancelled = false;
-    void getPersistenceSettled().then(() => {
-      if (cancelled) return;
+    const isStillWanted = () => {
       const current = useAudioStore.getState().source;
-      if (current?.type !== "youtube" || current.videoId !== videoId) return;
-      useAudioStore.getState().setYouTubeFile(data.file);
-      useAudioStore.getState().setYouTubeLoadError(null);
+      return !cancelled && current?.type === "youtube" && current.videoId === videoId;
+    };
+    void getPersistenceSettled()
+      .then(() => (isStillWanted() ? correctBeforePublishing(data.file) : undefined))
+      .then(() => {
+        if (!isStillWanted()) return;
+        const newlyLoaded = useAudioStore.getState().expectedAudio === null;
+        const provided = videoSourceMetadata(videoId, data);
+        useAudioStore.getState().setYouTubeFile(data.file, provided);
+        useAudioStore.getState().setYouTubeLoadError(null);
 
-      const project = useProjectStore.getState();
-      const currentTitle = project.metadata.title;
-      if (!currentTitle || currentTitle === videoId) {
-        const metadataPatch: Partial<typeof project.metadata> = { title: data.title || data.filename || videoId };
-        if (data.artist) metadataPatch.artists = [data.artist];
-        if (data.album) metadataPatch.album = data.album;
-        const bridgeIsrc = data.isrc ? normalizeIsrc(data.isrc) : undefined;
-        if (bridgeIsrc) metadataPatch.isrc = bridgeIsrc;
-        project.setMetadata(metadataPatch);
-        flushPendingSaveQuietly();
-      }
-      if (
-        data.instanceId !== BRIDGE_INSTANCE_ID &&
-        !data.wasDefault &&
-        data.instanceId !== DEFAULT_COBALT_INSTANCE_ID
-      ) {
-        useSettingsStore.getState().recordCobaltInstanceResult(data.instanceId, "success");
-      }
-    });
+        const project = useProjectStore.getState();
+        const currentTitle = project.metadata.title;
+        if (newlyLoaded || !currentTitle || currentTitle === videoId) {
+          const placeholder = { title: videoId };
+          const patch = metadataForNewSource(project.metadata, project.importedMetadataKeys, placeholder, provided);
+          if (Object.keys(patch).length > 0) {
+            project.setMetadata(patch);
+            flushPendingSaveQuietly();
+          }
+        }
+        if (
+          data.instanceId !== BRIDGE_INSTANCE_ID &&
+          !data.wasDefault &&
+          data.instanceId !== DEFAULT_COBALT_INSTANCE_ID
+        ) {
+          useSettingsStore.getState().recordCobaltInstanceResult(data.instanceId, "success");
+        }
+      });
     return () => {
       cancelled = true;
     };

@@ -1,22 +1,36 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { useProjectStore } from "@/stores/project";
+import { createLine } from "@/test/factories";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
-
-describe("rollingEditMode", () => {
-  it("defaults to off and toggles", () => {
-    useTimelineStore.setState({ rollingEditMode: false });
-    expect(useTimelineStore.getState().rollingEditMode).toBe(false);
-    useTimelineStore.getState().toggleRollingEditMode();
-    expect(useTimelineStore.getState().rollingEditMode).toBe(true);
-  });
-});
+import { beforeEach, describe, expect, it } from "vitest";
 
 describe("textVariant", () => {
   it("cycles through original -> transliteration -> both -> original", () => {
+    useProjectStore.setState({
+      lines: [
+        {
+          ...createLine({ text: "a" }),
+          transliteration: {
+            language: "ja-Latn",
+            text: "b",
+            origin: "manual",
+            sourceFingerprint: "fp-a",
+            segments: [],
+          },
+        },
+      ],
+    });
     useTimelineStore.setState({ textVariant: "original" });
     useTimelineStore.getState().toggleTextVariant();
     expect(useTimelineStore.getState().textVariant).toBe("transliteration");
     useTimelineStore.getState().toggleTextVariant();
     expect(useTimelineStore.getState().textVariant).toBe("both");
+    useTimelineStore.getState().toggleTextVariant();
+    expect(useTimelineStore.getState().textVariant).toBe("original");
+  });
+
+  it("does not cycle when no line has transliteration", () => {
+    useProjectStore.setState({ lines: [createLine({ text: "a" })] });
+    useTimelineStore.setState({ textVariant: "original" });
     useTimelineStore.getState().toggleTextVariant();
     expect(useTimelineStore.getState().textVariant).toBe("original");
   });
@@ -163,6 +177,13 @@ describe("loopRegion", () => {
     useTimelineStore.getState().setLoopRegion(region);
     useTimelineStore.getState().setSelectedWords([]);
     expect(useTimelineStore.getState().loopRegion).toEqual(region);
+  });
+
+  it("clearing an already empty selection keeps the same array", () => {
+    const empty = useTimelineStore.getState().selectedWords;
+    useTimelineStore.getState().setSelectedWords([]);
+    useTimelineStore.getState().clearSelection();
+    expect(useTimelineStore.getState().selectedWords).toBe(empty);
   });
 
   it("is project scoped", () => {

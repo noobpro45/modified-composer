@@ -70,7 +70,7 @@ describe("SettingLink", () => {
       useSettingsStore.setState({ experiments: { ...useSettingsStore.getState().experiments, youtubeBridge: true } });
       const screen = await render(inApp(<SettingLink setting="youtubeBridge" />));
       await expect
-        .element(screen.getByRole("button", { name: "Open setting Composer Bridge, on" }))
+        .element(screen.getByRole("button", { name: "Open setting Composer Bridge for YouTube, on" }))
         .toBeInTheDocument();
     });
 

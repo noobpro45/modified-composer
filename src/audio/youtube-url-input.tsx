@@ -1,34 +1,63 @@
-import { isYouTubeLoadError, isYouTubeLoadFailure, useLoadYouTubeSource } from "@/hooks/useLoadYouTubeSource";
+import type { YouTubeDownloadProgress } from "@/audio/youtube-download";
+import {
+  isYouTubeLoadCancelled,
+  isYouTubeLoadError,
+  isYouTubeLoadFailure,
+  useLoadYouTubeSource,
+} from "@/hooks/useLoadYouTubeSource";
+import { useYouTubeDownload } from "@/hooks/useYouTubeDownload";
 import { useAudioStore } from "@/stores/audio";
 import { Button } from "@/ui/button";
-import { INPUT_STYLES } from "@/ui/input-styles";
+import { FLOATING_INPUT_STYLES, INPUT_STYLES } from "@/ui/input-styles";
+import { ProgressBar } from "@/ui/progress-bar";
 import { cn } from "@/utils/cn";
+import { focusOnMount } from "@/utils/focus-on-mount";
 import { INVALID_YOUTUBE_LINK_MESSAGE, extractVideoId } from "@/utils/youtube-url";
-import { IconBrandYoutube, IconLoader2 } from "@tabler/icons-react";
+import { IconBrandYoutube, IconLoader2, IconX } from "@tabler/icons-react";
 import { useCallback, useState } from "react";
 
 // -- Constants ----------------------------------------------------------------
 
 const LOG_PREFIX = "[YouTubeUrlInput]";
 
-// -- Component ----------------------------------------------------------------
+// -- Components ---------------------------------------------------------------
+
+const FieldDownloadProgress: React.FC<{ progress: YouTubeDownloadProgress | null }> = ({ progress }) => (
+  <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
+    <span className="absolute inset-y-0 right-3 flex items-center text-xs text-(--muted) tabular-nums">
+      {progress?.label}
+    </span>
+    {progress?.percent != null && (
+      <ProgressBar
+        percent={progress.percent}
+        label="YouTube download"
+        className="absolute inset-x-0 bottom-0 h-0.5 rounded-none bg-transparent"
+      />
+    )}
+  </div>
+);
 
 interface YouTubeUrlInputProps {
   placeholder?: string;
   className?: string;
   onLoadVideo?: (videoId: string) => Promise<void>;
+  surface?: "well" | "floating";
+  focusOnOpen?: boolean;
 }
 
 const YouTubeUrlInput: React.FC<YouTubeUrlInputProps> = ({
   placeholder = "Paste YouTube URL or video ID",
   className,
   onLoadVideo,
+  surface = "well",
+  focusOnOpen = false,
 }) => {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const isLoading = useAudioStore((s) => s.isLoading);
   const youtubeLoadError = useAudioStore((s) => s.youtubeLoadError);
   const loadYouTubeSource = useLoadYouTubeSource();
+  const download = useYouTubeDownload();
 
   const handleSubmit = useCallback(async () => {
     const videoId = extractVideoId(value);
@@ -41,6 +70,7 @@ const YouTubeUrlInput: React.FC<YouTubeUrlInputProps> = ({
       await (onLoadVideo ?? loadYouTubeSource)(videoId);
       setValue("");
     } catch (error) {
+      if (isYouTubeLoadCancelled(error)) return;
       if (isYouTubeLoadError(error) && !isYouTubeLoadFailure(error)) {
         console.info(LOG_PREFIX, "ignored a superseded video load", error);
         return;
@@ -54,7 +84,7 @@ const YouTubeUrlInput: React.FC<YouTubeUrlInputProps> = ({
       e.preventDefault();
       handleSubmit();
     }
-    e.stopPropagation();
+    if (e.key !== "Escape" || surface !== "floating") e.stopPropagation();
   };
 
   const trimmed = value.trim();
@@ -62,27 +92,49 @@ const YouTubeUrlInput: React.FC<YouTubeUrlInputProps> = ({
   return (
     <div className={cn("flex flex-col gap-1.5 w-full", className)}>
       <div className="flex gap-2">
-        <input
-          type="text"
-          aria-label="YouTube URL or video ID"
-          value={value}
-          onChange={(e) => {
-            setValue(e.target.value);
-            if (error) setError(null);
-            if (youtubeLoadError) useAudioStore.getState().setYouTubeLoadError(null);
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          disabled={isLoading}
-          spellCheck={false}
-          autoCapitalize="off"
-          autoComplete="off"
-          className={cn(INPUT_STYLES, "flex-1 h-9 rounded-lg select-text")}
-        />
-        <Button variant="primary" size="lg" hasIcon onClick={handleSubmit} disabled={isLoading || trimmed.length === 0}>
-          {isLoading ? <IconLoader2 size={16} className="animate-spin" /> : <IconBrandYoutube size={16} />}
-          {isLoading ? "Loading" : "Load"}
-        </Button>
+        <div className="relative flex-1">
+          <input
+            type="text"
+            aria-label="YouTube URL or video ID"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              if (error) setError(null);
+              if (youtubeLoadError) useAudioStore.getState().setYouTubeLoadError(null);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            disabled={isLoading}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoComplete="off"
+            ref={focusOnOpen ? focusOnMount : undefined}
+            className={cn(
+              surface === "floating" ? FLOATING_INPUT_STYLES : INPUT_STYLES,
+              "w-full h-9 select-text",
+              download.downloading && "pr-28",
+            )}
+          />
+          {download.downloading && <FieldDownloadProgress progress={download.progress} />}
+        </div>
+        {download.downloading ? (
+          <Button variant="secondary" size="lg" hasIcon onClick={download.cancel} className="rounded-lg">
+            <IconX size={16} />
+            Cancel
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            size="lg"
+            hasIcon
+            onClick={handleSubmit}
+            disabled={isLoading || trimmed.length === 0}
+            className="rounded-lg"
+          >
+            {isLoading ? <IconLoader2 size={16} className="animate-spin" /> : <IconBrandYoutube size={16} />}
+            {isLoading ? "Loading" : "Load"}
+          </Button>
+        )}
       </div>
       {error && <p className="text-xs text-composer-negative select-text">{error}</p>}
     </div>

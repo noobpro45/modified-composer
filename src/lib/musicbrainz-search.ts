@@ -9,7 +9,7 @@ import { normalizeIsrc } from "@/utils/isrc";
 const NOT_FOUND_STATUS = 404;
 const TITLE_DELIMITER_PATTERN = /\s+[-–—/|]\s+/;
 const TITLE_BRACKETS_PATTERN =
-  /\s*[\(\[][^\)\]]*(?:official|video|mv|audio|version|size|lyrics?|theme|ed|op)[^\)\]]*[\)\]]/gi;
+  /\s*[([][^)\]]*(?:official|video|mv|audio|version|size|lyrics?|theme|ed|op)[^)\]]*[)\]]/gi;
 const QUOTE_WRAP_PATTERN = /^["']|["']$/g;
 
 // -- Types --------------------------------------------------------------------

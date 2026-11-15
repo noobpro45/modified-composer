@@ -1,4 +1,4 @@
-import { askChoiceWithCheckbox } from "@/stores/choice-store";
+import { FINISH_OPEN_PROMPT_FIRST, askChoiceWithCheckbox } from "@/stores/choice-store";
 import { useSettingsStore } from "@/stores/settings";
 import { UndoHint } from "@/ui/undo-hint";
 import { pluralWord } from "@/utils/pluralize";
@@ -10,15 +10,14 @@ type DivergenceResolution = "apply" | "detach" | "cancel";
 interface DivergenceOptions {
   affectedSiblingCount: number;
   groupLabel?: string;
+  widensCopies?: boolean;
 }
 
 // -- Constants ----------------------------------------------------------------
 
-const FINISH_CHOOSING_FIRST = "Finish the open prompt first";
-
 // -- Components ---------------------------------------------------------------
 
-const DivergenceBody: React.FC<DivergenceOptions> = ({ affectedSiblingCount, groupLabel }) => (
+const DivergenceBody: React.FC<DivergenceOptions> = ({ affectedSiblingCount, groupLabel, widensCopies }) => (
   <>
     <div className="text-sm text-composer-text-secondary leading-relaxed select-text">
       You changed the word count on a line in <strong>{groupLabel ?? "this group"}</strong>. {affectedSiblingCount}{" "}
@@ -27,9 +26,9 @@ const DivergenceBody: React.FC<DivergenceOptions> = ({ affectedSiblingCount, gro
       <br />
       <strong>Apply to all</strong> (recommended)
       <br />
-      Mirrors the new word structure across every instance. Words that didn't actually change keep their existing
-      timing, so per-instance rhythms you've already tuned stay intact. Only the split or merged word's slot gets
-      re-divided.
+      {widensCopies
+        ? "Merges the same text in every instance. Where an instance splits it at different points, the merge grows to cover whole syllables, so that instance also loses syllable breaks you didn't select."
+        : "Mirrors the new word structure across every instance. Words that didn't actually change keep their existing timing, so per-instance rhythms you've already tuned stay intact. Only the split or merged word's slot gets re-divided."}
       <br />
       <br />
       <strong>Detach</strong>
@@ -48,7 +47,7 @@ async function askWordDivergence(options: DivergenceOptions): Promise<Divergence
   const { answer, checked } = await askChoiceWithCheckbox({
     title: "Word structure changed",
     body: <DivergenceBody {...options} />,
-    busyMessage: FINISH_CHOOSING_FIRST,
+    busyMessage: FINISH_OPEN_PROMPT_FIRST,
     checkbox: { label: "Don't ask again" },
     options: [
       { value: "detach", label: "Detach", variant: "secondary" },

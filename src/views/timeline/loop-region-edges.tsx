@@ -1,5 +1,6 @@
 import { startLoopRegionDrag } from "@/views/timeline/loop-region-drag";
-import { type LoopRegionDrag, WAVEFORM_HEIGHT, useTimelineStore } from "@/views/timeline/timeline-store";
+import { useOverviewBandHeight } from "@/views/timeline/overview-band-height";
+import { type LoopRegionDrag, useTimelineStore } from "@/views/timeline/timeline-store";
 
 // -- Constants -----------------------------------------------------------------
 
@@ -18,8 +19,9 @@ function grabEdge(edge: LoopRegionDrag["edge"]) {
 // -- Components ----------------------------------------------------------------
 
 const LoopRegionEdges: React.FC = () => {
+  const bandHeight = useOverviewBandHeight();
   const region = useTimelineStore((s) => s.loopRegion);
-  const zoom = useTimelineStore((s) => s.zoom);
+  const zoom = useTimelineStore((s) => (s.loopRegion ? s.zoom : 0));
   if (!region) return null;
   const outer = EDGE_HIT_PX / 2;
   // On a narrow region each edge reaches only to the middle, so both stay grabbable.
@@ -36,7 +38,7 @@ const LoopRegionEdges: React.FC = () => {
       aria-orientation="vertical"
       aria-hidden="true"
       className={EDGE}
-      style={{ ...zones[edge], height: WAVEFORM_HEIGHT - 1 }}
+      style={{ ...zones[edge], height: bandHeight - 1 }}
       onMouseDown={grabEdge(edge)}
     />
   ));

@@ -1,6 +1,9 @@
 import type { Agent } from "@/domain/agent/model";
+import { detectedGrid } from "@/domain/tempo/beat-grid";
+import { withOffset } from "@/domain/tempo/grid-edits";
 import { applySavedProject } from "@/lib/apply-saved-project";
-import { buildSaveInput } from "@/lib/project-snapshot";
+import { buildSavedProject } from "@/lib/persistence";
+import { buildSaveInput, currentSaveInput } from "@/lib/project-snapshot";
 import type { SavedProject } from "@/lib/saved-project";
 import { useProjectStore } from "@/stores/project";
 import { createGroup, createLine, createProjectSaveInput } from "@/test/factories";
@@ -14,13 +17,14 @@ const FILE_AGENTS: Agent[] = [
 
 function projectFile(overrides: Partial<SavedProject> = {}): SavedProject {
   return {
-    version: 3,
+    ...buildSavedProject(
+      createProjectSaveInput({
+        agents: FILE_AGENTS,
+        lines: [createLine({ id: "b1", text: "file line", groupId: "gb", instanceIdx: 0, templateLineIdx: 0 })],
+        groups: [createGroup({ id: "gb", label: "File group" })],
+      }),
+    ),
     savedAt: 0,
-    ...createProjectSaveInput({
-      agents: FILE_AGENTS,
-      lines: [createLine({ id: "b1", text: "file line", groupId: "gb", instanceIdx: 0, templateLineIdx: 0 })],
-      groups: [createGroup({ id: "gb", label: "File group" })],
-    }),
     ...overrides,
   };
 }
@@ -59,6 +63,18 @@ describe("applySavedProject", () => {
       expect(state.history).toEqual([]);
       expect(state.historyIndex).toBe(-1);
       expect(state.isDirtySinceHistory).toBe(false);
+    });
+
+    it("regression: stores timing for background vocals saved on a synced line without words", () => {
+      const legacy = createLine({ id: "l1", text: "hello", begin: 10, end: 14, backgroundText: "ooh" });
+
+      for (const origin of ["storage", "file"] as const) {
+        applySavedProject(projectFile({ lines: [legacy] }), origin);
+
+        const state = useProjectStore.getState();
+        expect(state.lines[0].backgroundWords?.[0]).toMatchObject({ begin: 12, end: 14 });
+        expect(state.isDirty).toBe(false);
+      }
     });
 
     it("regression: drops imported metadata keys a hand-edited file does not know", () => {
@@ -109,5 +125,78 @@ describe("applySavedProject", () => {
       expect(useProjectStore.getState().isDirty).toBe(true);
       expect(buildSaveInput()?.exportTiming).toBe("line");
     });
+  });
+
+  describe("beat grid", () => {
+    const beats = [0.5, 1, 1.5, 2, 2.5];
+    const grid = withOffset(detectedGrid({ beats, downbeats: [0.5, 2.5] }), 20);
+
+    it("round-trips through save and restore", async () => {
+      useProjectStore.getState().setLinesWithHistory([createLine({ id: "a1", text: "line" })]);
+      useProjectStore.getState().applyBeatGridWithHistory(grid);
+      const saved = buildSaveInput();
+      if (!saved) throw new Error("expected a save input");
+      await resetAllStores();
+
+      applySavedProject(JSON.parse(JSON.stringify({ version: 3, savedAt: 0, ...saved })), "storage");
+
+      expect(useProjectStore.getState().beatGrid).toEqual(grid);
+    });
+
+    it("opens a project with a malformed grid without one", () => {
+      applySavedProject(projectFile({ beatGrid: { ...grid, beats: [2, 1] } }), "file");
+
+      expect(useProjectStore.getState().beatGrid).toBeNull();
+      expect(useProjectStore.getState().lines.map((line) => line.id)).toEqual(["b1"]);
+    });
+
+    it("opens an older project with no grid", () => {
+      applySavedProject(projectFile(), "file");
+
+      expect(useProjectStore.getState().beatGrid).toBeNull();
+    });
+  });
+});
+
+describe("unison link", () => {
+  beforeEach(resetAllStores);
+
+  it("round-trips through save and restore", async () => {
+    useProjectStore.getState().setLinesWithHistory([createLine({ id: "a1", text: "line" })]);
+    useProjectStore.getState().linkUnisonLyric("4821");
+    expect(useProjectStore.getState().isDirty).toBe(true);
+    const saved = buildSaveInput();
+    if (!saved) throw new Error("expected a save input");
+    await resetAllStores();
+
+    applySavedProject(JSON.parse(JSON.stringify(buildSavedProject(saved))), "storage");
+
+    expect(useProjectStore.getState().unisonLyricId).toBe("4821");
+    expect(useProjectStore.getState().isDirty).toBe(false);
+  });
+
+  it("opens an older project with no link unlinked", () => {
+    useProjectStore.getState().linkUnisonLyric("4821");
+    applySavedProject(projectFile(), "storage");
+    expect(useProjectStore.getState().unisonLyricId).toBeNull();
+  });
+
+  it("reads a malformed id as no link", () => {
+    for (const junk of ["12a", "", " 12", 42]) {
+      applySavedProject(JSON.parse(JSON.stringify({ ...projectFile(), unisonLyricId: junk })), "file");
+      expect(useProjectStore.getState().unisonLyricId).toBeNull();
+    }
+  });
+});
+
+describe("primingCorrected", () => {
+  it("a project made by this build saves it true", () => {
+    useProjectStore.getState().reset();
+    expect(currentSaveInput().primingCorrected).toBe(true);
+  });
+
+  it("a stored project saved before the fix restores it false", () => {
+    applySavedProject(projectFile({ primingCorrected: undefined }), "storage");
+    expect(useProjectStore.getState().primingCorrected).toBe(false);
   });
 });

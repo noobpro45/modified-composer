@@ -1,10 +1,14 @@
 import { keepsOwnTiming, sharesTiming } from "@/domain/group/shared-timing";
 import type { LinkGroup } from "@/domain/group/template";
+import { instanceKey } from "@/domain/instance/key";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { useProjectStore } from "@/stores/project";
 import { IconButton } from "@/ui/icon-button";
 import { buildGroupPingVariants } from "@/utils/animationVariants";
 import { cn } from "@/utils/cn";
+import { BannerTag } from "@/views/timeline/banner-tag";
 import { registerBanner } from "@/views/timeline/banner-progress-registry";
+import { StepSkipChip } from "@/views/timeline/step-timing/step-skip-chip";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { useBannerDrag } from "@/views/timeline/use-banner-drag";
 import { IconChevronDown, IconClock, IconLink } from "@tabler/icons-react";
@@ -66,6 +70,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
     (e: React.MouseEvent) => {
       e.stopPropagation();
       openGroup(group.id, instanceIdx);
+      noteGuideSignal("timeline.openGroup");
     },
     [group.id, instanceIdx, openGroup],
   );
@@ -78,7 +83,8 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
   const handleChevronClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      toggleInstanceCollapsed(`${group.id}:${instanceIdx}`);
+      toggleInstanceCollapsed(instanceKey(group.id, instanceIdx));
+      noteGuideSignal("timeline.collapseOne");
     },
     [group.id, instanceIdx, toggleInstanceCollapsed],
   );
@@ -129,7 +135,7 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
     <m.div
       ref={bannerRef}
       data-banner-progress=""
-      data-instance-key={`${group.id}:${instanceIdx}`}
+      data-instance-key={instanceKey(group.id, instanceIdx)}
       data-instance-start={instanceStart}
       data-instance-end={instanceEnd}
       variants={pingVariants}
@@ -160,12 +166,8 @@ const GroupBannerComponent: React.FC<GroupBannerProps> = ({
         className="shrink-0 w-auto h-auto p-0.5 opacity-70 hover:opacity-100 hover:bg-transparent text-current relative before:content-[''] before:absolute before:-inset-2"
       />
       <span className="min-w-0 truncate">{group.label}</span>
-      {hasOwnTiming && (
-        <span className="flex min-w-0 items-center gap-0.5 overflow-hidden rounded-full border border-dashed border-composer-text-faint py-px pl-1 pr-1.5 text-composer-text-tertiary whitespace-nowrap">
-          <IconClock className="size-2.5 shrink-0" />
-          <span className="truncate">Own timing</span>
-        </span>
-      )}
+      {hasOwnTiming && <BannerTag icon={IconClock}>Own timing</BannerTag>}
+      <StepSkipChip group={group} instanceIdx={instanceIdx} />
       <span
         className="flex items-center gap-[3px] font-medium text-composer-text/65 tabular-nums whitespace-nowrap ml-auto"
         onMouseEnter={handleBadgeMouseEnter}

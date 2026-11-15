@@ -1,14 +1,17 @@
+import { getEffectiveLines } from "@/domain/line/effective-words";
+import type { WordSelection } from "@/domain/selection/model";
+import { mergeWordSelections } from "@/domain/selection/set-ops";
 import { useFrameLoop } from "@/hooks/use-frame-loop";
 import { holdFrames } from "@/lib/frame-loop";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { swallowTrailingClick } from "@/lib/swallow-trailing-click";
 import { useProjectStore } from "@/stores/project";
 import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
-import type { WordSelection } from "@/domain/selection/model";
-import { GUTTER_WIDTH, useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
-import { getEffectiveLines } from "@/domain/line/effective-words";
-import { mergeWordSelections } from "@/domain/selection/set-ops";
+import { currentOverviewBandHeight } from "@/views/timeline/overview-band-height";
+import { GUTTER_WIDTH, useTimelineStore } from "@/views/timeline/timeline-store";
 import { computeRowLayout } from "@/views/timeline/utils";
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { readViewScroll, scrollViewBy } from "@/views/timeline/view-scroll";
 
 // -- Types ---------------------------------------------------------------------
 
@@ -34,6 +37,7 @@ function useMarquee(scrollContainerRef: RefObject<HTMLDivElement | null>) {
   const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
   const [autoScrolling, setAutoScrolling] = useState(false);
   const stateRef = useRef<MarqueeState>("idle");
+  const laneOwnsClickRef = useRef(false);
   const startRef = useRef({ clientX: 0, clientY: 0, scrollLeft: 0, scrollTop: 0 });
   const currentRef = useRef({ clientX: 0, clientY: 0 });
   const shiftRef = useRef(false);
@@ -48,8 +52,9 @@ function useMarquee(scrollContainerRef: RefObject<HTMLDivElement | null>) {
 
     const startX = start.clientX - containerRect.left + start.scrollLeft;
     const startY = start.clientY - containerRect.top + start.scrollTop;
-    const currentX = current.clientX - containerRect.left + container.scrollLeft;
-    const currentY = current.clientY - containerRect.top + container.scrollTop;
+    const { left, top } = readViewScroll(container);
+    const currentX = current.clientX - containerRect.left + left;
+    const currentY = current.clientY - containerRect.top + top;
 
     const x = Math.min(startX, currentX);
     const y = Math.min(startY, currentY);
@@ -67,23 +72,13 @@ function useMarquee(scrollContainerRef: RefObject<HTMLDivElement | null>) {
     const cy = currentRef.current.clientY - cRect.top;
     const cx = currentRef.current.clientX - cRect.left;
 
-    let scrolled = false;
-    if (cy < AUTO_SCROLL_ZONE) {
-      c.scrollTop -= AUTO_SCROLL_SPEED;
-      scrolled = true;
-    } else if (cy > cRect.height - AUTO_SCROLL_ZONE) {
-      c.scrollTop += AUTO_SCROLL_SPEED;
-      scrolled = true;
-    }
-    if (cx < AUTO_SCROLL_ZONE) {
-      c.scrollLeft -= AUTO_SCROLL_SPEED;
-      scrolled = true;
-    } else if (cx > cRect.width - AUTO_SCROLL_ZONE) {
-      c.scrollLeft += AUTO_SCROLL_SPEED;
-      scrolled = true;
-    }
+    const deltaTop =
+      cy < AUTO_SCROLL_ZONE ? -AUTO_SCROLL_SPEED : cy > cRect.height - AUTO_SCROLL_ZONE ? AUTO_SCROLL_SPEED : 0;
+    const deltaLeft =
+      cx < AUTO_SCROLL_ZONE ? -AUTO_SCROLL_SPEED : cx > cRect.width - AUTO_SCROLL_ZONE ? AUTO_SCROLL_SPEED : 0;
+    scrollViewBy(c, deltaLeft, deltaTop);
 
-    if (scrolled) {
+    if (deltaLeft !== 0 || deltaTop !== 0) {
       const updatedRect = computeRect();
       if (updatedRect) setMarqueeRect(updatedRect);
     }
@@ -104,7 +99,7 @@ function useMarquee(scrollContainerRef: RefObject<HTMLDivElement | null>) {
       defaultRowHeight,
       collapsedInstances,
       focusedGroup,
-      waveformHeight: WAVEFORM_HEIGHT,
+      waveformHeight: currentOverviewBandHeight(),
       groupHeaderHeight: GROUP_HEADER_HEIGHT,
     });
 
@@ -165,12 +160,9 @@ function useMarquee(scrollContainerRef: RefObject<HTMLDivElement | null>) {
 
       stateRef.current = "pending";
       shiftRef.current = e.shiftKey;
-      startRef.current = {
-        clientX: e.clientX,
-        clientY: e.clientY,
-        scrollLeft: container.scrollLeft,
-        scrollTop: container.scrollTop,
-      };
+      laneOwnsClickRef.current = useTimelineStore.getState().stepTiming && target.closest("[data-word-track]") !== null;
+      const { left, top } = readViewScroll(container);
+      startRef.current = { clientX: e.clientX, clientY: e.clientY, scrollLeft: left, scrollTop: top };
       currentRef.current = { clientX: e.clientX, clientY: e.clientY };
     },
     [scrollContainerRef],
@@ -206,14 +198,17 @@ function useMarquee(scrollContainerRef: RefObject<HTMLDivElement | null>) {
         if (rect) {
           const newSelections = computeSelection(rect);
           if (shiftRef.current) {
-            const existing = useTimelineStore.getState().selectedWords;
+            const { stepQueue, selectedWords } = useTimelineStore.getState();
+            const existing = stepQueue ?? selectedWords;
             useTimelineStore.getState().setSelectedWords(mergeWordSelections(existing, newSelections));
           } else {
             useTimelineStore.getState().setSelectedWords(newSelections);
           }
+          if (newSelections.length > 0)
+            noteGuideSignal(newSelections.length > 1 ? "timeline.selectMore" : "timeline.select");
         }
       } else if (stateRef.current === "pending") {
-        if (!shiftRef.current) {
+        if (!shiftRef.current && !laneOwnsClickRef.current) {
           useTimelineStore.getState().clearSelection();
         }
       }

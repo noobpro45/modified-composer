@@ -1,10 +1,13 @@
-import { Popover } from "@/ui/popover";
-import { Scroll } from "@/ui/scroll";
-import { StatusChip } from "@/ui/status-chip";
-import { cn } from "@/utils/cn";
 import type { Placement } from "@floating-ui/react";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
-import { type ReactElement, type ReactNode, cloneElement, useRef, useState } from "react";
+import { cloneElement, type ReactElement, type ReactNode, useRef, useState } from "react";
+import { LazyPopover } from "@/ui/lazy-popover";
+import { Popover, type PopoverAnchor } from "@/ui/popover";
+import { Scroll } from "@/ui/scroll";
+import { OptionGroup } from "@/ui/select-option-groups";
+import { optionRuns } from "@/ui/select-option-runs";
+import { StatusChip } from "@/ui/status-chip";
+import { cn } from "@/utils/cn";
 
 // -- Interfaces ---------------------------------------------------------------
 
@@ -15,6 +18,10 @@ interface SelectOption {
   detail?: string;
   /** A short tag after the label, such as "Recommended". */
   badge?: string;
+  /** Listed but not pickable; the detail line says why. */
+  disabled?: boolean;
+  /** Consecutive options with the same group are listed under its name. */
+  group?: string;
 }
 
 interface SelectProps {
@@ -34,6 +41,8 @@ interface SelectProps {
   header?: ReactNode;
   /** Shown on the trigger after the label, such as a status chip. */
   triggerAdornment?: ReactNode;
+  /** Mounts the popover on the first open, for a Select repeated on every row of a long list. */
+  mountOnFirstOpen?: boolean;
 }
 
 type SelectAppearance = "field" | "pick";
@@ -153,14 +162,15 @@ const OptionRow: React.FC<OptionRowProps> = ({
     role="option"
     aria-selected={selected}
     tabIndex={tabStop ? 0 : -1}
+    aria-disabled={option.disabled || undefined}
     data-active={active || undefined}
     {...itemProps}
     className={cn(
       "flex items-center gap-2 w-full px-2 rounded-lg text-[13px] text-left transition-colors data-active:bg-(--layer-1) data-active:text-composer-text",
       option.detail ? "min-h-8.5 py-1.5" : "h-8.5",
-      selected
-        ? "bg-(--layer-2) text-composer-text"
-        : "cursor-pointer text-(--label) hover:bg-(--layer-1) hover:text-composer-text",
+      selected && "bg-(--layer-2) text-composer-text",
+      !selected && option.disabled && "cursor-not-allowed text-(--muted)",
+      !selected && !option.disabled && "cursor-pointer text-(--label) hover:bg-(--layer-1) hover:text-composer-text",
     )}
   >
     <span className="flex flex-1 min-w-0">{renderOption ? renderOption(option) : <OptionLabel option={option} />}</span>
@@ -186,6 +196,7 @@ const Select: React.FC<SelectProps> = ({
   renderOption,
   header,
   triggerAdornment,
+  mountOnFirstOpen = false,
 }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const listRef = useRef<Array<HTMLElement | null>>([]);
@@ -209,11 +220,11 @@ const Select: React.FC<SelectProps> = ({
       triggerAdornment,
     });
 
-  return (
+  const renderPopover = (anchor: PopoverAnchor) => (
     <Popover
+      {...anchor}
       placement={placement}
       hasPopup="listbox"
-      trigger={triggerElement}
       listNavigation={{
         listRef,
         activeIndex,
@@ -227,24 +238,32 @@ const Select: React.FC<SelectProps> = ({
           <Scroll className="max-h-80" onInitialized={focusTabStopOption}>
             {/* react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- styled single-select popover; datalist is input autocomplete, not a listbox, and would reintroduce native chrome */}
             <div role="listbox" aria-label={ariaLabel} className="flex flex-col p-1.5 w-max min-w-50 max-w-80">
-              {options.map((option, index) => (
-                <OptionRow
-                  key={option.value}
-                  option={option}
-                  selected={option.value === value}
-                  tabStop={index === tabStopIndex}
-                  active={index === activeIndex}
-                  itemRef={(node) => {
-                    listRef.current[index] = node;
-                  }}
-                  itemProps={getItemProps({
-                    onClick: () => {
-                      onChange(option.value);
-                      close();
-                    },
+              {optionRuns(options).map((run) => (
+                <OptionGroup key={run.group ?? `run-${run.start}`} name={run.group}>
+                  {run.options.map((option, offset) => {
+                    const index = run.start + offset;
+                    return (
+                      <OptionRow
+                        key={option.value}
+                        option={option}
+                        selected={option.value === value}
+                        tabStop={index === tabStopIndex}
+                        active={index === activeIndex}
+                        itemRef={(node) => {
+                          listRef.current[index] = node;
+                        }}
+                        itemProps={getItemProps({
+                          onClick: () => {
+                            if (option.disabled) return;
+                            onChange(option.value);
+                            close();
+                          },
+                        })}
+                        renderOption={renderOption}
+                      />
+                    );
                   })}
-                  renderOption={renderOption}
-                />
+                </OptionGroup>
               ))}
             </div>
           </Scroll>
@@ -252,9 +271,16 @@ const Select: React.FC<SelectProps> = ({
       )}
     </Popover>
   );
+
+  if (!mountOnFirstOpen) return renderPopover({ trigger: triggerElement });
+  return (
+    <LazyPopover hasPopup="listbox" trigger={triggerElement}>
+      {renderPopover}
+    </LazyPopover>
+  );
 };
 
 // -- Exports ------------------------------------------------------------------
 
-export { Select };
 export type { SelectOption };
+export { OptionLabel, Select };

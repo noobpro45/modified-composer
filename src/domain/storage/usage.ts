@@ -3,7 +3,7 @@ import type { ProjectIndexEntry } from "@/domain/project/index-entry";
 
 // -- Types --------------------------------------------------------------------
 
-type UsageEntry = Pick<ProjectIndexEntry, "audioKind" | "storedAudioBytes" | "recordBytes">;
+type UsageEntry = Pick<ProjectIndexEntry, "audioKind" | "storedAudioBytes" | "storedStemBytes" | "recordBytes">;
 
 interface StemJobUsage {
   jobKey: string;
@@ -16,7 +16,9 @@ interface StorageUsage {
   youtubeAudioBytes: number;
   stemBytes: number;
   lyricsBytes: number;
+  modelBytes: number;
   totalBytes: number;
+  cleanableBytes: number;
 }
 
 // -- Derivations --------------------------------------------------------------
@@ -25,6 +27,7 @@ function storageUsage(
   entries: readonly UsageEntry[],
   stemJobs: readonly StemJobUsage[],
   unindexedAudioBytes = 0,
+  modelBytes = 0,
 ): StorageUsage {
   let localAudioBytes = unindexedAudioBytes;
   let youtubeAudioBytes = 0;
@@ -32,16 +35,20 @@ function storageUsage(
   for (const entry of entries) {
     if (entry.audioKind === "youtube") youtubeAudioBytes += entry.storedAudioBytes;
     else localAudioBytes += entry.storedAudioBytes;
+    localAudioBytes += entry.storedStemBytes ?? 0;
     lyricsBytes += entry.recordBytes ?? 0;
   }
   let stemBytes = 0;
   for (const job of stemJobs) stemBytes += job.bytes;
+  const cleanableBytes = localAudioBytes + youtubeAudioBytes + stemBytes + lyricsBytes;
   return {
     localAudioBytes,
     youtubeAudioBytes,
     stemBytes,
     lyricsBytes,
-    totalBytes: localAudioBytes + youtubeAudioBytes + stemBytes + lyricsBytes,
+    modelBytes,
+    totalBytes: cleanableBytes + modelBytes,
+    cleanableBytes,
   };
 }
 

@@ -1,25 +1,38 @@
-import { RECOMMENDED_ALIGNMENT_MODEL } from "@/audio/alignment/hubertfa/model-manifest";
-import type { LibrarySort } from "@/domain/project/library-order";
-import type { MusicBrainzLookup } from "@/domain/musicbrainz/lookup-mode";
-import type { LaunchScreen, LibraryView } from "@/domain/project/library-preferences";
-import type { KeepYouTubeAudio } from "@/domain/storage/audio-retention";
-import type { StorageLimit } from "@/domain/storage/storage-limit";
-import { SETTINGS_PERSIST_VERSION, migrateSettings } from "@/stores/settings-migration";
-import { DEFAULT_BRIDGE_URL } from "@/utils/composer-bridge-api";
-import { PREVIEW_SIDEBAR_WIDTH } from "@/utils/preview-sidebar-width";
-import { DEFAULT_MIN_WORD_DURATION } from "@/utils/word-spaces";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { RECOMMENDED_ALIGNMENT_MODEL } from "@/audio/alignment/hubertfa/model-manifest";
+import type { MusicBrainzLookup } from "@/domain/musicbrainz/lookup-mode";
+import { DEFAULT_PITCH_LINE_MODE, type PitchLineMode } from "@/domain/pitch/pitch-line-mode";
+import type { LibrarySort } from "@/domain/project/library-order";
+import type { LaunchScreen, LibraryView } from "@/domain/project/library-preferences";
+import { SPECTRUM_SETTING_DEFAULTS, type SpectrumSettings } from "@/domain/spectrum/settings";
+import type { KeepYouTubeAudio } from "@/domain/storage/audio-retention";
+import type { StorageLimit } from "@/domain/storage/storage-limit";
+import {
+  BUILTIN_COBALT_INSTANCE,
+  type CobaltInstance,
+  type CobaltInstanceStatus,
+  createCobaltActions,
+  DEFAULT_COBALT_INSTANCE_ID,
+  resolveActiveCobaltInstance,
+  resolveIsDefaultCobaltInstance,
+} from "@/stores/settings-cobalt";
+import { mergeLocalBridge, RUNS_LOCALLY } from "@/stores/settings-local-bridge";
+import { migrateSettings, SETTINGS_PERSIST_VERSION } from "@/stores/settings-migration";
+import { SNAP_DEFAULTS, type SnapSettings } from "@/stores/settings-snap";
+import { UNISON_SETTING_DEFAULTS, type UnisonSettings } from "@/stores/settings-unison";
+import { DEFAULT_BRIDGE_URL } from "@/utils/composer-bridge-url";
+import { PREVIEW_SIDEBAR_WIDTH } from "@/utils/preview-sidebar-width";
+import { DEFAULT_MIN_WORD_DURATION } from "@/utils/word-spaces";
 
 // -- Types --------------------------------------------------------------------
 
 type GranularityDefault = "word" | "line";
 type LinkedDivergenceAction = "ask" | "apply" | "detach";
 type PreviewRenderer = "braccato" | "am-lyrics";
-type VocalModelVariant = "fp16" | "fp32";
+type VocalModelVariant = "fp16" | "fp32" | "roformer";
 type LanguageAutoGenerate = "auto" | "manual";
 type RomanizationCase = "preserve" | "lowercase";
-type TimelineVisualization = "waveform" | "spectrogram";
 type BooleanSettingKey = {
   [K in keyof SettingsState]: SettingsState[K] extends boolean ? K : never;
 }[keyof SettingsState];
@@ -28,21 +41,8 @@ interface ExperimentFlags {
   youtubeBridge: boolean;
 }
 
-interface CobaltInstance {
-  id: string;
-  label: string;
-  url: string;
-}
-
-interface CobaltInstanceStatus {
-  status: "success" | "error";
-  errorMessage?: string;
-  at: number;
-}
-
-const DEFAULT_COBALT_INSTANCE_ID = "default";
-
-interface SettingsState {
+interface SettingsState extends SnapSettings, SpectrumSettings, UnisonSettings {
+  pitchLine: PitchLineMode;
   defaultPlaybackRate: number;
   rememberPlaybackRate: boolean;
   lastPlaybackRate: number;
@@ -50,23 +50,21 @@ interface SettingsState {
   rememberVolume: boolean;
   lastVolume: number;
   audioScrubPreview: boolean;
-  scrubStyle: "smooth" | "classic";
+  showLevelMeters: boolean;
+
   defaultZoom: number;
   defaultRowHeight: number;
   followPlayhead: boolean;
-  defaultRollingEdit: boolean;
-  defaultPreviewSidebar: boolean;
+  returnToCue: boolean;
+  rollingEdit: boolean;
+  previewSidebar: boolean;
   previewSidebarWidth: number;
-  timelineSnap: boolean;
-  timelineSnapThreshold: number;
-  vocalOnsetSnap: boolean;
   shareTimingInNewGroups: boolean;
   loopOpenGroup: boolean;
-  snapPlayheadToPoints: boolean;
+  stepTimingBackground: boolean;
   syllablesFollowRolling: boolean;
   timelineHorizontalScroll: boolean;
-  timelineVisualization: TimelineVisualization;
-  spectrogramGain: number;
+
   nudgeAmount: number;
   defaultWordDuration: number;
   minWordDuration: number;
@@ -74,16 +72,22 @@ interface SettingsState {
   selectionLeadIn: number;
   syncCountIn: number;
   seekStep: number;
+  fineSeekStep: number;
   defaultGranularity: GranularityDefault;
+
   autoSaveDelay: number;
   keepYouTubeAudio: KeepYouTubeAudio;
   musicBrainzLookup: MusicBrainzLookup;
   smartCleanup: boolean;
   storageLimit: StorageLimit;
+
   libraryView: LibraryView;
   librarySort: LibrarySort;
   launchScreen: LaunchScreen;
+
   showShortcutHints: boolean;
+  showGuide: boolean;
+  guideHints: boolean;
   showSyllableIndicators: boolean;
   splitCharacter: string;
   autoExtractBackgroundVocals: boolean;
@@ -92,6 +96,7 @@ interface SettingsState {
   languageAutoGenerate: LanguageAutoGenerate;
   languageDefaultTarget: string;
   romanizationCase: RomanizationCase;
+
   confirmReplaceLyrics: boolean;
   confirmSyncReset: boolean;
   confirmClearProject: boolean;
@@ -102,14 +107,18 @@ interface SettingsState {
   confirmConformToGroup: boolean;
   confirmClearImportedSongDetails: boolean;
   linkedDivergenceAction: LinkedDivergenceAction;
+
   previewRenderer: PreviewRenderer;
+
   autoSeparateOnImport: boolean;
   vocalModelVariant: VocalModelVariant;
   alignmentModelId: string;
   keepAlignmentModelLoaded: boolean;
+
   cobaltInstances: CobaltInstance[];
   selectedCobaltInstanceId: string;
   cobaltInstanceStatus: Record<string, CobaltInstanceStatus>;
+
   experiments: ExperimentFlags;
   composerBridgeUrl: string;
 }
@@ -128,6 +137,11 @@ interface SettingsActions {
 // -- Defaults -----------------------------------------------------------------
 
 const DEFAULTS: SettingsState = {
+  ...SPECTRUM_SETTING_DEFAULTS,
+  pitchLine: DEFAULT_PITCH_LINE_MODE,
+  ...SNAP_DEFAULTS,
+  ...UNISON_SETTING_DEFAULTS,
+
   defaultPlaybackRate: 0.75,
   rememberPlaybackRate: true,
   lastPlaybackRate: 0.75,
@@ -135,40 +149,44 @@ const DEFAULTS: SettingsState = {
   rememberVolume: true,
   lastVolume: 1,
   audioScrubPreview: true,
-  scrubStyle: "smooth",
+  showLevelMeters: true,
+
   defaultZoom: 100,
   defaultRowHeight: 44,
   followPlayhead: true,
-  defaultRollingEdit: false,
-  defaultPreviewSidebar: false,
+  returnToCue: false,
+  rollingEdit: false,
+  previewSidebar: false,
   previewSidebarWidth: PREVIEW_SIDEBAR_WIDTH.default,
-  timelineSnap: true,
-  timelineSnapThreshold: 12,
-  vocalOnsetSnap: true,
   shareTimingInNewGroups: true,
   loopOpenGroup: false,
-  snapPlayheadToPoints: true,
+  stepTimingBackground: false,
   syllablesFollowRolling: false,
   timelineHorizontalScroll: false,
-  timelineVisualization: "waveform",
-  spectrogramGain: 1,
+
   nudgeAmount: 0.05,
   defaultWordDuration: 0.3,
   minWordDuration: DEFAULT_MIN_WORD_DURATION,
   redoPreroll: 1.5,
   selectionLeadIn: 0.3,
   syncCountIn: 3,
-  seekStep: 5,
+  seekStep: 0.5,
+  fineSeekStep: 0.05,
   defaultGranularity: "word",
+
   autoSaveDelay: 2000,
   keepYouTubeAudio: "auto",
   musicBrainzLookup: "auto",
   smartCleanup: true,
   storageLimit: "2gb",
+
   libraryView: "list",
   librarySort: "edited",
   launchScreen: "projects",
+
   showShortcutHints: true,
+  showGuide: true,
+  guideHints: true,
   showSyllableIndicators: true,
   splitCharacter: "|",
   autoExtractBackgroundVocals: true,
@@ -177,6 +195,7 @@ const DEFAULTS: SettingsState = {
   languageAutoGenerate: "auto",
   languageDefaultTarget: "en",
   romanizationCase: "preserve",
+
   confirmReplaceLyrics: true,
   confirmSyncReset: true,
   confirmClearProject: true,
@@ -187,9 +206,11 @@ const DEFAULTS: SettingsState = {
   confirmConformToGroup: true,
   confirmClearImportedSongDetails: true,
   linkedDivergenceAction: "ask",
+
   previewRenderer: "braccato",
+
   autoSeparateOnImport: false,
-  vocalModelVariant: "fp32",
+  vocalModelVariant: "fp16",
   alignmentModelId: RECOMMENDED_ALIGNMENT_MODEL,
   keepAlignmentModelLoaded: false,
 
@@ -197,14 +218,8 @@ const DEFAULTS: SettingsState = {
   selectedCobaltInstanceId: DEFAULT_COBALT_INSTANCE_ID,
   cobaltInstanceStatus: {},
 
-  experiments: { youtubeBridge: false },
+  experiments: { youtubeBridge: RUNS_LOCALLY },
   composerBridgeUrl: DEFAULT_BRIDGE_URL,
-};
-
-const BUILTIN_COBALT_INSTANCE: CobaltInstance = {
-  id: DEFAULT_COBALT_INSTANCE_ID,
-  label: "Composer",
-  url: "https://cobalt.boidu.dev",
 };
 
 // -- Store --------------------------------------------------------------------
@@ -235,64 +250,30 @@ const useSettingsStore = create<SettingsState & SettingsActions>()(
           experiments: state.experiments,
           composerBridgeUrl: state.composerBridgeUrl,
         })),
-      addCobaltInstance: (instance) =>
-        set((state) => {
-          const id = crypto.randomUUID();
-          return { cobaltInstances: [...state.cobaltInstances, { ...instance, id }] };
-        }),
-      updateCobaltInstance: (id, updates) =>
-        set((state) => ({
-          cobaltInstances: state.cobaltInstances.map((i) => (i.id === id ? { ...i, ...updates } : i)),
-        })),
-      removeCobaltInstance: (id) =>
-        set((state) => {
-          const nextStatus = { ...state.cobaltInstanceStatus };
-          delete nextStatus[id];
-          return {
-            cobaltInstances: state.cobaltInstances.filter((i) => i.id !== id),
-            selectedCobaltInstanceId:
-              state.selectedCobaltInstanceId === id ? DEFAULT_COBALT_INSTANCE_ID : state.selectedCobaltInstanceId,
-            cobaltInstanceStatus: nextStatus,
-          };
-        }),
-      selectCobaltInstance: (id) => set({ selectedCobaltInstanceId: id }),
-      recordCobaltInstanceResult: (id, status, errorMessage) =>
-        set((state) => ({
-          cobaltInstanceStatus: { ...state.cobaltInstanceStatus, [id]: { status, errorMessage, at: Date.now() } },
-        })),
+      ...createCobaltActions(set),
     }),
-    { name: "composer-settings", version: SETTINGS_PERSIST_VERSION, migrate: migrateSettings },
+    { name: "composer-settings", version: SETTINGS_PERSIST_VERSION, migrate: migrateSettings, merge: mergeLocalBridge },
   ),
 );
 
-function getActiveCobaltInstance(): CobaltInstance {
-  const { selectedCobaltInstanceId: id, cobaltInstances } = useSettingsStore.getState();
-  return id === DEFAULT_COBALT_INSTANCE_ID
-    ? BUILTIN_COBALT_INSTANCE
-    : (cobaltInstances.find((i) => i.id === id) ?? BUILTIN_COBALT_INSTANCE);
-}
-
-function isUsingDefaultCobaltInstance(): boolean {
-  const { selectedCobaltInstanceId: id, cobaltInstances } = useSettingsStore.getState();
-  return id === DEFAULT_COBALT_INSTANCE_ID || !cobaltInstances.some((i) => i.id === id);
-}
+const getActiveCobaltInstance = () => resolveActiveCobaltInstance(useSettingsStore.getState());
+const isUsingDefaultCobaltInstance = () => resolveIsDefaultCobaltInstance(useSettingsStore.getState());
 
 // -- Exports ------------------------------------------------------------------
 
-export {
-  useSettingsStore,
-  DEFAULTS,
-  BUILTIN_COBALT_INSTANCE,
-  DEFAULT_COBALT_INSTANCE_ID,
-  getActiveCobaltInstance,
-  isUsingDefaultCobaltInstance,
-};
 export type {
   BooleanSettingKey,
   CobaltInstanceStatus,
   LanguageAutoGenerate,
   RomanizationCase,
   SettingsState,
-  TimelineVisualization,
   VocalModelVariant,
+};
+export {
+  BUILTIN_COBALT_INSTANCE,
+  DEFAULT_COBALT_INSTANCE_ID,
+  DEFAULTS,
+  getActiveCobaltInstance,
+  isUsingDefaultCobaltInstance,
+  useSettingsStore,
 };

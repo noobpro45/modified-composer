@@ -49,6 +49,17 @@ describe("WordBlock", () => {
     expect(clicks).toBe(1);
   });
 
+  it("regression: a key that belongs to a shortcut does not also click the focused block", async () => {
+    let clicks = 0;
+    await render(<WordBlock {...DEFAULT_PROPS} onClick={() => clicks++} />, { dndContext: true });
+    const block = document.querySelector("[data-word-block]") as HTMLElement;
+    block.focus();
+    block.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    block.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+    block.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", repeat: true, bubbles: true }));
+    expect(clicks).toBe(0);
+  });
+
   it("fires onResizeStart with 'right' and the starting clientX when the right handle is mousedowned", async () => {
     let edge: string | null = null;
     let startX = -1;
@@ -200,13 +211,15 @@ describe("WordBlock", () => {
     expect(block.className).not.toContain("is-snapped");
   });
 
-  // Word faces have no border since 2.0, so a detached syllable keeps its own rounded corner instead of a dashed edge.
-  it("rounds the left corner of a syllable that has a timing gap before it", async () => {
+  // A syllable split from its word by a timing gap stays square on that side and marks the cut, so it never reads as a separate word.
+  it("squares and marks the cut corner of a syllable that has a timing gap before it", async () => {
     const screen = await render(<WordBlock {...DEFAULT_PROPS} syllablePosition="last" gapBefore />, {
       dndContext: true,
     });
     const block = screen.container.querySelector("[data-word-block]") as HTMLElement;
-    expect(block.className).not.toContain("rounded-l-none");
+    expect(block.className).toContain("rounded-l-none");
+    expect(block.dataset.gapBefore).toBeDefined();
+    expect(block.dataset.gapAfter).toBeUndefined();
   });
 
   it("squares the left corner of a flush syllable with no gap before it", async () => {

@@ -9,17 +9,29 @@ function matchKey(text: string): string {
   return stripSplitCharacter(cleanSplitCharacters(text.trim()));
 }
 
+function carriesBackground(line: LyricLine): boolean {
+  return (
+    line.backgroundText !== undefined || line.backgroundWords !== undefined || line.backgroundTextSource !== undefined
+  );
+}
+
+function keepsNoTimedBackground(line: LyricLine, source: LyricLine | undefined): boolean {
+  const sourceText = source && cleanSplitCharacters(source.text.trim());
+  return sourceText !== line.text || !line.backgroundWords?.length;
+}
+
 function textToLyricLines(text: string, defaultAgentId: string, existingLines: LyricLine[] = []): LyricLine[] {
   const textToCandidates = new Map<string, LyricLine[]>();
-  for (const line of existingLines) {
-    const key = matchKey(line.text);
+  const existingKeys = existingLines.map((line) => matchKey(line.text));
+  existingLines.forEach((line, index) => {
+    const key = existingKeys[index];
     let bucket = textToCandidates.get(key);
     if (!bucket) {
       bucket = [];
       textToCandidates.set(key, bucket);
     }
     bucket.push(line);
-  }
+  });
 
   const usedExistingIds = new Set<string>();
   const newLines = text.split("\n");
@@ -30,6 +42,7 @@ function textToLyricLines(text: string, defaultAgentId: string, existingLines: L
   const allowPositionMatch = newLines.length === existingLines.length;
 
   const cleanedTexts = newLines.map((lineText) => cleanSplitCharacters(lineText.trim()));
+  const cleanedKeys = cleanedTexts.map(matchKey);
   const claimed: Array<LyricLine | undefined> = new Array(newLines.length);
   const claim = (index: number, line: LyricLine) => {
     claimed[index] = line;
@@ -39,25 +52,30 @@ function textToLyricLines(text: string, defaultAgentId: string, existingLines: L
   // Rows still showing their own line's text keep that line before any row can
   // match it by text, so fixing a line into a later duplicate cannot steal it.
   if (allowPositionMatch) {
-    cleanedTexts.forEach((cleanedText, index) => {
-      if (matchKey(existingLines[index].text) === matchKey(cleanedText)) claim(index, existingLines[index]);
+    cleanedKeys.forEach((_, index) => {
+      if (existingKeys[index] === cleanedKeys[index]) claim(index, existingLines[index]);
     });
   }
 
-  cleanedTexts.forEach((cleanedText, index) => {
+  cleanedKeys.forEach((_, index) => {
     if (claimed[index]) return;
-    const exactMatch = textToCandidates.get(matchKey(cleanedText))?.find((line) => !usedExistingIds.has(line.id));
+    const exactMatch = textToCandidates.get(cleanedKeys[index])?.find((line) => !usedExistingIds.has(line.id));
     if (exactMatch) claim(index, exactMatch);
   });
 
+  const sources: Array<LyricLine | undefined> = new Array(newLines.length);
   const mapped = cleanedTexts.map((cleanedText, index) => {
     const matched = claimed[index];
-    if (matched) return reconcileMatchedTiming(matched, cleanedText);
+    if (matched) {
+      sources[index] = matched;
+      return reconcileMatchedTiming(matched, cleanedText);
+    }
 
     if (allowPositionMatch) {
       const positionMatch = existingLines[index];
       if (!usedExistingIds.has(positionMatch.id)) {
         usedExistingIds.add(positionMatch.id);
+        sources[index] = positionMatch;
         return reconcileMatchedTiming(positionMatch, cleanedText);
       }
     }
@@ -69,9 +87,13 @@ function textToLyricLines(text: string, defaultAgentId: string, existingLines: L
     };
   });
 
-  // Raw parentheses in `text` are the source of truth for background vocals;
-  // a carried-over extracted backgroundText would double on re-extraction.
-  return mapped.map((line) => (/\([^)]*\)/.test(line.text) ? { ...line, ...CLEARED_BACKGROUND } : line));
+  // Parentheses in a row stand for its background vocals, so a carried-over background would double on
+  // re-extraction. Timed background words on a row the edit left unchanged are kept.
+  return mapped.map((line, index) =>
+    carriesBackground(line) && keepsNoTimedBackground(line, sources[index]) && /\([^)]*\)/.test(line.text)
+      ? { ...line, ...CLEARED_BACKGROUND }
+      : line,
+  );
 }
 
 // -- Exports ------------------------------------------------------------------

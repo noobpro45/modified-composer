@@ -1,9 +1,11 @@
 import { useLevelEnvelope } from "@/audio/deck/use-level-envelope";
 import type { LevelEnvelope } from "@/audio/level-envelope";
 import { useFrameLoop } from "@/hooks/use-frame-loop";
+import { noteGuideGesture } from "@/lib/guide-gesture-signal";
 import { livePlaybackTime, useAudioStore } from "@/stores/audio";
 import { useThemeStore } from "@/stores/theme";
 import { Slider } from "@/ui/slider";
+import { playheadTime } from "@/views/timeline/playhead-time";
 import { SeekBarFocusBand } from "@/views/timeline/seek-bar-focus-band";
 import { useLayoutEffect, useRef } from "react";
 
@@ -21,12 +23,15 @@ interface Painter {
   bars: Bar[];
   width: number;
   headBar: number;
+  headPlayed: [number, number, number];
+  headX: number;
   idle: string;
   played: string;
 }
 
 // -- Constants ----------------------------------------------------------------
 
+const SHORT_STEP_BACK_SECONDS = 10;
 const BAR_PITCH = 3;
 const BAR_WIDTH = 2;
 const MIN_BAR_HEIGHT = 2;
@@ -64,6 +69,11 @@ function layoutBars(values: readonly number[], height: number, pixelRatio: numbe
   });
 }
 
+function playedWidthOf(painter: Painter, barIndex: number, headX: number): number {
+  const bar = painter.bars[barIndex];
+  return bar ? Math.max(0, Math.min(bar.width, headX - bar.x)) : 0;
+}
+
 function paintBars(painter: Painter, from: number, to: number, headX: number): void {
   const { context, bars } = painter;
   if (!context) return;
@@ -89,19 +99,24 @@ function paintBars(painter: Painter, from: number, to: number, headX: number): v
   }
 }
 
+function seekFromOverview(time: number): void {
+  const stepBack = livePlaybackTime() - time;
+  if (stepBack > 0 && stepBack < SHORT_STEP_BACK_SECONDS) noteGuideGesture("transport.scrubBack");
+  useAudioStore.getState().seekTo(time);
+}
+
 // -- Components ---------------------------------------------------------------
 
 // Its own component so the 4 Hz time updates re-render only the slider, never the canvas owner.
 const SeekOverlay: React.FC<{ duration: number }> = ({ duration }) => {
   const currentTime = useAudioStore((state) => state.currentTime);
-  const seekTo = useAudioStore((state) => state.seekTo);
   return (
     <Slider
       appearance="overlay"
       value={currentTime}
       min={0}
       max={duration}
-      onChange={seekTo}
+      onChange={seekFromOverview}
       aria-label="Audio progress"
       className="absolute! inset-x-2 inset-y-0"
     />
@@ -116,16 +131,37 @@ const OverviewScrub: React.FC = () => {
   const headRef = useRef<HTMLDivElement>(null);
   const idleProbeRef = useRef<HTMLSpanElement>(null);
   const playedProbeRef = useRef<HTMLSpanElement>(null);
-  const painter = useRef<Painter>({ context: null, bars: [], width: 0, headBar: -1, idle: "", played: "" }).current;
+  const painter = useRef<Painter>({
+    context: null,
+    bars: [],
+    width: 0,
+    headBar: -1,
+    headPlayed: [0, 0, 0],
+    headX: Number.NaN,
+    idle: "",
+    played: "",
+  }).current;
 
   const moveHead = () => {
     if (duration <= 0 || painter.width <= 0) return;
-    const headX = (livePlaybackTime() / duration) * painter.width;
+    const headX = (playheadTime() / duration) * painter.width;
+    if (painter.headBar >= 0 && headX === painter.headX) return;
+    painter.headX = headX;
     if (headRef.current) headRef.current.style.translate = `${headX - 1}px 0`;
     const headBar = Math.floor(headX / BAR_PITCH);
+    const [before, at, after] = painter.headPlayed;
+    const playedBefore = playedWidthOf(painter, headBar - 1, headX);
+    const playedAt = playedWidthOf(painter, headBar, headX);
+    const playedAfter = playedWidthOf(painter, headBar + 1, headX);
+    const unchanged =
+      headBar === painter.headBar && before === playedBefore && at === playedAt && after === playedAfter;
     if (painter.headBar < 0) paintBars(painter, 0, painter.bars.length - 1, headX);
-    else paintBars(painter, Math.min(painter.headBar, headBar) - 1, Math.max(painter.headBar, headBar) + 1, headX);
+    else if (!unchanged)
+      paintBars(painter, Math.min(painter.headBar, headBar) - 1, Math.max(painter.headBar, headBar) + 1, headX);
     painter.headBar = headBar;
+    painter.headPlayed[0] = playedBefore;
+    painter.headPlayed[1] = playedAt;
+    painter.headPlayed[2] = playedAfter;
   };
 
   useLayoutEffect(() => {
@@ -159,7 +195,10 @@ const OverviewScrub: React.FC = () => {
   useFrameLoop(moveHead, "deck-overview-head");
 
   return (
-    <div className="relative flex-1 min-w-0 h-14 overflow-hidden rounded-xl bg-(--well) shadow-(--well-edge)">
+    <div
+      data-guide-spot="overview"
+      className="relative flex-1 min-w-0 h-14 overflow-hidden rounded-xl bg-(--well) shadow-(--well-edge)"
+    >
       <span
         ref={idleProbeRef}
         aria-hidden="true"

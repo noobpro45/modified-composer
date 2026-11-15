@@ -2,50 +2,95 @@ const N_FFT = 4096;
 const HOP_LENGTH = 1024;
 const WIN_LENGTH = N_FFT;
 
+interface StftFraming {
+  fftSize?: number;
+  hop?: number;
+  firstFrame?: number;
+  frameCount?: number;
+}
+
 // Periodic Hann window: divisor is `size` (not `size - 1`). Matches PyTorch's
 // `torch.hann_window(size, periodic=True)`, which is what `torch.stft` uses by
 // default. The symmetric variant (divisor `size - 1`) introduces a small but
 // consistent shape error across every frame that gets amplified through the
 // HTDemucs magnitude branch — audible as distortion in the separated stems.
+const hannWindows = new Map<number, Float32Array>();
+
 function hannWindow(size: number): Float32Array {
+  const cached = hannWindows.get(size);
+  if (cached) return cached;
   const w = new Float32Array(size);
   for (let i = 0; i < size; i++) {
     w[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / size));
   }
+  hannWindows.set(size, w);
   return w;
 }
 
-function bitReverse(value: number, bits: number): number {
-  let reversed = 0;
-  let v = value;
-  for (let i = 0; i < bits; i++) {
-    reversed = (reversed << 1) | (v & 1);
-    v >>>= 1;
+// Recomputing cos/sin per butterfly dominated per-chunk CPU time, so build the plan once per length.
+interface FftPlan {
+  bitReversed: Uint32Array;
+  cos: Float64Array;
+  sin: Float64Array;
+}
+
+const fftPlans = new Map<number, FftPlan>();
+
+function getFftPlan(n: number): FftPlan {
+  const cached = fftPlans.get(n);
+  if (cached) return cached;
+
+  const bits = Math.log2(n);
+  if (!Number.isInteger(bits)) throw new Error("FFT length must be power of 2");
+
+  const bitReversed = new Uint32Array(n);
+  for (let i = 0; i < n; i++) {
+    let reversed = 0;
+    let v = i;
+    for (let b = 0; b < bits; b++) {
+      reversed = (reversed << 1) | (v & 1);
+      v >>>= 1;
+    }
+    bitReversed[i] = reversed;
   }
-  return reversed;
+
+  // w_k = exp(-2*pi*i*k/n) for k < n/2; a stage of size `size` uses every (n/size)-th entry.
+  const cos = new Float64Array(n / 2);
+  const sin = new Float64Array(n / 2);
+  for (let k = 0; k < n / 2; k++) {
+    const angle = (-2 * Math.PI * k) / n;
+    cos[k] = Math.cos(angle);
+    sin[k] = Math.sin(angle);
+  }
+
+  const plan = { bitReversed, cos, sin };
+  fftPlans.set(n, plan);
+  return plan;
 }
 
 function fftRadix2(real: Float32Array, imag: Float32Array): void {
   const n = real.length;
-  const bits = Math.log2(n);
-  if (!Number.isInteger(bits)) throw new Error("FFT length must be power of 2");
+  const { bitReversed, cos, sin } = getFftPlan(n);
 
   for (let i = 0; i < n; i++) {
-    const j = bitReverse(i, bits);
+    const j = bitReversed[i];
     if (j > i) {
-      [real[i], real[j]] = [real[j], real[i]];
-      [imag[i], imag[j]] = [imag[j], imag[i]];
+      const tr = real[i];
+      real[i] = real[j];
+      real[j] = tr;
+      const ti = imag[i];
+      imag[i] = imag[j];
+      imag[j] = ti;
     }
   }
 
   for (let size = 2; size <= n; size *= 2) {
     const halfsize = size / 2;
-    const angleStep = (-2 * Math.PI) / size;
+    const tableStep = n / size;
     for (let i = 0; i < n; i += size) {
       for (let k = 0; k < halfsize; k++) {
-        const angle = angleStep * k;
-        const wr = Math.cos(angle);
-        const wi = Math.sin(angle);
+        const wr = cos[k * tableStep];
+        const wi = sin[k * tableStep];
         const idx = i + k;
         const jdx = idx + halfsize;
         const tr = wr * real[jdx] - wi * imag[jdx];
@@ -100,26 +145,48 @@ interface StftOptions {
   normalized?: boolean;
 }
 
-function stftFrameCount(signalLength: number, center = true): number {
-  const framedLength = center ? signalLength + WIN_LENGTH : signalLength;
-  return 1 + Math.floor((framedLength - WIN_LENGTH) / HOP_LENGTH);
+function stftFrameCount(signalLength: number, center = true, framing: StftFraming = {}): number {
+  const { fftSize = N_FFT, hop = HOP_LENGTH } = framing;
+  const framedLength = center ? signalLength + fftSize : signalLength;
+  return 1 + Math.floor((framedLength - fftSize) / hop);
 }
 
 type StftFrameVisitor = (frame: number, real: Float32Array, imag: Float32Array) => void;
 
-function forEachStftFrame(signal: Float32Array, onFrame: StftFrameVisitor, center = true): void {
-  const window = hannWindow(WIN_LENGTH);
-  const framed = center ? reflectPad(signal, WIN_LENGTH / 2, WIN_LENGTH / 2) : signal;
-  const numFrames = stftFrameCount(signal.length, center);
-  const frameReal = new Float32Array(N_FFT);
-  const frameImag = new Float32Array(N_FFT);
+// Same samples as reflectPad, read in place so a frame range never copies the whole signal.
+function centeredSample(signal: Float32Array, index: number): number {
+  if (index < 0) {
+    const src = -index;
+    return signal[src < signal.length ? src : signal.length - 1];
+  }
+  if (index >= signal.length) {
+    const src = 2 * signal.length - 2 - index;
+    return signal[src >= 0 ? src : 0];
+  }
+  return signal[index];
+}
 
-  for (let f = 0; f < numFrames; f++) {
-    const start = f * HOP_LENGTH;
-    for (let i = 0; i < WIN_LENGTH; i++) {
-      frameReal[i] = framed[start + i] * window[i];
+function forEachStftFrame(
+  signal: Float32Array,
+  onFrame: StftFrameVisitor,
+  center = true,
+  framing: StftFraming = {},
+): void {
+  const { fftSize = N_FFT, hop = HOP_LENGTH, firstFrame = 0 } = framing;
+  const window = hannWindow(fftSize);
+  const totalFrames = stftFrameCount(signal.length, center, framing);
+  const lastFrame = Math.min(totalFrames, firstFrame + (framing.frameCount ?? totalFrames));
+  const offset = center ? fftSize / 2 : 0;
+  const frameReal = new Float32Array(fftSize);
+  const frameImag = new Float32Array(fftSize);
+
+  for (let f = firstFrame; f < lastFrame; f++) {
+    const start = f * hop - offset;
+    if (start >= 0 && start + fftSize <= signal.length) {
+      for (let i = 0; i < fftSize; i++) frameReal[i] = signal[start + i] * window[i];
+    } else {
+      for (let i = 0; i < fftSize; i++) frameReal[i] = centeredSample(signal, start + i) * window[i];
     }
-    if (N_FFT > WIN_LENGTH) frameReal.fill(0, WIN_LENGTH);
     frameImag.fill(0);
     fftRadix2(frameReal, frameImag);
     onFrame(f, frameReal, frameImag);
@@ -153,17 +220,24 @@ interface IstftOptions {
   normalized?: boolean;
 }
 
-function istft(spec: Spectrogram, outputLength: number, opts: IstftOptions = {}): Float32Array {
+// The window is as long as the FFT, so `fftSize` sets both.
+function istft(
+  spec: Spectrogram,
+  outputLength: number,
+  opts: IstftOptions = {},
+  framing: Pick<StftFraming, "fftSize" | "hop"> = {},
+): Float32Array {
   const { normalized = false } = opts;
-  const window = hannWindow(WIN_LENGTH);
-  const halfWin = WIN_LENGTH / 2;
-  const paddedLength = outputLength + WIN_LENGTH;
+  const { fftSize = WIN_LENGTH, hop = HOP_LENGTH } = framing;
+  const window = hannWindow(fftSize);
+  const halfWin = fftSize / 2;
+  const paddedLength = outputLength + fftSize;
   const out = new Float32Array(paddedLength);
   const norm = new Float32Array(paddedLength);
 
-  const frameReal = new Float32Array(N_FFT);
-  const frameImag = new Float32Array(N_FFT);
-  const scale = normalized ? Math.sqrt(N_FFT) : 1;
+  const frameReal = new Float32Array(fftSize);
+  const frameImag = new Float32Array(fftSize);
+  const scale = normalized ? Math.sqrt(fftSize) : 1;
 
   for (let f = 0; f < spec.numFrames; f++) {
     frameReal.fill(0);
@@ -173,12 +247,12 @@ function istft(spec: Spectrogram, outputLength: number, opts: IstftOptions = {})
       frameImag[b] = spec.imag[f * spec.numBins + b];
     }
     for (let b = 1; b < spec.numBins - 1; b++) {
-      frameReal[N_FFT - b] = frameReal[b];
-      frameImag[N_FFT - b] = -frameImag[b];
+      frameReal[fftSize - b] = frameReal[b];
+      frameImag[fftSize - b] = -frameImag[b];
     }
     ifftRadix2(frameReal, frameImag);
-    const start = f * HOP_LENGTH;
-    for (let i = 0; i < WIN_LENGTH; i++) {
+    const start = f * hop;
+    for (let i = 0; i < fftSize; i++) {
       out[start + i] += frameReal[i] * scale * window[i];
       norm[start + i] += window[i] * window[i];
     }

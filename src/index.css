@@ -90,6 +90,7 @@
     );
   --cap: color-mix(in oklab, var(--ink) 8%, var(--color-composer-bg));
   --raised-edge: inset 0 0 0 1px var(--edge), inset 0 1px 0 var(--highlight);
+  --key-edge: color-mix(in oklab, var(--ink) 2.5%, transparent);
   --display: color-mix(in oklab, var(--color-composer-bg-dark) 75%, var(--color-composer-bg));
   --on-display: color-mix(in oklab, var(--ink) 82%, transparent);
   --on-display-dim: color-mix(in oklab, var(--ink) 38%, transparent);
@@ -99,9 +100,10 @@
   --raised-face: var(--layer-2);
   --raised-face-hover: var(--layer-3);
   --lit-ring: color-mix(in oklab, var(--color-composer-accent) 30%, transparent);
+  --key-lit-ring: color-mix(in oklab, var(--color-composer-accent) 5%, transparent);
   --gutter-bg: color-mix(in oklab, var(--color-composer-bg) 40%, var(--color-composer-bg-dark));
-  --float-shadow: inset 0 0 0 1px var(--edge), inset 0 1px 0 var(--highlight), 0 18px 40px -12px
-    rgb(var(--shade) / 0.55);
+  --float-shadow:
+    inset 0 0 0 1px var(--edge), inset 0 1px 0 var(--highlight), 0 18px 40px -12px rgb(var(--shade) / 0.55);
   --word-face: color-mix(in oklab, var(--ink) 11%, var(--color-composer-bg));
   --word-shadow: color-mix(in oklab, color-mix(in oklab, var(--color-composer-bg-dark) 45%, black) 28%, transparent);
   --word-elev:
@@ -136,6 +138,7 @@ html[data-scheme="light"] {
 
 /* Base styles */
 html {
+  overscroll-behavior: none;
   font-size: 16px;
   color-scheme: dark;
   -webkit-font-smoothing: antialiased;
@@ -215,8 +218,17 @@ braccato-lyrics .blyrics-container {
   filter: opacity(0.3);
 }
 
-/* Text selection */
-::selection {
+/* Text selection. Excludes animated Timeline and lyric parts: a match restyles their subtree on every animation frame */
+:not(
+  .word-face,
+  [data-timeline-row],
+  .blyrics--line,
+  .blyrics-word-group,
+  .blyrics-sweep-cell,
+  .blyrics-sweep-mask,
+  .blyrics-sweep-text,
+  .blyrics-sweep-glow
+)::selection {
   background-color: color-mix(in srgb, var(--color-composer-accent) 40%, transparent);
   color: var(--color-composer-text);
 }
@@ -237,21 +249,21 @@ braccato-lyrics .blyrics-container {
 /* Keyboard focus tints the control like hover; tabindex="-1" click surfaces (waveform, words) never tint. */
 @layer base {
   :where(
-      a[href],
-      button,
-      summary,
-      [role="button"],
-      [role="tab"],
-      [role="option"],
-      [role="menuitem"],
-      [role="menuitemradio"],
-      [role="menuitemcheckbox"],
-      [role="switch"],
-      [role="slider"],
-      [role="radio"],
-      [role="checkbox"],
-      [tabindex="0"]
-    ):not([tabindex="-1"]):focus-visible {
+    a[href],
+    button,
+    summary,
+    [role="button"],
+    [role="tab"],
+    [role="option"],
+    [role="menuitem"],
+    [role="menuitemradio"],
+    [role="menuitemcheckbox"],
+    [role="switch"],
+    [role="slider"],
+    [role="radio"],
+    [role="checkbox"],
+    [tabindex="0"]
+  ):not([tabindex="-1"]):focus-visible {
     background-image: linear-gradient(var(--focus-tint), var(--focus-tint));
   }
 }
@@ -334,7 +346,9 @@ braccato-lyrics .blyrics-container {
   padding: 4px 0 0;
   border-radius: 4px 4px 5px 5px;
   background: var(--color-composer-snap);
-  box-shadow: inset 0 1px 0 color-mix(in oklab, white 45%, transparent), 0 0 0 1.5px var(--color-composer-bg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 45%, transparent),
+    0 0 0 1.5px var(--color-composer-bg);
   & > i {
     width: 1.5px;
     height: 6px;
@@ -347,6 +361,23 @@ braccato-lyrics .blyrics-container {
   }
   &[data-dragging] {
     translate: 0 1px;
+  }
+}
+
+/* The cue: a ruler-coloured notch whose sharp point sits on the cue time. Its hit area is the parent. */
+@utility cue-notch {
+  width: 9px;
+  height: 6.75px;
+  background: var(--color-composer-text-tertiary);
+  clip-path: path("M 2.99 0 L 6.01 0 A 1.6 1.6 0 0 1 7.342 2.488 L 4.5 6.75 L 1.658 2.488 A 1.6 1.6 0 0 1 2.99 0 Z");
+  transition: background-color 150ms;
+  @media (hover: hover) {
+    :hover > & {
+      background: var(--color-composer-text);
+    }
+  }
+  &[data-latched] {
+    background: var(--color-composer-accent-text);
   }
 }
 
@@ -427,6 +458,18 @@ braccato-lyrics .blyrics-container {
   cursor: crosshair;
 }
 
+/* Word blocks set their own cursors, so the paste cursor must win over them. */
+@utility paste-cursor {
+  &[data-paste-cursor="copy"],
+  &[data-paste-cursor="copy"] * {
+    cursor: copy !important;
+  }
+  &[data-paste-cursor="blocked"],
+  &[data-paste-cursor="blocked"] * {
+    cursor: not-allowed !important;
+  }
+}
+
 /* Marker mode arms the ruler and the waveform as one drop zone. */
 @utility marker-zone-armed {
   height: calc(var(--spacing) * 7 + 80px);
@@ -474,11 +517,43 @@ braccato-lyrics .blyrics-container {
   display: flex;
   align-items: center;
   gap: var(--tray-pad);
-  height: 36px;
+  height: var(--tray-height, 36px);
   padding: var(--tray-pad);
-  border-radius: calc(8px + var(--tray-pad));
+  border-radius: calc(var(--tray-inner-radius, 8px) + var(--tray-pad));
   background: var(--well);
   box-shadow: var(--well-edge);
+}
+
+@utility beat-grid-past-dim {
+  mask-image: linear-gradient(to right, rgb(0 0 0 / 0.4) var(--played-x, 0px), black var(--played-x, 0px));
+}
+
+@utility tray-compact {
+  --tray-pad: 2px;
+  --tray-height: 28px;
+  --tray-inner-radius: 6px;
+}
+
+@utility tap-key {
+  --face-top: color-mix(in oklab, var(--ink) 15%, var(--display));
+  --face-bottom: color-mix(in oklab, var(--ink) 9%, var(--display));
+  --side: color-mix(in oklab, var(--face-bottom) 55%, var(--display));
+  min-width: 88px;
+  html[data-scheme="light"] & {
+    --face-top: white;
+    --face-bottom: color-mix(in oklab, white 70%, var(--pop));
+    --side: color-mix(in oklab, var(--pop) 70%, var(--color-composer-text-faint));
+  }
+  & > .key-cap {
+    padding-inline: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--ink);
+  }
+  & > .key-cap > [data-inline-key-badge] {
+    margin-left: 0;
+  }
 }
 
 @utility latch-on {
@@ -498,7 +573,10 @@ braccato-lyrics .blyrics-container {
     height: 20px;
     border-radius: 6px;
     color: var(--muted);
-    transition: background-color var(--split-ease), color var(--split-ease), scale var(--split-ease);
+    transition:
+      background-color var(--split-ease),
+      color var(--split-ease),
+      scale var(--split-ease);
   }
   & button[aria-haspopup]:hover,
   & button[aria-haspopup][aria-expanded="true"] {
@@ -519,7 +597,9 @@ braccato-lyrics .blyrics-container {
   align-items: center;
   height: 28px;
   border-radius: 8px;
-  transition: background-color var(--split-ease), box-shadow var(--split-ease);
+  transition:
+    background-color var(--split-ease),
+    box-shadow var(--split-ease);
   &:has([aria-pressed="true"]) {
     background: color-mix(in oklab, var(--color-composer-accent) 12%, var(--cap));
     box-shadow: inset 0 0 0 1px var(--lit-ring);
@@ -558,15 +638,58 @@ braccato-lyrics .blyrics-container {
   }
 }
 
+@utility split-raised {
+  @apply split-caret;
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  background: var(--raised-face);
+  box-shadow: var(--raised-edge);
+  transition: background-color var(--split-ease);
+  &:has(> :first-child > button:hover:not(:disabled)) {
+    background: var(--raised-face-hover);
+  }
+  & > :first-child > button {
+    background: none;
+  }
+  & button[aria-haspopup] {
+    margin-right: 6px;
+  }
+}
 @utility surface-modal {
-  animation: modal-pop-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: modal-pop-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  [data-handoff] > & {
+    animation: none;
+  }
+  [data-leaving] > & {
+    animation: modal-pop-out 150ms ease-out both;
+  }
   background: var(--pop);
-  box-shadow: inset 0 0 0 1px var(--edge), inset 0 1px 0 var(--highlight), 0 32px 64px -16px rgb(var(--shade) / 0.6), 0
-    4px 12px rgb(var(--shade) / 0.25);
+  box-shadow:
+    0 32px 64px -16px rgb(var(--shade) / 0.6),
+    0 4px 12px rgb(var(--shade) / 0.25);
+  /* The edge sits above the content, so an opaque sticky header never hides it. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow:
+      inset 0 0 0 1px var(--edge),
+      inset 0 1px 0 var(--highlight);
+  }
 }
 
 @utility modal-scrim {
   animation: modal-scrim-in 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  &[data-handoff] {
+    animation: none;
+  }
+  &[data-leaving] {
+    animation: modal-scrim-out 150ms ease-out both;
+  }
   background: rgb(0 0 0 / 0.55);
   backdrop-filter: blur(4px);
   html[data-scheme="light"] & {
@@ -582,8 +705,21 @@ braccato-lyrics .blyrics-container {
   }
 }
 
+@keyframes modal-pop-out {
+  to {
+    opacity: 0;
+    translate: 0 -12px;
+  }
+}
+
 @keyframes modal-scrim-in {
   from {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-scrim-out {
+  to {
     opacity: 0;
   }
 }
@@ -641,6 +777,22 @@ braccato-lyrics .blyrics-container {
   box-shadow: var(--float-shadow);
 }
 
+/* A disc of the orb's face under the count badge, clipped by the orb, so the gap shows only where they overlap. */
+@utility orb-badge-gap {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    background: var(--pop);
+    pointer-events: none;
+  }
+}
+
 /* Timeline panning mode */
 @layer components {
   /* Extruded key: the base paints the side, the cap is the face. Press sinks the cap into the side. */
@@ -676,7 +828,9 @@ braccato-lyrics .blyrics-container {
       gap: 8px;
       border-radius: inherit;
       background: linear-gradient(to bottom, var(--face-top), var(--face-bottom));
-      box-shadow: inset 0 0 0 1px var(--edge), inset 0 1px 0 var(--highlight);
+      box-shadow:
+        inset 0 0 0 1px var(--key-edge),
+        inset 0 1px 0 var(--highlight);
       transition: translate 160ms cubic-bezier(0.22, 1, 0.36, 1);
     }
     &:hover > .key-cap {
@@ -687,7 +841,8 @@ braccato-lyrics .blyrics-container {
       );
     }
     &:focus-visible > .key-cap {
-      background: linear-gradient(var(--focus-tint), var(--focus-tint)),
+      background:
+        linear-gradient(var(--focus-tint), var(--focus-tint)),
         linear-gradient(to bottom, var(--face-top), var(--face-bottom));
     }
     &:active > .key-cap,
@@ -711,7 +866,9 @@ braccato-lyrics .blyrics-container {
     }
     &[aria-pressed="true"] > .key-cap,
     &[data-lit] > .key-cap {
-      box-shadow: inset 0 0 0 1px var(--lit-ring), inset 0 1px 0 var(--highlight);
+      box-shadow:
+        inset 0 0 0 1px var(--key-lit-ring),
+        inset 0 1px 0 var(--highlight);
     }
     &:disabled {
       cursor: not-allowed;
@@ -761,7 +918,6 @@ braccato-lyrics .blyrics-container {
   .timeline-playhead-bar,
   .timeline-playhead-cap {
     will-change: transform;
-    transition: transform 32ms linear;
   }
 
   .timeline-playhead-bar {
@@ -775,8 +931,8 @@ braccato-lyrics .blyrics-container {
 }
 
 /* Range input styling */
-/* Help search matches, painted with the Custom Highlight API; mirrors HighlightMatches */
-::highlight(help-match) {
+/* Help search matches (Custom Highlight API), scoped to results so animating elements are not restyled */
+[data-help-result-section] ::highlight(help-match) {
   color: var(--color-composer-accent-text);
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--color-composer-accent) 70%, transparent);
@@ -872,7 +1028,8 @@ braccato-lyrics .blyrics-container {
   .word-face {
     --selection-ring: color-mix(in oklab, var(--agent) 80%, var(--ink));
     padding: 0 8px;
-    border-radius: 10px;
+    --word-radius: 10px;
+    border-radius: var(--word-radius);
     overflow: hidden;
     font-size: clamp(13px, calc(var(--row-height, 44px) * 0.28), 18px);
     font-weight: 500;
@@ -880,8 +1037,8 @@ braccato-lyrics .blyrics-container {
     color: color-mix(in oklab, var(--ink) 94%, transparent);
     --word-fill: color-mix(in oklab, var(--agent) 30%, var(--word-face));
     background-color: var(--word-fill);
-    background-image: var(--hatch, none),
-      linear-gradient(to bottom, color-mix(in oklab, var(--ink) 6%, transparent), transparent 60%);
+    background-image:
+      var(--hatch, none), linear-gradient(to bottom, color-mix(in oklab, var(--ink) 6%, transparent), transparent 60%);
     box-shadow: var(--word-elev);
     /* Only playback's light fades out; selection, hover and drag feedback land on the spot. */
     transition-property: --word-fill;
@@ -913,7 +1070,7 @@ braccato-lyrics .blyrics-container {
     &[data-fit="tick"] {
       padding: 0;
       font-size: 0;
-      border-radius: 4px;
+      --word-radius: 4px;
     }
     &[data-lane="bg"] {
       opacity: 0.72;
@@ -932,11 +1089,12 @@ braccato-lyrics .blyrics-container {
       color: var(--ink);
       opacity: 1;
       --word-fill: color-mix(in oklab, var(--agent) 58%, var(--word-face));
-      background-image: var(--hatch, none),
-        linear-gradient(to bottom, color-mix(in oklab, white 14%, transparent), transparent 70%);
+      background-image:
+        var(--hatch, none), linear-gradient(to bottom, color-mix(in oklab, white 14%, transparent), transparent 70%);
       box-shadow:
         inset 0 1px 0 color-mix(in oklab, white 30%, transparent),
-        inset 0 0 0 1px color-mix(in oklab, var(--ink) 6%, transparent), 0 1px 1px var(--word-shadow),
+        inset 0 0 0 1px color-mix(in oklab, var(--ink) 6%, transparent),
+        0 1px 1px var(--word-shadow),
         0 3px 8px -4px var(--word-shadow);
       transition-duration: 60ms;
     }
@@ -945,40 +1103,199 @@ braccato-lyrics .blyrics-container {
       opacity: 1;
       --word-fill: color-mix(in oklab, var(--agent) 40%, var(--word-face));
       box-shadow:
-        inset 0 0 0 2px var(--selection-ring), inset 0 3px 0 -1px color-mix(in oklab, white 9%, transparent),
+        inset 0 0 0 2px var(--selection-ring),
+        inset 0 3px 0 -1px color-mix(in oklab, white 9%, transparent),
         0 1px 1px var(--word-shadow),
         0 3px 8px -4px var(--word-shadow);
     }
     &[data-selected][data-lit] {
       --word-fill: color-mix(in oklab, var(--agent) 58%, var(--word-face));
     }
+    /* A syllable split from its word by a timing gap keeps a cut line on the open end. */
+    --syllable-cut: color-mix(in oklab, var(--agent) 70%, var(--ink));
+    &[data-gap-before]::before,
+    &[data-gap-after]::after {
+      content: "";
+      position: absolute;
+      inset-block: 0;
+      width: 1px;
+      background: var(--syllable-cut);
+      pointer-events: none;
+    }
+    &[data-gap-before]::before {
+      left: 0;
+    }
+    &[data-gap-after]::after {
+      right: 0;
+    }
+    &[data-selected]::before,
+    &[data-selected]::after {
+      content: none;
+    }
   }
   html[data-scheme="light"] .word-face {
-    background-image: var(--hatch, none),
+    --syllable-cut: color-mix(in oklab, var(--agent) 75%, black);
+    background-image:
+      var(--hatch, none),
       linear-gradient(
         to bottom,
         color-mix(in oklab, var(--agent) 6%, white),
         color-mix(in oklab, var(--agent) 14%, color-mix(in oklab, white 70%, var(--color-composer-bg-dark)))
       );
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--agent) 30%, var(--edge)), 0 1px 2px rgb(var(--shade) / 0.14);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--agent) 30%, var(--edge)),
+      0 1px 2px rgb(var(--shade) / 0.14);
     &[data-lit] {
       color: #fff;
       background-image: var(--hatch, none);
       --word-fill: color-mix(in oklab, var(--agent) 80%, black);
+      --syllable-cut: color-mix(in oklab, var(--agent) 40%, black);
     }
     &[data-selected] {
-      background-image: var(--hatch, none),
+      background-image:
+        var(--hatch, none),
         linear-gradient(
           to bottom,
           color-mix(in oklab, var(--agent) 10%, white),
           color-mix(in oklab, var(--agent) 24%, color-mix(in oklab, white 70%, var(--color-composer-bg-dark)))
         );
-      box-shadow: inset 0 0 0 2px var(--selection-ring), 0 1px 2px rgb(var(--shade) / 0.14);
+      box-shadow:
+        inset 0 0 0 2px var(--selection-ring),
+        0 1px 2px rgb(var(--shade) / 0.14);
     }
     &[data-selected][data-lit] {
       background-image: var(--hatch, none);
-      box-shadow: inset 0 0 0 2px var(--ink), 0 1px 2px rgb(var(--shade) / 0.14);
+      box-shadow:
+        inset 0 0 0 2px var(--ink),
+        0 1px 2px rgb(var(--shade) / 0.14);
     }
+  }
+  /* Step timing: every state shares one flat fill and one shadow list, so each change fades. Other words lose chroma, not lightness. */
+  [data-scroll-container][data-step-timing] .word-face {
+    --step-face: color-mix(in oklab, var(--agent) 30%, var(--word-face));
+    --step-top: color-mix(in oklab, white 9%, transparent);
+    --step-ring: color-mix(in oklab, var(--ink) 6%, transparent);
+    --step-drop: var(--word-shadow);
+    --word-fill: var(--step-face);
+    opacity: 1;
+    color: color-mix(in oklab, var(--ink) 94%, transparent);
+    background-image: var(--hatch, none);
+    box-shadow:
+      inset 0 1px 0 var(--step-top),
+      inset 0 0 0 1px var(--step-ring),
+      0 1px 2px var(--step-drop);
+    transition-property: --word-fill, color, box-shadow;
+    transition-duration: 120ms;
+    transition-timing-function: ease-out;
+    &:not([data-selected], [data-step-next], [data-step-queued]) {
+      --word-fill: oklch(from var(--step-face) l 0.005 h);
+      --step-top: transparent;
+      --step-drop: transparent;
+      color: color-mix(in oklab, var(--ink) 88%, var(--color-composer-bg));
+    }
+    &[data-step-next] {
+      --word-fill: color-mix(in oklab, var(--color-composer-accent) 30%, var(--word-face));
+    }
+    &[data-selected] {
+      --word-fill: color-mix(in oklab, var(--color-composer-accent) 78%, black);
+      --step-top: color-mix(in oklab, white 18%, transparent);
+      --step-ring: transparent;
+      color: var(--color-composer-on-accent);
+    }
+  }
+  [data-scroll-container][data-step-timing] [data-step-chain="off"] .word-face {
+    opacity: 0.55;
+  }
+  html[data-scheme="light"] [data-scroll-container][data-step-timing] .word-face {
+    --word-fill: var(--step-face);
+    --step-face: color-mix(in oklab, var(--agent) 10%, color-mix(in oklab, white 85%, var(--color-composer-bg-dark)));
+    --step-ring: color-mix(in oklab, var(--agent) 30%, var(--edge));
+    background-image: var(--hatch, none);
+    color: color-mix(in oklab, var(--ink) 94%, transparent);
+    box-shadow:
+      inset 0 1px 0 var(--step-top),
+      inset 0 0 0 1px var(--step-ring),
+      0 1px 2px var(--step-drop);
+    &:not([data-selected], [data-step-next], [data-step-queued]) {
+      --step-ring: var(--edge);
+      color: color-mix(in oklab, var(--ink) 74%, var(--color-composer-bg));
+    }
+    &[data-step-next] {
+      --word-fill: color-mix(
+        in oklab,
+        var(--color-composer-accent) 14%,
+        color-mix(in oklab, white 85%, var(--color-composer-bg-dark))
+      );
+    }
+    &[data-selected] {
+      --word-fill: color-mix(in oklab, var(--color-composer-accent) 88%, black);
+      color: var(--color-composer-on-accent);
+      background-image: var(--hatch, none);
+      box-shadow:
+        inset 0 1px 0 var(--step-top),
+        inset 0 0 0 1px var(--step-ring),
+        0 1px 2px var(--step-drop);
+    }
+  }
+}
+
+/* Timeline pitch line: a canvas over each lane's words, shown by the mode the rows scope carries in data-pitch. Labels lift to make room. */
+@layer components {
+  .pitch-lane,
+  .pitch-lane-ghost {
+    position: absolute;
+    top: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .pitch-lane {
+    transition: opacity 150ms cubic-bezier(0.22, 1, 0.36, 1);
+    &[data-sung] {
+      z-index: 2;
+    }
+  }
+  .pitch-lane-ghost {
+    opacity: 0;
+  }
+  :is(
+      [data-pitch="always"],
+      [data-pitch="focus"] [data-timeline-row]:is([data-current], :has([data-word-block][data-selected]))
+    )
+    :is(.pitch-lane, .word-face > span) {
+    --pitch-shown: 1;
+  }
+  @media (hover: hover) {
+    [data-pitch="focus"] [data-timeline-row]:hover :is(.pitch-lane, .word-face > span) {
+      --pitch-shown: 1;
+      transition-delay: 80ms;
+    }
+  }
+  .pitch-lane {
+    opacity: var(--pitch-shown, 0);
+  }
+  .word-face > span {
+    translate: 0 calc(var(--pitch-shown, 0) * -5px);
+  }
+  .word-face:not([data-pitched]) > span {
+    translate: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .word-face > span {
+      transition: translate 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    [data-pitch-arriving="run"] .word-face > span {
+      transition-duration: var(--pitch-rise-ms);
+      transition-delay: var(--rise-delay, 0ms);
+    }
+  }
+  [data-pitch-arriving] .pitch-lane {
+    transition: none;
+    &[data-sung] {
+      opacity: 0;
+    }
+  }
+  [data-pitch-arriving="prep"] .word-face > span {
+    transition: none;
   }
 }
 
@@ -986,9 +1303,12 @@ braccato-lyrics .blyrics-container {
 @layer components {
   .line-cell {
     --cell-bg: var(--gutter-bg);
+    --line-cell-hit-from: inset -2px 0 0 color-mix(in oklab, var(--agent) 65%, white), inset 0 -1px 0 var(--divider);
     --rail: color-mix(in oklab, var(--agent) 45%, var(--cell-bg));
     background: color-mix(in oklab, var(--agent) 8%, var(--cell-bg));
-    box-shadow: inset -2px 0 0 var(--rail), inset 0 -1px 0 var(--divider);
+    box-shadow:
+      inset -2px 0 0 var(--rail),
+      inset 0 -1px 0 var(--divider);
     /* Only the sung edge eases; hover tints land on the spot. */
     transition-property: box-shadow;
     transition-duration: 280ms;
@@ -1003,8 +1323,11 @@ braccato-lyrics .blyrics-container {
   [data-speaking] > .line-cell {
     --rail: var(--agent);
     transition-duration: 40ms;
-    &[data-hit] {
-      animation: line-cell-hit 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    &[data-hit="a"] {
+      animation: line-cell-hit-a 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    &[data-hit="b"] {
+      animation: line-cell-hit-b 260ms cubic-bezier(0.22, 1, 0.36, 1);
     }
   }
   [data-timeline-row] {
@@ -1016,9 +1339,16 @@ braccato-lyrics .blyrics-container {
   }
 }
 
-@keyframes line-cell-hit {
+/* Two names for one flash: switching names restarts it without a reflow. */
+@keyframes line-cell-hit-a {
   from {
-    box-shadow: inset -2px 0 0 color-mix(in oklab, var(--agent) 65%, white), inset 0 -1px 0 var(--divider);
+    box-shadow: var(--line-cell-hit-from);
+  }
+}
+
+@keyframes line-cell-hit-b {
+  from {
+    box-shadow: var(--line-cell-hit-from);
   }
 }
 
@@ -1036,15 +1366,19 @@ braccato-lyrics .blyrics-container {
 }
 
 .is-snapped {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--color-composer-snap) 85%, transparent), 0 0 14px 2px
-    color-mix(in srgb, var(--color-composer-snap) 28%, transparent), var(--word-elev);
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--color-composer-snap) 85%, transparent),
+    0 0 14px 2px color-mix(in srgb, var(--color-composer-snap) 28%, transparent),
+    var(--word-elev);
 }
 
 /* On a light surface a near-solid ring reads as a heavy dark outline, so soften
    the ring to a glow, lean on the halo for presence, and lighten the shadow. */
 [data-scheme="light"] .is-snapped {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--color-composer-snap) 70%, transparent), 0 0 12px 2px
-    color-mix(in srgb, var(--color-composer-snap) 45%, transparent), 0 1px 2px rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--color-composer-snap) 70%, transparent),
+    0 0 12px 2px color-mix(in srgb, var(--color-composer-snap) 45%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
 .bh,
@@ -1090,6 +1424,14 @@ braccato-lyrics .blyrics-container {
   --bh-placeholder: var(--color-composer-text-muted);
 }
 
+@utility problem-words {
+  background: none;
+  color: var(--color-composer-error-text);
+  text-decoration: underline wavy color-mix(in oklab, var(--color-composer-negative) 70%, transparent);
+  text-underline-offset: 2px;
+  text-decoration-skip-ink: none;
+}
+
 @utility lyrics-code-surface {
   box-sizing: border-box;
   border-width: 1px;
@@ -1129,14 +1471,6 @@ braccato-lyrics .blyrics-container {
   .snap-onset-enter {
     animation-delay: 0ms !important;
   }
-}
-
-:root {
-  --toast-clearance: 24px;
-}
-
-:root:has([data-screen="editor"] [data-transport-deck]) {
-  --toast-clearance: 96px;
 }
 
 /* Toasts: content width up to a cap, on the floating surface. Sonner sets --width inline, so the override needs !important. */
@@ -1226,7 +1560,11 @@ braccato-lyrics .blyrics-container {
   color: var(--label);
   background: var(--raised-face);
   box-shadow: var(--raised-edge);
-  transition: background-color 150ms, color 150ms, scale 150ms;
+  transition:
+    background-color 150ms,
+    color 150ms,
+    scale 150ms;
+  will-change: scale;
 }
 
 [data-sonner-toaster]
@@ -1238,6 +1576,30 @@ braccato-lyrics .blyrics-container {
 
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"] :is([data-button], [data-cancel]):active {
   scale: 0.96;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"]:has([data-cancel]) [data-button]:not([data-cancel]) {
+  color: var(--color-composer-on-accent);
+  background: var(--color-composer-accent);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
+}
+
+[data-sonner-toaster]
+  [data-sonner-toast][data-styled="true"]:has([data-cancel])
+  [data-button]:not([data-cancel]):is(:hover, :focus-visible) {
+  color: var(--color-composer-on-accent);
+  background: color-mix(in oklab, var(--color-composer-accent) 90%, var(--ink));
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-cancel] {
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-cancel]:is(:hover, :focus-visible) {
+  color: var(--label);
+  background: var(--layer-1);
 }
 
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-close-button] {

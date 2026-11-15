@@ -1,16 +1,18 @@
 import { alternateMatchesMainText } from "@/domain/language/alternate-visibility";
 import type { Bounds } from "@/domain/word/bounds";
-import { useRendererAudioSync } from "@/hooks/use-renderer-audio-sync";
+import { useFrameLoop } from "@/hooks/use-frame-loop";
+import { useOpenProjectId } from "@/hooks/useOpenProjectId";
 import { wake } from "@/lib/frame-loop";
-import { useAudioStore } from "@/stores/audio";
 import { Button } from "@/ui/button";
 import { IconButton } from "@/ui/icon-button";
 import { centeredFadeVariants, centeredSlideUpVariants, springSnappy } from "@/utils/animationVariants";
 import { cn } from "@/utils/cn";
 import braccatoTheme from "@/views/preview/braccato-theme.css?raw";
+import { type AppliedTick, tickBraccato } from "@/views/preview/braccato-tick";
 import { type TimedLineElement, markLinesOutsideFocus, useFocusFade } from "@/views/preview/focus-fade";
 import { LYRICS_ELEMENT_CLASS, type LyricsLayout } from "@/views/preview/lyrics-layout";
-import { rateScaledOffsetTrims } from "@/views/preview/rate-scaled-offsets";
+import { PreviewLoadFailed } from "@/views/preview/preview-load-failed";
+import { AUDIO_STORE_PLAYBACK, type RendererPlayback } from "@/views/preview/renderer-playback";
 import { type Lyric, injectRomanization, injectTranslation } from "@braccato/core";
 import type { BraccatoLyricsElement, LineClickDetail } from "@braccato/core/element";
 import { TTMLParser } from "@braccato/parsers";
@@ -24,6 +26,7 @@ interface BraccatoRendererProps {
   ttmlString: string;
   layout?: LyricsLayout;
   focusRange?: Bounds | null;
+  playback?: RendererPlayback;
 }
 
 // -- Constants -----------------------------------------------------------------
@@ -34,15 +37,23 @@ const LOG_PREFIX = "[BraccatoRenderer]";
 // on the far side of its deadline instead of racing it.
 const RESUME_AFFORDANCE_WAKE_MS = 25_500;
 
+// A project not yet saved has no id, but its edits are still one song to swap in place.
+const UNSAVED_SONG_KEY = "unsaved";
+
 // -- Element registration -----------------------------------------------------
 
 // Must stay dynamic: registering evaluates `class ... extends HTMLElement`, which
 // has no HTMLElement during the vite-react-ssg prerender and fails the build.
-let registerPromise: Promise<unknown> | null = null;
-function ensureRegistered(): Promise<unknown> {
-  registerPromise ??= import("@braccato/core/element").catch((error: unknown) => {
-    console.error(LOG_PREFIX, "failed to register <braccato-lyrics>; preview will stay empty", error);
-  });
+let registerPromise: Promise<boolean> | null = null;
+function ensureRegistered(): Promise<boolean> {
+  registerPromise ??= import("@braccato/core/element").then(
+    () => true,
+    (error: unknown) => {
+      registerPromise = null;
+      console.error(LOG_PREFIX, "failed to register <braccato-lyrics>", error);
+      return false;
+    },
+  );
   return registerPromise;
 }
 
@@ -50,7 +61,9 @@ function decorateAlternateTracks(el: BraccatoLyricsElement, lyrics: Lyric[]): vo
   const renderer = el.renderer;
   if (!renderer) return;
 
-  let decorated = false;
+  // Lines already carrying the same decoration are left untouched, and only a changed line needs a relayout.
+  const decorations = new MutationObserver(skipMutations);
+  decorations.observe(el, { childList: true, subtree: true });
   for (let index = 0; index < lyrics.length; index++) {
     const lyric = lyrics[index];
     const line = renderer.lines[index];
@@ -58,18 +71,22 @@ function decorateAlternateTracks(el: BraccatoLyricsElement, lyrics: Lyric[]): vo
 
     if (lyric.romanization && !alternateMatchesMainText(lyric.romanization, lyric.words)) {
       injectRomanization(el.ownerDocument, line.lyricElement, line, lyric.romanization, lyric.timedRomanization);
-      decorated = true;
     }
 
     const translation = lyric.translation?.text ?? Object.values(lyric.translations ?? {})[0];
     if (translation && !alternateMatchesMainText(translation, lyric.words)) {
       injectTranslation(el.ownerDocument, line.lyricElement, translation);
-      decorated = true;
     }
   }
 
-  if (decorated) renderer.relayout();
+  const changed = decorations.takeRecords().length > 0;
+  decorations.disconnect();
+  if (changed) renderer.relayout();
 }
+
+function skipMutations(): void {}
+
+function skipWritePhase(): void {}
 
 function timedLines(el: BraccatoLyricsElement): TimedLineElement[] {
   return (el.renderer?.lines ?? []).map((line) => ({ element: line.lyricElement, startSeconds: line.time }));
@@ -77,21 +94,30 @@ function timedLines(el: BraccatoLyricsElement): TimedLineElement[] {
 
 // -- Component ----------------------------------------------------------------
 
-const BraccatoRenderer: React.FC<BraccatoRendererProps> = ({ ttmlString, layout = "page", focusRange = null }) => {
+const BraccatoRenderer: React.FC<BraccatoRendererProps> = ({
+  ttmlString,
+  layout = "page",
+  focusRange = null,
+  playback = AUDIO_STORE_PLAYBACK,
+}) => {
   const elementRef = useRef<BraccatoLyricsElement>(null);
   const lyrics = useMemo(() => TTMLParser.parse(ttmlString), [ttmlString]);
   const songwriters = useMemo(() => TTMLParser.metadata(ttmlString).songwriters, [ttmlString]);
+  const songKey = useOpenProjectId() ?? UNSAVED_SONG_KEY;
   const latestLyricsRef = useRef(lyrics);
   const latestSongwritersRef = useRef(songwriters);
+  const latestSongKeyRef = useRef(songKey);
   const latestFocusRangeRef = useRef(focusRange);
   useFocusFade(focusRange, latestFocusRangeRef, (range) => {
     if (elementRef.current) markLinesOutsideFocus(timedLines(elementRef.current), range);
   });
   const initializedElementRef = useRef<BraccatoLyricsElement | null>(null);
   const appliedLyricsRef = useRef<Lyric[] | null>(null);
+  const appliedSongKeyRef = useRef<string | null>(null);
   const rebuildScrollTopRef = useRef<number | null>(null);
-  const appliedPlaybackRateRef = useRef(1);
+  const appliedTickRef = useRef<AppliedTick | null>(null);
   const [isAutoscrollPaused, setIsAutoscrollPaused] = useState(false);
+  const [isElementUnavailable, setIsElementUnavailable] = useState(false);
   const resumeWakeRef = useRef<number | null>(null);
   const reducedMotion = useReducedMotion();
 
@@ -120,20 +146,20 @@ const BraccatoRenderer: React.FC<BraccatoRendererProps> = ({ ttmlString, layout 
   const resumeAutoscroll = useCallback(() => {
     clearResumeWake();
     elementRef.current?.renderer?.resumeAutoscroll();
-    useAudioStore.getState().setIsPlaying(true);
+    playback.play();
     // Braccato clears the affordance and scrolls back on its next tick, which this
     // component drives, so a paused reader would otherwise see nothing happen.
     wake();
-  }, [clearResumeWake]);
+  }, [clearResumeWake, playback]);
 
   const handleLineClick = useCallback(
     (e: Event) => {
       const detail = (e as CustomEvent<LineClickDetail>).detail;
       if (detail?.timeS == null) return;
-      useAudioStore.getState().seekTo(detail.timeS);
+      playback.seekTo(detail.timeS);
       resumeAutoscroll();
     },
-    [resumeAutoscroll],
+    [resumeAutoscroll, playback],
   );
 
   const handleLyricsLoaded = useCallback((event: Event) => {
@@ -142,23 +168,22 @@ const BraccatoRenderer: React.FC<BraccatoRendererProps> = ({ ttmlString, layout 
     markLinesOutsideFocus(timedLines(el), latestFocusRangeRef.current);
   }, []);
 
-  const applyLyrics = useCallback((el: BraccatoLyricsElement, next: Lyric[], songwriters: readonly string[]) => {
-    if (appliedLyricsRef.current === next) return;
-    const scrollTopBefore = el.scrollTop;
-    // Braccato's in-place lyrics swap keeps the old scroll geometry; a fresh renderer (writing host) positions from scratch.
-    if (appliedLyricsRef.current !== null) {
-      // Cleared first so the fresh renderer's own build of the old lyrics is an empty one.
-      el.lyrics = [];
-      el.host = { setResumeAffordanceVisible: setIsAutoscrollPaused };
-    }
-    appliedLyricsRef.current = next;
-    el.lyricsOptions = { songwriters };
-    el.lyrics = next;
-    // A rebuild that moves the scroll position fires one scroll the reader never made.
-    rebuildScrollTopRef.current = el.scrollTop === scrollTopBefore ? null : el.scrollTop;
-    decorateAlternateTracks(el, next);
-    markLinesOutsideFocus(timedLines(el), latestFocusRangeRef.current);
-  }, []);
+  const applyLyrics = useCallback(
+    (el: BraccatoLyricsElement, next: Lyric[], songwriters: readonly string[], songKey: string) => {
+      if (appliedLyricsRef.current === next && appliedSongKeyRef.current === songKey) return;
+      const scrollTopBefore = el.scrollTop;
+      appliedLyricsRef.current = next;
+      appliedSongKeyRef.current = songKey;
+      // The same songKey swaps edits into the lines on screen; another project's key builds anew.
+      el.lyricsOptions = { songwriters, songKey };
+      el.lyrics = next;
+      // A rebuild or swap that moves the scroll position fires one scroll the reader never made.
+      rebuildScrollTopRef.current = el.scrollTop === scrollTopBefore ? null : el.scrollTop;
+      decorateAlternateTracks(el, next);
+      markLinesOutsideFocus(timedLines(el), latestFocusRangeRef.current);
+    },
+    [],
+  );
 
   // Activity re-attaches this ref on every reveal; re-initializing the same element rebuilds its lines.
   const setElement = useCallback(
@@ -166,8 +191,10 @@ const BraccatoRenderer: React.FC<BraccatoRendererProps> = ({ ttmlString, layout 
       elementRef.current = el;
       if (!el || initializedElementRef.current === el) return;
       initializedElementRef.current = el;
+      appliedLyricsRef.current = null;
+      appliedSongKeyRef.current = null;
       el.host = { setResumeAffordanceVisible: setIsAutoscrollPaused };
-      applyLyrics(el, latestLyricsRef.current, latestSongwritersRef.current);
+      applyLyrics(el, latestLyricsRef.current, latestSongwritersRef.current, latestSongKeyRef.current);
     },
     [applyLyrics],
   );
@@ -189,37 +216,43 @@ const BraccatoRenderer: React.FC<BraccatoRendererProps> = ({ ttmlString, layout 
   useEffect(() => {
     // The element upgrades once the registration import resolves, long after the mount
     // wake expired, so the first frame that can address its accessors has to be asked for.
-    void ensureRegistered().then(wake);
+    void ensureRegistered().then((registered) => {
+      setIsElementUnavailable(!registered);
+      if (registered) wake();
+    });
   }, []);
 
   useEffect(() => {
     latestLyricsRef.current = lyrics;
     latestSongwritersRef.current = songwriters;
+    latestSongKeyRef.current = songKey;
     const element = elementRef.current;
-    if (element) applyLyrics(element, lyrics, songwriters);
-  }, [lyrics, songwriters, applyLyrics]);
+    if (element) applyLyrics(element, lyrics, songwriters, songKey);
+  }, [lyrics, songwriters, songKey, applyLyrics]);
 
   // Binding `source` would make braccato own the clock, and it only polls during
   // playback, freezing the preview whenever the timeline is scrubbed paused.
-  useRendererAudioSync(
-    elementRef,
-    (el, audio) => {
-      // Without the rate the word sweeps run on the wall clock and stutter at any
-      // speed but 1x. Tracked here rather than read back off the element, which has
-      // no properties to read until the registration import lands.
-      if (appliedPlaybackRateRef.current !== audio.playbackRate) {
-        appliedPlaybackRateRef.current = audio.playbackRate;
-        el.tickOptions = { playbackRate: audio.playbackRate, ...rateScaledOffsetTrims(el, audio.playbackRate) };
-      }
-      el.currentTime = audio.currentTime;
-      el.playing = !audio.paused;
+  // The tick reads the scroller before it writes, so it runs in the read phase, ahead of every frame-loop write.
+  useFrameLoop(
+    {
+      read: () => {
+        const el = elementRef.current;
+        const audio = playback.sample();
+        if (!el || !audio) return;
+        appliedTickRef.current = tickBraccato(el, audio, appliedTickRef.current);
+      },
+      write: skipWritePhase,
     },
     "braccato-renderer",
   );
 
   return (
     <div data-lyrics-layout={layout} className="relative flex flex-col flex-1 min-h-0">
-      <braccato-lyrics ref={setElement} theme={braccatoTheme} className={LYRICS_ELEMENT_CLASS[layout]} />
+      {isElementUnavailable ? (
+        <PreviewLoadFailed />
+      ) : (
+        <braccato-lyrics ref={setElement} theme={braccatoTheme} className={LYRICS_ELEMENT_CLASS[layout]} />
+      )}
       <AnimatePresence>
         {isAutoscrollPaused ? (
           <m.div

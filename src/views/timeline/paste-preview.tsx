@@ -1,19 +1,25 @@
-import { type TimeRange, timeRangeResolver, wholeSongRange } from "@/domain/group/shared-timing";
-import { effectiveTrackWords } from "@/domain/line/effective-words";
+import { type RefObject, useEffect, useMemo, useReducer, useState } from "react";
+import { type TimeRange, timeRangeResolver } from "@/domain/group/shared-timing";
 import type { LyricLine } from "@/domain/line/model";
-import { boundsOverlap } from "@/domain/word/overlap";
 import { useAudioStore } from "@/stores/audio";
-import { openModalCount, useEscapeLayerStackStore } from "@/stores/escape-layer-stack";
+import { isAnyModalOpen, openModalCount, useEscapeLayerStackStore } from "@/stores/escape-layer-stack";
 import { useProjectStore } from "@/stores/project";
 import { cn } from "@/utils/cn";
-import { pasteOverlaps, pastedWordBounds } from "@/views/timeline/apply-paste-to-lines";
+import { clipboardInLane, pasteOverlaps } from "@/views/timeline/apply-paste-to-lines";
 import { commitPasteAt } from "@/views/timeline/commit-paste";
 import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
-import { bgTrackHeight, wordBlockWidth, wordInsetPx } from "@/views/timeline/row-geometry";
+import { instancePasteClipboard } from "@/views/timeline/instance-paste-template";
+import { lastKnownPointer } from "@/views/timeline/last-pointer";
+import { currentOverviewBandHeight, useOverviewBandHeight } from "@/views/timeline/overview-band-height";
+import { computeGhosts } from "@/views/timeline/paste-ghosts";
+import { snappedPasteTime } from "@/views/timeline/paste-snap";
+import { wordInsetPx } from "@/views/timeline/row-geometry";
 import type { ClipboardData } from "@/views/timeline/selection-types";
-import { GUTTER_WIDTH, WAVEFORM_HEIGHT, useTimelineStore } from "@/views/timeline/timeline-store";
-import { type RowLayout, computeRowLayout, getLineIndexAtY } from "@/views/timeline/utils";
-import { type RefObject, useCallback, useEffect, useMemo, useState } from "react";
+import { holdsSnapBypass, syncSnapBypass } from "@/views/timeline/snap-bypass-key";
+import { SnapGuidelineAt } from "@/views/timeline/snap-guideline";
+import { GUTTER_WIDTH, useTimelineStore } from "@/views/timeline/timeline-store";
+import { computeRowLayout, getLineAndTrackAtY } from "@/views/timeline/utils";
+import { readViewScroll } from "@/views/timeline/view-scroll";
 
 // -- Types ---------------------------------------------------------------------
 
@@ -22,80 +28,77 @@ interface PastePreviewProps {
   scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
-interface GhostWord {
-  text: string;
-  left: number;
-  width: number;
-  trackTop: number;
-  trackHeight: number;
-  overlaps: boolean;
-  outOfBounds: boolean;
-  isBg: boolean;
-}
-
 // -- Constants -----------------------------------------------------------------
 
 const WAVEFORM_BORDER = 1;
-const ROWS_START_Y = WAVEFORM_HEIGHT + WAVEFORM_BORDER;
-const BG_BORDER = 1;
 
 // -- Component -----------------------------------------------------------------
 
 const PastePreview: React.FC<PastePreviewProps> = ({ clipboard, scrollContainerRef }) => {
-  const [mousePos, setMousePos] = useState<{ clientX: number; clientY: number } | null>(null);
+  const [mousePos, setMousePos] = useState(lastKnownPointer);
+  const [, redrawOnScroll] = useReducer((tick: number) => tick + 1, 0);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       setMousePos({ clientX: e.clientX, clientY: e.clientY });
+      syncSnapBypass(e);
     };
+    const handleModifierChange = (e: KeyboardEvent) => syncSnapBypass(e);
 
     document.addEventListener("mousemove", handleMouseMove);
-    return () => document.removeEventListener("mousemove", handleMouseMove);
+    document.addEventListener("keydown", handleModifierChange);
+    document.addEventListener("keyup", handleModifierChange);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("keydown", handleModifierChange);
+      document.removeEventListener("keyup", handleModifierChange);
+      useTimelineStore.getState().setIsBypassing(false);
+    };
   }, []);
 
-  const commitPaste = useCallback(
-    async (e: React.MouseEvent) => {
-      if (e.button !== 0) return;
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
 
-      const container = scrollContainerRef.current;
-      if (!container) return;
+    const isPlacingPress = (e: MouseEvent) => e.button === 0 && !isAnyModalOpen();
+    const holdPress = (e: MouseEvent) => {
+      if (!isPlacingPress(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const placePaste = (e: MouseEvent) => {
+      if (!isPlacingPress(e)) return;
+      e.stopPropagation();
+      void commitPaste(clipboard, container, e);
+    };
 
-      const { zoom, rowHeights, defaultRowHeight, collapsedInstances, focusedGroup } = useTimelineStore.getState();
-      const lines = useProjectStore.getState().lines;
-      const layout = computeRowLayout({
-        lines,
-        rowHeights,
-        defaultRowHeight,
-        collapsedInstances,
-        focusedGroup,
-        waveformHeight: ROWS_START_Y,
-        groupHeaderHeight: GROUP_HEADER_HEIGHT,
-      });
-
-      const containerRect = container.getBoundingClientRect();
-      const cursorTime = (e.clientX - containerRect.left - GUTTER_WIDTH + container.scrollLeft) / zoom;
-
-      const cursorY = e.clientY - containerRect.top + container.scrollTop;
-      const hoveredLineIndex = getLineIndexAtY(cursorY, lines, layout);
-
-      await commitPasteAt({ clipboard, cursorTime, lineIndex: hoveredLineIndex });
-    },
-    [clipboard, scrollContainerRef],
-  );
+    // The playhead and other overlays sit beside the scroll container, so presses are caught on their shared host.
+    const host = container.parentElement ?? container;
+    host.addEventListener("pointerdown", holdPress, true);
+    host.addEventListener("mousedown", holdPress, true);
+    host.addEventListener("click", placePaste, true);
+    container.addEventListener("scroll", redrawOnScroll, { passive: true });
+    return () => {
+      host.removeEventListener("pointerdown", holdPress, true);
+      host.removeEventListener("mousedown", holdPress, true);
+      host.removeEventListener("click", placePaste, true);
+      container.removeEventListener("scroll", redrawOnScroll);
+    };
+  }, [clipboard, scrollContainerRef]);
 
   const modalCount = useEscapeLayerStackStore(openModalCount);
+  const bypassSnap = useTimelineStore((s) => s.isBypassing);
 
-  // Reactive subscriptions BEFORE the early returns so the layout memo can run
-  // every render. Mousemove updates mousePos but does not invalidate the layout
-  // memo dependencies, so the layout stays stable across cursor moves.
   const zoom = useTimelineStore((s) => s.zoom);
   const rowHeights = useTimelineStore((s) => s.rowHeights);
   const defaultRowHeight = useTimelineStore((s) => s.defaultRowHeight);
   const collapsedInstances = useTimelineStore((s) => s.collapsedInstances);
   const focusedGroup = useTimelineStore((s) => s.focusedGroup);
+  const bandHeight = useOverviewBandHeight();
   const lines = useProjectStore((s) => s.lines);
   const groups = useProjectStore((s) => s.groups);
   const duration = useAudioStore((s) => s.duration);
+  useAudioStore((s) => (s.isPlaying ? null : s.currentTime));
   const rangeOf = useMemo(() => timeRangeResolver(lines, groups, duration), [lines, groups, duration]);
 
   const layout = useMemo(
@@ -106,32 +109,36 @@ const PastePreview: React.FC<PastePreviewProps> = ({ clipboard, scrollContainerR
         defaultRowHeight,
         collapsedInstances,
         focusedGroup,
-        waveformHeight: ROWS_START_Y,
+        waveformHeight: bandHeight + WAVEFORM_BORDER,
         groupHeaderHeight: GROUP_HEADER_HEIGHT,
       }),
-    [lines, rowHeights, defaultRowHeight, collapsedInstances, focusedGroup],
+    [lines, rowHeights, defaultRowHeight, collapsedInstances, focusedGroup, bandHeight],
   );
 
   const container = scrollContainerRef.current;
-  if (!container || !mousePos || modalCount > 0) return null;
+  const placed = useMemo(() => instancePasteClipboard(lines, groups, clipboard), [lines, groups, clipboard]);
+  const pointer = container && mousePos && modalCount === 0 ? pointerInTimeline(container, mousePos, zoom) : null;
+  const hovered = pointer ? getLineAndTrackAtY(pointer.y, lines, layout) : null;
+  const { targetLineIndex, pasted, timeDelta, anchorTime, hasOverlap } = previewPlacement(
+    placed,
+    pointer?.time ?? null,
+    hovered,
+    { lines, rangeOf, bypass: bypassSnap },
+  );
 
-  const containerRect = container.getBoundingClientRect();
-  const cursorTime = (mousePos.clientX - containerRect.left - GUTTER_WIDTH + container.scrollLeft) / zoom;
-  const cursorY = mousePos.clientY - containerRect.top + container.scrollTop;
-  const isInstancePaste = !!clipboard.sourceInstance;
-  const hoveredLineIndex = getLineIndexAtY(cursorY, lines, layout);
-  const targetLineIndex =
-    hoveredLineIndex >= 0 ? hoveredLineIndex : isInstancePaste ? Math.max(0, lines.length - 1) : -1;
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.dataset.pasteCursor = hasOverlap ? "blocked" : "copy";
+    return () => {
+      delete container.dataset.pasteCursor;
+    };
+  }, [hasOverlap, scrollContainerRef]);
 
-  if (targetLineIndex < 0) return null;
-
-  const firstEntry = clipboard.entries[0];
-  const timeDelta = cursorTime - firstEntry.word.begin;
-
-  const hasOverlap = isInstancePaste ? false : pasteOverlaps(clipboard, targetLineIndex, timeDelta, lines, rangeOf);
+  if (!container || !pointer || targetLineIndex < 0) return null;
 
   const ghosts = computeGhosts(
-    clipboard,
+    pasted,
     targetLineIndex,
     timeDelta,
     lines,
@@ -142,110 +149,97 @@ const PastePreview: React.FC<PastePreviewProps> = ({ clipboard, scrollContainerR
     defaultRowHeight,
   );
 
-  const scrollLeft = container.scrollLeft;
-  const scrollTop = container.scrollTop;
-
   return (
-    <div
-      role="button"
-      tabIndex={-1}
-      aria-label="Place pasted content here"
-      className={cn("absolute inset-0 z-55", hasOverlap ? "cursor-not-allowed" : "cursor-copy")}
-      onClick={commitPaste}
-      onKeyDown={() => {}}
-    >
-      {ghosts.map((ghost) => (
-        <div
-          key={`${ghost.left}-${ghost.trackTop}-${ghost.text}-${ghost.isBg ? "bg" : "w"}`}
-          data-lane={ghost.isBg ? "bg" : "word"}
-          className="word-face absolute flex items-center justify-center whitespace-nowrap pointer-events-none"
-          style={{
-            left: ghost.left - scrollLeft,
-            top: ghost.trackTop - scrollTop + wordInsetPx(ghost.isBg ? "bg" : "word"),
-            width: ghost.width,
-            height: ghost.trackHeight - wordInsetPx(ghost.isBg ? "bg" : "word") * 2,
-            "--agent":
-              ghost.overlaps || ghost.outOfBounds ? "var(--color-composer-error)" : "var(--color-composer-accent)",
-          }}
-        >
-          <span className="min-w-0 overflow-hidden whitespace-nowrap [text-overflow:inherit] opacity-70">
-            {ghost.text}
-          </span>
-        </div>
-      ))}
-    </div>
+    <>
+      {anchorTime !== null && <SnapGuidelineAt time={anchorTime} />}
+      <div className="absolute inset-0 z-55 pointer-events-none">
+        {ghosts.map((ghost) => (
+          <div
+            key={`${ghost.left}-${ghost.trackTop}-${ghost.text}-${ghost.isBg ? "bg" : "w"}`}
+            data-lane={ghost.isBg ? "bg" : "word"}
+            className={cn(
+              "word-face absolute flex items-center justify-center whitespace-nowrap pointer-events-none",
+              anchorTime !== null && "is-snapped",
+            )}
+            style={{
+              left: ghost.left - pointer.scrollLeft,
+              top: ghost.trackTop - pointer.scrollTop + wordInsetPx(ghost.isBg ? "bg" : "word"),
+              width: ghost.width,
+              height: ghost.trackHeight - wordInsetPx(ghost.isBg ? "bg" : "word") * 2,
+              "--agent":
+                ghost.overlaps || ghost.outOfBounds ? "var(--color-composer-error)" : "var(--color-composer-accent)",
+            }}
+          >
+            <span className="min-w-0 overflow-hidden whitespace-nowrap [text-overflow:inherit] opacity-70">
+              {ghost.text}
+            </span>
+          </div>
+        ))}
+      </div>
+    </>
   );
 };
 
 // -- Helpers -------------------------------------------------------------------
 
-function computeGhosts(
-  clipboard: ClipboardData,
-  targetLineIndex: number,
-  timeDelta: number,
-  lines: LyricLine[],
-  zoom: number,
-  duration: number,
-  rangeOf: (line: LyricLine) => TimeRange,
-  layout: RowLayout,
-  defaultRowHeight: number,
-): GhostWord[] {
-  const ghosts: GhostWord[] = [];
+interface PlacementContext {
+  lines: LyricLine[];
+  rangeOf: (line: LyricLine) => TimeRange;
+  bypass: boolean;
+}
 
-  let layoutEnd = 0;
-  for (const pos of layout.lineTops.values()) layoutEnd = Math.max(layoutEnd, pos.top + pos.height);
-  for (const pos of layout.headerTops.values()) layoutEnd = Math.max(layoutEnd, pos.top + pos.height);
+function previewPlacement(
+  placed: ClipboardData,
+  pointerTime: number | null,
+  hovered: ReturnType<typeof getLineAndTrackAtY>,
+  { lines, rangeOf, bypass }: PlacementContext,
+) {
+  const isInstancePaste = !!placed.sourceInstance;
+  const targetLineIndex = hovered ? hovered.lineIndex : isInstancePaste ? Math.max(0, lines.length - 1) : -1;
+  const pasted = hovered && !isInstancePaste ? clipboardInLane(placed, hovered.track) : placed;
+  const snap =
+    pointerTime !== null && hovered
+      ? snappedPasteTime(placed, pointerTime, { lineIndex: targetLineIndex, lane: hovered.track, bypass })
+      : null;
+  const timeDelta = pointerTime === null ? 0 : (snap?.time ?? pointerTime) - placed.entries[0].word.begin;
+  const hasOverlap =
+    !isInstancePaste && targetLineIndex >= 0 && pasteOverlaps(pasted, targetLineIndex, timeDelta, lines, rangeOf);
+  return { targetLineIndex, pasted, timeDelta, anchorTime: snap?.anchorTime ?? null, hasOverlap };
+}
 
-  for (const entry of clipboard.entries) {
-    const lineIdx = targetLineIndex + entry.lineOffset;
-    const inRange = lineIdx >= 0 && lineIdx < lines.length;
-    const targetLine = inRange ? lines[lineIdx] : null;
-    const targetPos = targetLine ? layout.lineTops.get(targetLine.id) : null;
-    const outOfBounds = !targetLine || !targetPos;
-    const isBg = entry.trackType === "bg";
+function pointerInTimeline(container: HTMLElement, pointer: { clientX: number; clientY: number }, zoom: number) {
+  const containerRect = container.getBoundingClientRect();
+  const { left: scrollLeft, top: scrollTop } = readViewScroll(container);
+  return {
+    time: (pointer.clientX - containerRect.left - GUTTER_WIDTH + scrollLeft) / zoom,
+    y: pointer.clientY - containerRect.top + scrollTop,
+    scrollLeft,
+    scrollTop,
+  };
+}
 
-    const pasted = pastedWordBounds(entry.word, timeDelta, targetLine ? rangeOf(targetLine) : wholeSongRange(duration));
-
-    const left = GUTTER_WIDTH + pasted.begin * zoom;
-    const width = wordBlockWidth(pasted.begin, pasted.end, zoom);
-
-    let overlaps = outOfBounds;
-    if (targetLine && !outOfBounds) {
-      const existingWords = effectiveTrackWords(targetLine, isBg ? "bg" : "word") ?? [];
-      overlaps = existingWords.some((existing) => boundsOverlap(pasted, existing));
-    }
-
-    let trackTop: number;
-    let trackHeight: number;
-
-    if (!targetPos || !targetLine) {
-      trackTop = layoutEnd;
-      trackHeight = defaultRowHeight;
-    } else {
-      const mainHeight = targetPos.mainBottom - targetPos.top;
-      const bgHeight = bgTrackHeight(targetLine, mainHeight);
-      if (isBg) {
-        trackTop = targetPos.top + mainHeight + BG_BORDER;
-        trackHeight = bgHeight;
-      } else {
-        trackTop = targetPos.top;
-        trackHeight = mainHeight;
-      }
-    }
-
-    ghosts.push({
-      text: entry.word.text,
-      left,
-      width,
-      trackTop,
-      trackHeight,
-      overlaps,
-      outOfBounds,
-      isBg,
-    });
-  }
-
-  return ghosts;
+async function commitPaste(clipboard: ClipboardData, container: HTMLElement, e: MouseEvent): Promise<void> {
+  const { zoom, rowHeights, defaultRowHeight, collapsedInstances, focusedGroup } = useTimelineStore.getState();
+  const { lines, groups } = useProjectStore.getState();
+  const layout = computeRowLayout({
+    lines,
+    rowHeights,
+    defaultRowHeight,
+    collapsedInstances,
+    focusedGroup,
+    waveformHeight: currentOverviewBandHeight() + WAVEFORM_BORDER,
+    groupHeaderHeight: GROUP_HEADER_HEIGHT,
+  });
+  const pointer = pointerInTimeline(container, e, zoom);
+  const hovered = getLineAndTrackAtY(pointer.y, lines, layout);
+  const lineIndex = hovered?.lineIndex ?? -1;
+  const lane = hovered?.track ?? "word";
+  const placed = instancePasteClipboard(lines, groups, clipboard);
+  const time = hovered
+    ? snappedPasteTime(placed, pointer.time, { lineIndex, lane, bypass: holdsSnapBypass(e) }).time
+    : pointer.time;
+  const instanceStart = clipboard.sourceInstance ? time - placed.entries[0].word.begin : time;
+  await commitPasteAt({ clipboard, cursorTime: instanceStart, lineIndex, lane });
 }
 
 // -- Exports -------------------------------------------------------------------

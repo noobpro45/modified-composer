@@ -2,12 +2,14 @@ import { useLoadAudioFile } from "@/hooks/useLoadAudioFile";
 import { usePersistence } from "@/hooks/usePersistence";
 import { ensureOpenProjectId, openProjectIdSnapshot } from "@/lib/open-project-session";
 import { DB_NAME, DB_VERSION } from "@/lib/persistence-idb";
+import { saveOpenProjectNow } from "@/lib/persistence-debounce";
 import { getPersistenceSettled } from "@/lib/persistence-settled";
 import { loadProjectAudio } from "@/lib/project-audio";
+import { loadProjectForRestore } from "@/lib/project-restore";
 import { loadProjectRecord } from "@/lib/project-storage";
 import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
-import { createAudioFile, createUnplayableAudioFile } from "@/test/audio-fixtures";
+import { createAudioFile, createMp3File, createUnplayableAudioFile } from "@/test/audio-fixtures";
 import { allowConsole } from "@/test/console-guard";
 import { createLine } from "@/test/factories";
 import { deleteDatabase, openAndCloseAtVersion } from "@/test/idb";
@@ -48,7 +50,7 @@ async function openAlpha(options: { lyrics: boolean; audio: boolean }): Promise<
   return { screen, current: source?.type === "file" ? source.file : undefined };
 }
 
-async function loader(): Promise<(file: File) => Promise<void>> {
+async function loader(): Promise<ReturnType<typeof useLoadAudioFile>> {
   const { result } = await renderHook(() => useLoadAudioFile());
   return result.current;
 }
@@ -142,6 +144,71 @@ describe("useLoadAudioFile · projects", () => {
     expect((await loadProjectAudio("a"))?.name).toBe("alpha.wav");
   });
 
+  it("replace swaps the audio of a project with lyrics in place and keeps its lyrics", async () => {
+    await openAlpha({ lyrics: true, audio: true });
+    const linesBefore = useProjectStore.getState().lines;
+    const load = await loader();
+    const replacement = createAudioFile("alpha-remaster.wav");
+    await load(replacement, "replace");
+    expect(openProjectIdSnapshot()).toBe("a");
+    expect(useProjectStore.getState().lines).toBe(linesBefore);
+    const source = useAudioStore.getState().source;
+    expect(source?.type === "file" && source.file).toBe(replacement);
+    await expect.poll(async () => (await loadProjectAudio("a"))?.name).toBe("alpha-remaster.wav");
+  });
+
+  it("replace keeps what the user typed and singer names, and swaps what the old file provided", async () => {
+    await openAlpha({ lyrics: true, audio: true });
+    useProjectStore.getState().setAgents([{ id: "v1", name: "Gonzalez", type: "person" }]);
+    const agentsBefore = useProjectStore.getState().agents;
+    const load = await loader();
+    await load(createAudioFile("alpha-remaster.wav"), "replace");
+    await expect.poll(() => useAudioStore.getState().source?.file?.name).toBe("alpha-remaster.wav");
+    expect(useProjectStore.getState().metadata.title).toBe("Alpha");
+    expect(useProjectStore.getState().agents).toBe(agentsBefore);
+  });
+
+  it("replace swaps a title the old file provided", async () => {
+    await openAlpha({ lyrics: true, audio: true });
+    useProjectStore.getState().setMetadata({ title: "alpha" });
+    const load = await loader();
+    await load(createAudioFile("alpha-live.wav"), "replace");
+    await expect.poll(() => useProjectStore.getState().metadata.title).toBe("alpha-live");
+  });
+
+  it("replace over a YouTube video swaps the details that video provided", async () => {
+    await openAlpha({ lyrics: true, audio: false });
+    const video = new File([new Uint8Array([1, 2, 3])], "video.opus", { type: "audio/ogg" });
+    const details = { title: "Never Gonna Give You Up", artists: ["Rick Astley"] };
+    useAudioStore.getState().setYouTubeSource("dQw4w9WgXcQ", video, details);
+    useProjectStore.getState().setMetadata(details);
+    const load = await loader();
+    await load(createAudioFile("b-side.wav"), "replace");
+    await expect.poll(() => useProjectStore.getState().metadata.title).toBe("b-side");
+    expect(useProjectStore.getState().metadata.artists).toEqual([]);
+  });
+
+  it("replace with the file already loaded keeps a typed title", async () => {
+    const { current } = await openAlpha({ lyrics: true, audio: true });
+    if (!current) throw new Error("expected restored audio");
+    const load = await loader();
+    await load(current, "replace");
+    expect(useProjectStore.getState().metadata.title).toBe("Alpha");
+  });
+
+  it("replace drops the old video's thumbnail", async () => {
+    await openAlpha({ lyrics: true, audio: false });
+    const video = new File([new Uint8Array([1, 2, 3])], "video.opus", { type: "audio/ogg" });
+    useAudioStore.getState().setYouTubeSource("dQw4w9WgXcQ", video, { title: "Song" });
+    useProjectStore
+      .getState()
+      .setMetadata({ thumbnailDataUrl: "data:image/png;base64,AA", thumbnailForVideoId: "dQw4w9WgXcQ" });
+    const load = await loader();
+    await load(createAudioFile("b-side.wav"), "replace");
+    await expect.poll(() => useProjectStore.getState().metadata.thumbnailForVideoId).toBeUndefined();
+    expect(useProjectStore.getState().metadata.thumbnailDataUrl).toBeUndefined();
+  });
+
   describe("edge cases", () => {
     it("a different song over a project without lyrics replaces it in place", async () => {
       await openAlpha({ lyrics: false, audio: true });
@@ -203,5 +270,28 @@ describe("useLoadAudioFile · projects", () => {
       expect(useProjectStore.getState().metadata.title).toBe("b-side");
       await deleteDatabase(DB_NAME);
     });
+  });
+});
+
+describe("useLoadAudioFile priming flags", () => {
+  it("regression: audio loaded in place into an old project without audio keeps its times over a reload", async () => {
+    await seedStoredProject("old", {
+      open: true,
+      project: {
+        lines: [createLine({ text: "Waiting in a car", begin: 1, end: 2 })],
+        primingStripped: true,
+        primingCorrected: false,
+      },
+    });
+    await render(<PersistenceHost />);
+    await getPersistenceSettled();
+    const load = await loader();
+
+    await load(createMp3File());
+    await saveOpenProjectNow();
+    const reloaded = (await loadProjectForRestore("old")).project;
+
+    expect((reloaded?.lines[0] as { begin: number }).begin).toBeCloseTo(1, 9);
+    expect(reloaded).toMatchObject({ primingStripped: true, primingCorrected: true });
   });
 });

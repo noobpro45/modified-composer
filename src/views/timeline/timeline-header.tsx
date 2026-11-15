@@ -1,21 +1,5 @@
-import { HeaderAction } from "@/views/timeline/header-action";
-import { TimelineAutoAlign } from "@/views/timeline/timeline-auto-align";
-import { isLinked } from "@/domain/instance/predicates";
-import { hasTransliteration } from "@/domain/language/has-transliteration";
-import { isLineSynced } from "@/domain/line/predicates";
-import type { WordTiming } from "@/domain/word/timing";
-import { useAudioStore } from "@/stores/audio";
-import { useProjectStore } from "@/stores/project";
-import { useSettingsStore } from "@/stores/settings";
-import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
-import { ShortcutToggleButton } from "@/ui/shortcut-toggle-button";
-import { cn } from "@/utils/cn";
-import { MOD_KEY } from "@/utils/platform";
-import { convertLineToWord, splitIntoWordsWithMeta } from "@/utils/sync-helpers";
-import { TimelineZoomControls } from "@/views/timeline/timeline-header-controls";
-import { TimelineNotices } from "@/views/timeline/timeline-notices";
-import { useTimelineStore } from "@/views/timeline/timeline-store";
 import {
+  IconArrowBackUp,
   IconArrowBarBoth,
   IconChevronsDown,
   IconChevronsUp,
@@ -23,49 +7,71 @@ import {
   IconFocusCentered,
   IconLanguage,
   IconLayoutDistributeHorizontal,
-  IconMagnet,
   IconMapPin,
   IconTextPlus,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { instanceKey } from "@/domain/instance/key";
+import { isLinked } from "@/domain/instance/predicates";
+import { hasTransliteration } from "@/domain/language/has-transliteration";
+import type { LyricLine } from "@/domain/line/model";
+import { isLineSynced } from "@/domain/line/predicates";
+import type { WordTiming } from "@/domain/word/timing";
+import { noteGuideSignal } from "@/lib/guide-signals";
+import { useAudioStore } from "@/stores/audio";
+import { useProjectStore } from "@/stores/project";
+import { useSettingsStore } from "@/stores/settings";
+import { ShortcutToggleButton } from "@/ui/shortcut-toggle-button";
+import { TooltipGroup } from "@/ui/tooltip";
+import { memoByIdentity } from "@/utils/memo-by-identity";
+import { convertLineToWord, splitIntoWordsWithMeta } from "@/utils/sync-helpers";
+import { HeaderAction } from "@/views/timeline/header-action";
+import { SnapLatch } from "@/views/timeline/snap-latch";
+import { SpectrumLatch } from "@/views/timeline/spectrum/spectrum-latch";
+import { StepTimingLatch } from "@/views/timeline/step-timing/step-timing-latch";
+import { TimelineAutoAlign } from "@/views/timeline/timeline-auto-align";
+import { TimelineZoomControls } from "@/views/timeline/timeline-header-controls";
+import { TimelineNotices } from "@/views/timeline/timeline-notices";
+import { useTimelineStore } from "@/views/timeline/timeline-store";
+import { useCueShortcuts } from "@/views/timeline/use-cue-shortcuts";
 
 interface TimelineHeaderProps {
   onImportLyrics?: () => void;
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
+interface LineFacts {
+  hasTransliteration: boolean;
+  hasUnexpandedLines: boolean;
+  instanceKeys: string[];
+}
+
+// Selectors run on every project store change; these walk every line, so once per lines array.
+const lineFacts = memoByIdentity(
+  (lines: readonly LyricLine[]): LineFacts => ({
+    hasTransliteration: hasTransliteration(lines),
+    hasUnexpandedLines: lines.some((l) => !l.words?.length && l.text.trim().length > 0),
+    instanceKeys: [...new Set(lines.flatMap((l) => (isLinked(l) ? [instanceKey(l.groupId, l.instanceIdx)] : [])))],
+  }),
+);
+
 const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollContainerRef }) => {
-  const followEnabled = useTimelineStore((s) => s.followEnabled);
-  const toggleFollow = useTimelineStore((s) => s.toggleFollow);
-  const previewSidebarOpen = useTimelineStore((s) => s.previewSidebarOpen);
-  const togglePreviewSidebar = useTimelineStore((s) => s.togglePreviewSidebar);
-  const rollingEditMode = useTimelineStore((s) => s.rollingEditMode);
-  const toggleRollingEditMode = useTimelineStore((s) => s.toggleRollingEditMode);
+  useCueShortcuts();
+  const followPlayhead = useSettingsStore((s) => s.followPlayhead);
+  const returnToCue = useSettingsStore((s) => s.returnToCue);
+  const previewSidebar = useSettingsStore((s) => s.previewSidebar);
+  const rollingEdit = useSettingsStore((s) => s.rollingEdit);
   const markerMode = useTimelineStore((s) => s.markerMode);
   const toggleMarkerMode = useTimelineStore((s) => s.toggleMarkerMode);
   const showHints = useSettingsStore((s) => s.showShortcutHints);
-  const snapEnabled = useSettingsStore((s) => s.timelineSnap);
-  const setSetting = useSettingsStore((s) => s.set);
-  const isBypassing = useTimelineStore((s) => s.isBypassing);
-  const toggleSnapKeys = getEffectiveKeysArray("timeline.toggleSnap");
-  const toggleMarkerKeys = getEffectiveKeysArray("timeline.toggleMarkerMode");
-  const lines = useProjectStore((s) => s.lines);
   const collapsedInstances = useTimelineStore((s) => s.collapsedInstances);
   const setInstanceCollapsed = useTimelineStore((s) => s.setInstanceCollapsed);
   const textVariant = useTimelineStore((s) => s.textVariant);
   const toggleTextVariant = useTimelineStore((s) => s.toggleTextVariant);
-  const linesHaveTransliteration = useMemo(() => hasTransliteration(lines), [lines]);
-  const hasUnexpandedLines = useMemo(() => lines.some((l) => !l.words?.length && l.text.trim().length > 0), [lines]);
-
-  const instanceKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const line of lines) {
-      if (isLinked(line)) {
-        keys.add(`${line.groupId}:${line.instanceIdx}`);
-      }
-    }
-    return [...keys];
-  }, [lines]);
+  const linesHaveTransliteration = useProjectStore((s) => lineFacts(s.lines).hasTransliteration);
+  const hasUnexpandedLines = useProjectStore((s) => lineFacts(s.lines).hasUnexpandedLines);
+  const instanceKeys = useProjectStore(useShallow((s) => lineFacts(s.lines).instanceKeys));
 
   const hasGroups = instanceKeys.length > 0;
   const anyExpanded = useMemo(
@@ -75,12 +81,13 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
 
   const handleToggleAllCollapsed = useCallback(() => {
     for (const k of instanceKeys) setInstanceCollapsed(k, anyExpanded);
+    noteGuideSignal("timeline.collapseAll");
   }, [instanceKeys, anyExpanded, setInstanceCollapsed]);
 
   const handleExpandAll = useCallback(() => {
     const currentTime = useAudioStore.getState().currentTime;
     const wordDuration = useSettingsStore.getState().defaultWordDuration;
-    const updateLinesWithHistory = useProjectStore.getState().updateLinesWithHistory;
+    const { lines, updateLinesWithHistory } = useProjectStore.getState();
 
     const updates: Array<{ id: string; updates: { words?: WordTiming[]; begin?: undefined; end?: undefined } }> = [];
 
@@ -89,8 +96,7 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
       if (!line.text.trim()) continue;
 
       if (isLineSynced(line)) {
-        const onsets = useTimelineStore.getState().vocalOnsetSnapPoints;
-        const converted = convertLineToWord(line, { onsets });
+        const converted = convertLineToWord(line);
         if (converted.words) {
           updates.push({ id: line.id, updates: { words: converted.words, begin: undefined, end: undefined } });
         }
@@ -123,7 +129,7 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
         useTimelineStore.getState().setSelectedWords(newSelections);
       }
     }
-  }, [lines]);
+  }, []);
 
   useEffect(() => {
     const handler = () => handleExpandAll();
@@ -132,105 +138,128 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
   }, [handleExpandAll]);
 
   return (
-    <div className="@container flex items-center justify-between gap-4 h-13 shrink-0 px-2 border-b border-(--divider) @max-[72rem]:[&_[data-inline-key-badge]]:hidden">
-      <h2 className="sr-only">Timeline</h2>
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="tray">
-          <ShortcutToggleButton
-            active={textVariant !== "original"}
-            label={textVariant === "both" ? "Both" : textVariant === "transliteration" ? "Transliteration" : "Original"}
-            stateInLabel
-            shortcut="timeline.toggleTextVariant"
-            onClick={toggleTextVariant}
-            disabled={!linesHaveTransliteration}
-            title="Toggle original / transliteration / both labels"
-          >
-            <IconLanguage />
-          </ShortcutToggleButton>
+    <TooltipGroup>
+      <div className="@container flex items-center justify-between gap-4 h-13 shrink-0 px-2 border-b border-(--divider) @max-[72rem]:[&_[data-inline-key-badge]]:hidden">
+        <h2 className="sr-only">Timeline</h2>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="tray">
+            <ShortcutToggleButton
+              active={textVariant !== "original"}
+              label={
+                textVariant === "both" ? "Both" : textVariant === "transliteration" ? "Transliteration" : "Original"
+              }
+              stateInLabel
+              shortcut="timeline.toggleTextVariant"
+              onClick={toggleTextVariant}
+              disabled={!linesHaveTransliteration}
+              description="Toggle original / transliteration / both labels"
+              iconOnly
+            >
+              <IconLanguage />
+            </ShortcutToggleButton>
+          </div>
+
+          <div className="tray">
+            <ShortcutToggleButton
+              active={followPlayhead}
+              label="Follow"
+              shortcut="timeline.toggleFollow"
+              onClick={() => useSettingsStore.getState().toggle("followPlayhead")}
+              iconOnly
+            >
+              <IconFocusCentered />
+            </ShortcutToggleButton>
+            <ShortcutToggleButton
+              active={returnToCue}
+              label="Return to cue"
+              description="Play starts from the cue, and stopping returns to it"
+              shortcut="timeline.toggleReturnToCue"
+              onClick={() => useSettingsStore.getState().toggle("returnToCue")}
+              iconOnly
+            >
+              <IconArrowBackUp />
+            </ShortcutToggleButton>
+            <ShortcutToggleButton
+              active={rollingEdit}
+              label="Rolling"
+              shortcut="timeline.toggleRollingEdit"
+              onClick={() => useSettingsStore.getState().toggle("rollingEdit")}
+              description="Rolling edit: drag a shared word boundary and both words move together"
+              iconOnly
+            >
+              <IconArrowBarBoth />
+            </ShortcutToggleButton>
+            <ShortcutToggleButton
+              active={previewSidebar}
+              label="Preview"
+              shortcut="timeline.togglePreview"
+              onClick={() => {
+                useSettingsStore.getState().toggle("previewSidebar");
+                if (useSettingsStore.getState().previewSidebar) noteGuideSignal("preview.sidebar");
+              }}
+              iconOnly
+            >
+              <IconEye />
+            </ShortcutToggleButton>
+          </div>
+
+          <div className="tray" data-guide-spot="snap">
+            <SnapLatch />
+            <ShortcutToggleButton
+              active={markerMode}
+              label="Marker"
+              shortcut="timeline.toggleMarkerMode"
+              onClick={toggleMarkerMode}
+              iconOnly
+            >
+              <IconMapPin />
+            </ShortcutToggleButton>
+            <StepTimingLatch />
+          </div>
+
+          <div className="tray">
+            <SpectrumLatch />
+          </div>
+
+          <TimelineAutoAlign />
+
+          {onImportLyrics && (
+            <HeaderAction onClick={onImportLyrics} label="Import" shortcut="timeline.importLyrics" showHint={showHints}>
+              <IconTextPlus />
+            </HeaderAction>
+          )}
+
+          {hasUnexpandedLines && (
+            <HeaderAction
+              onClick={handleExpandAll}
+              label="Split all lines into words"
+              shortcut="timeline.expandAll"
+              showHint={showHints}
+            >
+              <IconLayoutDistributeHorizontal />
+            </HeaderAction>
+          )}
+
+          {hasGroups && (
+            <HeaderAction
+              onClick={handleToggleAllCollapsed}
+              label={anyExpanded ? "Collapse groups" : "Expand groups"}
+              description={anyExpanded ? "Collapse all groups" : "Expand all groups"}
+              shortcut="timeline.toggleAllCollapsed"
+              showHint={showHints}
+              guideSpot="collapseAll"
+            >
+              {anyExpanded ? <IconChevronsUp /> : <IconChevronsDown />}
+            </HeaderAction>
+          )}
         </div>
 
-        <div className="tray">
-          <ShortcutToggleButton
-            active={followEnabled}
-            label="Follow"
-            shortcut="timeline.toggleFollow"
-            onClick={toggleFollow}
-          >
-            <IconFocusCentered />
-          </ShortcutToggleButton>
-          <ShortcutToggleButton
-            active={rollingEditMode}
-            label="Rolling"
-            shortcut="timeline.toggleRollingEdit"
-            onClick={toggleRollingEditMode}
-            title="Rolling edit: drag a shared word boundary and both words move together"
-          >
-            <IconArrowBarBoth />
-          </ShortcutToggleButton>
-          <ShortcutToggleButton
-            active={previewSidebarOpen}
-            label="Preview"
-            shortcut="timeline.togglePreview"
-            onClick={togglePreviewSidebar}
-          >
-            <IconEye />
-          </ShortcutToggleButton>
+        <div className="flex flex-1 min-w-0 items-center justify-end gap-3">
+          <TimelineNotices />
+          <TimelineZoomControls scrollContainerRef={scrollContainerRef} />
         </div>
-
-        <div className="tray">
-          <ShortcutToggleButton
-            active={snapEnabled}
-            label="Snap"
-            shortcut="timeline.toggleSnap"
-            onClick={() => setSetting("timelineSnap", !snapEnabled)}
-            className={cn(isBypassing && "opacity-50")}
-            title={`Snap${toggleSnapKeys.length ? ` (${toggleSnapKeys.join(" ")})` : ""} · hold ${MOD_KEY} to bypass`}
-          >
-            <IconMagnet />
-          </ShortcutToggleButton>
-          <ShortcutToggleButton
-            active={markerMode}
-            label="Marker"
-            shortcut="timeline.toggleMarkerMode"
-            onClick={toggleMarkerMode}
-            title={`Marker mode${toggleMarkerKeys.length ? ` (${toggleMarkerKeys.join(" ")})` : ""}`}
-          >
-            <IconMapPin />
-          </ShortcutToggleButton>
-        </div>
-
-        <TimelineAutoAlign />
-
-        {onImportLyrics && (
-          <HeaderAction onClick={onImportLyrics} label="Import" shortcut="timeline.importLyrics" showHint={showHints}>
-            <IconTextPlus />
-          </HeaderAction>
-        )}
-
-        {hasUnexpandedLines && (
-          <HeaderAction onClick={handleExpandAll} label="Expand All" shortcut="timeline.expandAll" showHint={showHints}>
-            <IconLayoutDistributeHorizontal />
-          </HeaderAction>
-        )}
-
-        {hasGroups && (
-          <HeaderAction
-            onClick={handleToggleAllCollapsed}
-            label={anyExpanded ? "Collapse all" : "Expand all"}
-            title={anyExpanded ? "Collapse all groups" : "Expand all groups"}
-            shortcut="timeline.toggleAllCollapsed"
-            showHint={showHints}
-          >
-            {anyExpanded ? <IconChevronsUp /> : <IconChevronsDown />}
-          </HeaderAction>
-        )}
       </div>
-
-      <div className="flex flex-1 min-w-0 items-center justify-end gap-3">
-        <TimelineNotices />
-        <TimelineZoomControls scrollContainerRef={scrollContainerRef} />
-      </div>
-    </div>
+    </TooltipGroup>
   );
 };
 

@@ -6,6 +6,7 @@ import { useSeparationStore } from "@/stores/separation";
 import { useSettingsStore } from "@/stores/settings";
 import { isAbortError } from "@/utils/abort-error";
 import { fileIdentityKey } from "@/utils/file-identity";
+import { createLatestRequest } from "@/utils/latest-request";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { useEffect } from "react";
 
@@ -22,40 +23,46 @@ function audioSourceKey(source: AudioSource): string | null {
   return null;
 }
 
+function songKey(source: AudioSource): string | null {
+  if (source?.type === "file") return `file:${fileIdentityKey(source.file)}`;
+  if (source?.type === "youtube") return `youtube:${source.videoId}`;
+  return null;
+}
+
+// Audio that goes missing and comes back, or a YouTube file that arrives later, is still the same song.
+function isAnotherSong(next: AudioSource, previous: AudioSource): boolean {
+  const nextSong = songKey(next);
+  const previousSong = songKey(previous);
+  return nextSong !== null && previousSong !== null && nextSong !== previousSong;
+}
+
 function useVocalOnsetSnapPoints(): void {
   useEffect(() => {
-    let running: AbortController | null = null;
+    const request = createLatestRequest();
     let appliedVocalsUrl: string | null = null;
-
-    const cancelRunning = () => {
-      running?.abort();
-      running = null;
-    };
+    const cancelRunning = request.cancel;
 
     const load = (vocalsUrl: string, jobKey: string | null) => {
-      cancelRunning();
-      const request = new AbortController();
-      running = request;
+      const { signal, isCurrent, finish } = request.start();
       appliedVocalsUrl = vocalsUrl;
-      const isCurrent = () => running === request && !request.signal.aborted;
       loadVocalOnsets({
         jobKey,
         vocalsUrl,
-        signal: request.signal,
+        signal,
         onDetectionStart: () => {
           if (isCurrent()) useTimelineStore.getState().setVocalOnsetDetectionStatus("processing");
         },
       }).then(
         (points) => {
           if (!isCurrent()) return;
-          running = null;
+          finish();
           const timeline = useTimelineStore.getState();
           timeline.setVocalOnsetSnapPoints(points);
           timeline.setVocalOnsetDetectionStatus("idle");
         },
         (error: unknown) => {
           if (!isCurrent() || isAbortError(error)) return;
-          running = null;
+          finish();
           appliedVocalsUrl = null;
           useTimelineStore
             .getState()
@@ -76,7 +83,7 @@ function useVocalOnsetSnapPoints(): void {
       }
       if (!useSettingsStore.getState().vocalOnsetSnap) {
         if (timeline.vocalOnsetDetectionStatus === "error") timeline.setVocalOnsetDetectionStatus("idle");
-        if (!running) return;
+        if (!request.isRunning()) return;
         cancelRunning();
         appliedVocalsUrl = null;
         timeline.setVocalOnsetDetectionStatus("idle");
@@ -101,7 +108,10 @@ function useVocalOnsetSnapPoints(): void {
       appliedVocalsUrl = null;
       const timeline = useTimelineStore.getState();
       timeline.setVocalOnsetSnapPoints([]);
-      useProjectStore.getState().clearCustomSnapPoints();
+      if (isAnotherSong(state.source, prev.source)) {
+        useProjectStore.getState().clearCustomSnapPoints();
+        useProjectStore.getState().clearBeatGrid();
+      }
       timeline.setVocalOnsetDetectionStatus("idle");
     });
 

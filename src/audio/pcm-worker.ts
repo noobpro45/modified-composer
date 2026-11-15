@@ -1,5 +1,4 @@
 /// <reference lib="webworker" />
-// biome-ignore organizeImports: the webworker triple-slash reference must stay before imports.
 import { type LevelEnvelope, computeLevelEnvelope } from "@/audio/level-envelope";
 import { detectVocalOnsets, mixToMono } from "@/audio/onset-detection";
 import { encodeWav } from "@/audio/wav-encode";
@@ -15,7 +14,7 @@ type PcmJob =
 
 type PcmJobResult =
   | { type: "onsets"; onsets: number[] }
-  | { type: "wav"; bytes: ArrayBuffer }
+  | { type: "wav"; bytes: ArrayBuffer; channels: Float32Array[] }
   | { type: "levels"; envelope: LevelEnvelope }
   | { type: "error"; message: string };
 
@@ -24,7 +23,8 @@ type PcmJobResult =
 function runJob(job: PcmJob): { result: PcmJobResult; transfer: Transferable[] } {
   if (job.type === "encode-wav") {
     const bytes = encodeWav(job.channels, job.sampleRate);
-    return { result: { type: "wav", bytes }, transfer: [bytes] };
+    const channelBuffers = [...new Set(job.channels.map((channel) => channel.buffer))];
+    return { result: { type: "wav", bytes, channels: job.channels }, transfer: [bytes, ...channelBuffers] };
   }
   if (job.type === "level-envelope") {
     const envelope = computeLevelEnvelope(job.channels, job.sampleRate);

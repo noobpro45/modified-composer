@@ -1,16 +1,19 @@
 import type { Stem } from "@/audio/separation/types";
 import type { Agent } from "@/domain/agent/model";
+import type { AlignedTimings } from "@/domain/alignment/fingerprint";
+import type { PlayedRange } from "@/domain/alignment/played-ranges";
 import type { LinkGroup } from "@/domain/group/template";
 import type { LyricLine } from "@/domain/line/model";
 import type { SavedAudioSource } from "@/domain/project/audio-source";
 import type { MetadataKey } from "@/domain/project/imported-metadata";
 import type { ProjectMetadata } from "@/domain/project/metadata";
-import type { TimingGranularity } from "@/domain/project/timing-granularity";
 import type { SyllableSplitDefaults } from "@/domain/project/syllable-split-defaults";
-import type { ProjectTab } from "@/domain/project/tab";
+import type { TimingGranularity } from "@/domain/project/timing-granularity";
 import type { SnapPoint } from "@/domain/snap-point/model";
+import type { BeatGrid } from "@/domain/tempo/beat-grid";
 import { ensureOpenProjectId, findOpenProjectId } from "@/lib/open-project-session";
 import { deleteProjectAudio, saveProjectAudio } from "@/lib/project-audio";
+import type { IndexViewFields } from "@/lib/project-index-write";
 import { saveProjectRecord } from "@/lib/project-repository";
 import { SAVED_PROJECT_VERSION, type SavedProject } from "@/lib/saved-project";
 import type { GranularityMode } from "@/stores/project";
@@ -32,28 +35,41 @@ interface ProjectSaveInput {
   dismissedMetadataMatches: string[];
   currentStem: Stem;
   primingStripped: boolean;
+  primingCorrected: boolean;
   customSnapPoints: SnapPoint[];
+  beatGrid: BeatGrid | null;
   hasUnexportedImport: boolean;
   importedMetadataKeys: MetadataKey[];
   ttmlEditState: TtmlEditState;
+  alignedTimings: AlignedTimings;
+  alignmentNoticeDismissed: boolean;
+  unisonLyricId: string | null;
+  playedRanges: PlayedRange[];
 }
 
 // -- Records ------------------------------------------------------------------
 
 function buildSavedProject(input: ProjectSaveInput): SavedProject {
+  const { unisonLyricId, ...fields } = input;
   const audioFileName = input.audioSource?.kind === "file" ? input.audioSource.name : undefined;
-  return { version: SAVED_PROJECT_VERSION, savedAt: Date.now(), ...input, audioFileName };
+  return {
+    version: SAVED_PROJECT_VERSION,
+    savedAt: Date.now(),
+    ...fields,
+    audioFileName,
+    ...(unisonLyricId ? { unisonLyricId } : {}),
+  };
 }
 
-async function saveProjectTo(target: Promise<string>, input: ProjectSaveInput, lastTab?: ProjectTab): Promise<void> {
+async function saveProjectTo(target: Promise<string>, input: ProjectSaveInput, view?: IndexViewFields): Promise<void> {
   const project = buildSavedProject(input);
-  await saveProjectRecord(await target, project, lastTab);
+  await saveProjectRecord(await target, project, view);
 }
 
 // -- Public API ---------------------------------------------------------------
 
-function saveCurrentProject(input: ProjectSaveInput, lastTab?: ProjectTab): Promise<void> {
-  return saveProjectTo(ensureOpenProjectId(), input, lastTab);
+function saveCurrentProject(input: ProjectSaveInput, view?: IndexViewFields): Promise<void> {
+  return saveProjectTo(ensureOpenProjectId(), input, view);
 }
 
 // -- Audio File Persistence ---------------------------------------------------
@@ -69,5 +85,5 @@ async function clearAudioFile(): Promise<void> {
 
 // -- Exports ------------------------------------------------------------------
 
-export { buildSavedProject, saveProjectTo, saveCurrentProject, saveAudioFile, clearAudioFile };
 export type { ProjectSaveInput };
+export { buildSavedProject, clearAudioFile, saveAudioFile, saveCurrentProject, saveProjectTo };

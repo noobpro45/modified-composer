@@ -1,22 +1,10 @@
+import { noteGuideSignal } from "@/lib/guide-signals";
+import { useSeparationStore } from "@/stores/separation";
 import { useSettingsStore } from "@/stores/settings";
 import { Switch } from "@/ui/switch";
-import { DETECTING_VOCAL_ONSETS } from "@/ui/vocal-onset-status-copy";
-import { pluralize } from "@/utils/pluralize";
+import { describeOnsetStatus } from "@/ui/vocal-onset-status-copy";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { IconWaveSine } from "@tabler/icons-react";
-
-// -- Status hint --------------------------------------------------------------
-
-function describeOnsetStatus(
-  status: "idle" | "processing" | "error",
-  pointCount: number,
-  error: string | null,
-): string {
-  if (status === "processing") return DETECTING_VOCAL_ONSETS;
-  if (status === "error") return error ? `Detection failed: ${error}` : "Detection failed";
-  if (pointCount > 0) return pluralize(pointCount, "snap point");
-  return "Separate vocals to detect onsets";
-}
 
 // -- Components ----------------------------------------------------------------
 
@@ -26,7 +14,9 @@ const VocalOnsetSnapToggle: React.FC = () => {
   const pointCount = useTimelineStore((s) => s.vocalOnsetSnapPoints.length);
   const detectionError = useTimelineStore((s) => s.vocalOnsetDetectionError);
 
-  const hint = describeOnsetStatus(detectionStatus, pointCount, detectionError);
+  const hasVocals = useSeparationStore((s) => s.availableStems.includes("vocals"));
+
+  const hint = hasVocals ? describeOnsetStatus(detectionStatus, pointCount, detectionError) : "Needs a vocals stem";
 
   return (
     <div className="flex items-center gap-2.5 select-none">
@@ -36,9 +26,13 @@ const VocalOnsetSnapToggle: React.FC = () => {
         <span className="text-[12.5px] leading-[1.45] text-(--muted) select-text truncate">{hint}</span>
       </div>
       <Switch
-        checked={enabled}
+        checked={enabled && hasVocals}
+        disabled={!hasVocals}
         label="Snap to vocal onsets"
-        onCheckedChange={(checked) => useSettingsStore.getState().set("vocalOnsetSnap", checked)}
+        onCheckedChange={(checked) => {
+          useSettingsStore.getState().set("vocalOnsetSnap", checked);
+          if (checked) noteGuideSignal("timeline.onsets");
+        }}
       />
     </div>
   );

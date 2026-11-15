@@ -6,6 +6,7 @@ import { advanceFrames, type FrameLoopModule, loadFrameLoop } from "@/test/frame
 let subscribeFrame: FrameLoopModule["subscribeFrame"];
 let holdFrames: FrameLoopModule["holdFrames"];
 let wake: FrameLoopModule["wake"];
+let wakeForOneFrame: FrameLoopModule["wakeForOneFrame"];
 let nextFrame: FrameLoopModule["nextFrame"];
 let cancelNextFrame: FrameLoopModule["cancelNextFrame"];
 let tailFrames: number;
@@ -26,6 +27,7 @@ beforeEach(async () => {
   subscribeFrame = frameLoop.subscribeFrame;
   holdFrames = frameLoop.holdFrames;
   wake = frameLoop.wake;
+  wakeForOneFrame = frameLoop.wakeForOneFrame;
   nextFrame = frameLoop.nextFrame;
   cancelNextFrame = frameLoop.cancelNextFrame;
   tailFrames = frameLoop.TAIL_FRAMES;
@@ -76,6 +78,26 @@ describe("frame-loop", () => {
     it("runs exactly TAIL_FRAMES frames after a wake with no hold", () => {
       const probe = countingSubscriber();
       const unsubscribe = probe.subscribe();
+      advanceFrames(100);
+      expect(probe.calls()).toBe(tailFrames);
+      unsubscribe();
+    });
+
+    it("runs exactly one frame after a wake asking for one with no hold", () => {
+      const probe = countingSubscriber();
+      const unsubscribe = probe.subscribe();
+      advanceFrames(100);
+      wakeForOneFrame();
+      advanceFrames(100);
+      expect(probe.calls()).toBe(tailFrames + 1);
+      unsubscribe();
+    });
+
+    it("keeps the full tail when a one-frame wake arrives mid-tail", () => {
+      const probe = countingSubscriber();
+      const unsubscribe = probe.subscribe();
+      advanceFrames(1);
+      wakeForOneFrame();
       advanceFrames(100);
       expect(probe.calls()).toBe(tailFrames);
       unsubscribe();
@@ -239,6 +261,89 @@ describe("frame-loop", () => {
       expect(timestamps[0]).toBe(timestamps[1]);
       unsubscribeFirst();
       unsubscribeSecond();
+    });
+  });
+
+  describe("phases", () => {
+    it("runs every read before any write in one frame", () => {
+      const log: string[] = [];
+      const unsubscribes = [
+        subscribeFrame({ read: () => log.push("A.read"), write: () => log.push("A.write") }, "a"),
+        subscribeFrame(() => log.push("B"), "b"),
+        subscribeFrame({ read: () => log.push("C.read"), write: () => log.push("C.write") }, "c"),
+      ];
+      advanceFrames(1);
+      expect(log).toEqual(["A.read", "C.read", "A.write", "B", "C.write"]);
+      for (const unsubscribe of unsubscribes) unsubscribe();
+    });
+
+    it("keeps plain callbacks in subscription order", () => {
+      const log: string[] = [];
+      const unsubscribeFirst = subscribeFrame(() => log.push("first"), "first");
+      const unsubscribeSecond = subscribeFrame(() => log.push("second"), "second");
+      advanceFrames(1);
+      expect(log).toEqual(["first", "second"]);
+      unsubscribeFirst();
+      unsubscribeSecond();
+    });
+
+    it("skips the write of a read that threw, and still runs its siblings", () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const log: string[] = [];
+      const unsubscribes = [
+        subscribeFrame(
+          {
+            read: () => {
+              throw new Error("read failed");
+            },
+            write: () => log.push("broken.write"),
+          },
+          "broken",
+        ),
+        subscribeFrame({ read: () => log.push("ok.read"), write: () => log.push("ok.write") }, "ok"),
+      ];
+      advanceFrames(1);
+      expect(log).toEqual(["ok.read", "ok.write"]);
+      expect(error).toHaveBeenCalledTimes(1);
+      for (const unsubscribe of unsubscribes) unsubscribe();
+      error.mockRestore();
+    });
+
+    it("regression: logs a write that keeps failing once, even while its read succeeds", () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const release = holdFrames("test");
+      const unsubscribe = subscribeFrame(
+        {
+          read: () => {},
+          write: () => {
+            throw new Error("write failed");
+          },
+        },
+        "broken-write",
+      );
+      advanceFrames(5);
+      expect(error).toHaveBeenCalledTimes(1);
+      unsubscribe();
+      release();
+      error.mockRestore();
+    });
+
+    it("never runs a write whose read did not run in the same frame", () => {
+      const log: string[] = [];
+      const unsubscribes: Array<() => void> = [];
+      unsubscribes.push(
+        subscribeFrame(() => {
+          if (unsubscribes.length > 1) return;
+          unsubscribes.push(
+            subscribeFrame({ read: () => log.push("late.read"), write: () => log.push("late.write") }, "late"),
+          );
+        }, "adder"),
+      );
+      advanceFrames(1);
+      expect(log).toEqual([]);
+      advanceFrames(1);
+      expect(log).toEqual(["late.read", "late.write"]);
+      for (const unsubscribe of unsubscribes) unsubscribe();
     });
   });
 

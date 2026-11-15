@@ -233,10 +233,10 @@ describe("TimelineWaveform redraw background", () => {
     expect(bgIdx).toBeLessThan(clickLayerIdx);
   });
 
-  it("background width is 0 when duration is unset so it never extends past the audio range", async () => {
+  it("covers the visible band while the song length is still unknown", async () => {
     setupWaveformAudio(0);
     await render(<TimelineWaveform />);
-    expect(getBackground()?.style.width).toBe("0px");
+    expect(getBackground()?.style.width).toBe("100%");
   });
 
   it("does not render the background when there is no audio source (component is null)", async () => {
@@ -331,10 +331,11 @@ describe("TimelineWaveform loading dots", () => {
     expect(fadeIdx).toBeGreaterThan(dotsIdx);
   });
 
-  it("width is 0 when duration is unset so it never extends past the audio range", async () => {
+  it("shows across the visible band while the song length is still unknown", async () => {
     setupWaveformAudio(0);
     await render(<TimelineWaveform />);
-    expect(getDots()?.style.width).toBe("0px");
+    expect(getDots()?.style.width).toBe("100%");
+    expect(getDots()?.style.opacity).toBe("1");
   });
 
   it("renders even when there is no audioElement yet (covers the brief pre-load gap)", async () => {
@@ -373,6 +374,11 @@ describe("TimelineWaveform loading dots", () => {
 
     function nextFrame(): Promise<void> {
       return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    }
+
+    function drawnWaveformWidth(): string | undefined {
+      const host = [...document.querySelectorAll("[data-waveform-fade] *")].find((element) => element.shadowRoot);
+      return host?.shadowRoot?.querySelector<HTMLElement>(".wrapper")?.style.width;
     }
 
     function setupPlayableAudio(durationSeconds: number): HTMLAudioElement {
@@ -480,6 +486,40 @@ describe("TimelineWaveform loading dots", () => {
 
       expect(shownOpacities.filter((opacity) => opacity === "1")).toEqual([]);
       expect(requireDots().style.width).toBe("240px");
+    });
+
+    it("regression: zooming after a stem switch redraws the waveform instead of rebuilding it", async () => {
+      const audio = setupPlayableAudio(2);
+      useTimelineStore.setState({ zoom: 50 });
+      await render(<TimelineWaveform />);
+      const layer = requireDots();
+      await expect.poll(() => sweepAnimationName(), { timeout: 5000 }).toBe("none");
+
+      audio.src = bufferToBlobUrl(makeSineBuffer(2));
+      await expect.poll(() => audio.readyState > 0 && sweepAnimationName() === "none", { timeout: 5000 }).toBe(true);
+
+      const shownOpacities: string[] = [];
+      const observer = new MutationObserver(() => shownOpacities.push(layer.style.opacity));
+      observer.observe(layer, { attributes: true, attributeFilter: ["style"] });
+      try {
+        useTimelineStore.setState({ zoom: 80 });
+        await expect.poll(() => drawnWaveformWidth(), { timeout: 5000 }).toBe("160px");
+      } finally {
+        observer.disconnect();
+      }
+
+      expect(shownOpacities.filter((opacity) => opacity === "1")).toEqual([]);
+    });
+
+    it("regression: a stem chosen while the waveform is still loading stays on the audio element", async () => {
+      const audio = setupPlayableAudio(2);
+      await render(<TimelineWaveform />);
+      const stemUrl = bufferToBlobUrl(makeSineBuffer(2));
+      expect(requireDots().style.opacity).toBe("1");
+      audio.src = stemUrl;
+
+      await expect.poll(() => sweepAnimationName(), { timeout: 5000 }).toBe("none");
+      expect(audio.src).toBe(stemUrl);
     });
 
     it("settle delay outlasts the fade-out transition it is paired with", async () => {

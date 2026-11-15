@@ -1,4 +1,8 @@
+import type { LanguageTextVariant } from "@/domain/language/display";
+import { useSettingsStore } from "@/stores/settings";
+import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
 import { Button } from "@/ui/button";
+import { InlineKeyBadge } from "@/ui/inline-key-badge";
 import { SegmentedControl } from "@/ui/segmented-control";
 import { ShortcutToggleButton } from "@/ui/shortcut-toggle-button";
 import { AutoAlignDropdown } from "@/views/sync/auto-align-dropdown";
@@ -8,7 +12,7 @@ import { IconLanguage, IconLock, IconLockOpen, IconPlayerPlayFilled, IconRefresh
 
 interface SyncHeaderProps {
   progress: { done: number; total: number };
-  textVariant: "original" | "transliteration" | "both";
+  textVariant: LanguageTextVariant;
   hasTransliteration: boolean;
   toggleTextVariant: () => void;
   granularity: "line" | "word";
@@ -23,11 +27,11 @@ interface SyncHeaderProps {
 // -- Constants ----------------------------------------------------------------
 
 const GRANULARITY_OPTIONS = [
-  { value: "line" as const, label: "Line" },
-  { value: "word" as const, label: "Word" },
-];
+  { value: "line", label: "Line" },
+  { value: "word", label: "Word" },
+] as const;
 
-// -- Component ----------------------------------------------------------------
+// -- Components ---------------------------------------------------------------
 
 const SyncHeader: React.FC<SyncHeaderProps> = ({
   progress,
@@ -42,6 +46,7 @@ const SyncHeader: React.FC<SyncHeaderProps> = ({
   handleReset,
   handleStartSync,
 }) => {
+  const showShortcutHints = useSettingsStore((s) => s.showShortcutHints);
   return (
     <div className="flex items-center justify-between gap-4 h-13 shrink-0 pl-5 pr-2 border-b border-(--divider)">
       <h2 className="sr-only">Sync</h2>
@@ -52,13 +57,13 @@ const SyncHeader: React.FC<SyncHeaderProps> = ({
       <div className="flex items-center gap-3">
         <div className="tray">
           <ShortcutToggleButton
-            active={textVariant !== "original"}
-            label={textVariant === "both" ? "Both" : textVariant === "transliteration" ? "Transliteration" : "Original"}
+            active={textVariant === "transliteration"}
+            label={textVariant === "transliteration" ? "Transliteration" : "Original"}
             stateInLabel
             shortcut="sync.toggleTextVariant"
             onClick={toggleTextVariant}
             disabled={!hasTransliteration}
-            title="Toggle original / transliteration / both text"
+            description="Toggle original / transliteration text"
           >
             <IconLanguage />
           </ShortcutToggleButton>
@@ -75,10 +80,12 @@ const SyncHeader: React.FC<SyncHeaderProps> = ({
           size="lg"
           variant={editMode ? "primary" : "secondary"}
           onClick={handleToggleEdit}
+          className={showShortcutHints ? "pr-2.5 [&>[data-inline-key-badge]]:ml-0" : undefined}
           title={editMode ? "Done editing, back to syncing" : "Edit timings (pauses playback)"}
         >
           {editMode ? <IconLock className="size-4" /> : <IconLockOpen className="size-4" />}
           {editMode ? "Done" : "Edit"}
+          {showShortcutHints && <InlineKeyBadge keys={getEffectiveKeysArray("sync.toggleEdit")} />}
         </Button>
         {isActive && !editMode && (
           <Button hasIcon size="lg" onClick={handleReset}>

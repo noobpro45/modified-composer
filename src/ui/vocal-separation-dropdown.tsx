@@ -1,14 +1,17 @@
-import { getModelDescriptor } from "@/audio/separation/model-registry";
 import type { Stem } from "@/audio/separation/types";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { useAudioStore } from "@/stores/audio";
 import { useSeparationStore } from "@/stores/separation";
 import { useSettingsStore } from "@/stores/settings";
+import { PitchLineSwitch } from "@/ui/pitch-line-switch";
 import { Popover } from "@/ui/popover";
 import { STEM_LABELS } from "@/ui/stem-labels";
+import { StemModelBlock } from "@/ui/stem-sources/stem-model-block";
+import { StemSourceRows } from "@/ui/stem-sources/stem-source-rows";
+import { VocalOnsetSnapToggle } from "@/ui/vocal-onset-snap-toggle";
 import { DETECTING_VOCAL_ONSETS } from "@/ui/vocal-onset-status-copy";
-import { VocalOnsetStatusAnnouncer, StemPickLabel } from "@/ui/vocal-separation-trigger";
-import { ErrorState, IdleNoModelState, IdleReadyState, PopText, ProgressState } from "@/ui/vocal-separation-states";
-import { formatMegabytes } from "@/utils/format-file-size";
+import { StemPickLabel, VocalOnsetStatusAnnouncer } from "@/ui/vocal-separation-trigger";
+import { percent } from "@/utils/percent";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { useEffect } from "react";
 
@@ -20,38 +23,28 @@ interface VocalSeparationDropdownProps {
   positionAnchor?: HTMLElement | null;
 }
 
+// -- Helpers ------------------------------------------------------------------
+
 // -- Component ----------------------------------------------------------------
 
 const VocalSeparationDropdown: React.FC<VocalSeparationDropdownProps> = ({ open, onOpenChange, positionAnchor }) => {
   const source = useAudioStore((s) => s.source);
   const status = useSeparationStore((s) => s.status);
   const progress = useSeparationStore((s) => s.progress);
-  const error = useSeparationStore((s) => s.error);
   const currentStem = useSeparationStore((s) => s.currentStem);
-  const availableStems = useSeparationStore((s) => s.availableStems);
-  const modelCached = useSeparationStore((s) => s.modelCached);
-  const hostingConfigured = useSeparationStore((s) => s.hostingConfigured);
   const refreshModelCacheStatus = useSeparationStore((s) => s.refreshModelCacheStatus);
-  const detectingOnsets = useTimelineStore((s) => s.vocalOnsetDetectionStatus === "processing");
-
-  const variant = useSettingsStore((s) => s.vocalModelVariant);
-  const descriptor = getModelDescriptor(variant);
-
-  const downloadModel = useSeparationStore((s) => s.downloadModel);
-  const separate = useSeparationStore((s) => s.separate);
   const selectStem = useSeparationStore((s) => s.selectStem);
-  const cancel = useSeparationStore((s) => s.cancel);
-  const retry = useSeparationStore((s) => s.retry);
+  const detectingOnsets = useTimelineStore((s) => s.vocalOnsetDetectionStatus === "processing");
+  const variant = useSettingsStore((s) => s.vocalModelVariant);
 
   useEffect(() => {
     void variant;
     refreshModelCacheStatus();
   }, [refreshModelCacheStatus, variant]);
 
-  if (!hostingConfigured) return null;
   if (!source) return null;
 
-  const pct = progress.total > 0 ? Math.round((progress.loaded / progress.total) * 100) : 0;
+  const pct = percent(progress.loaded, progress.total);
   const separating = status === "downloading" || status === "processing";
   const showDetecting = detectingOnsets && !separating;
   const triggerLabel = separating ? `${pct}%` : STEM_LABELS[currentStem];
@@ -74,63 +67,19 @@ const VocalSeparationDropdown: React.FC<VocalSeparationDropdownProps> = ({ open,
         {(close) => {
           const selectAndClose = (stem: Stem) => {
             selectStem(stem);
+            if (useSeparationStore.getState().currentStem !== "original") noteGuideSignal("timeline.stems");
             close();
           };
           return (
-            <div className="w-78 p-3.5">
-              {status === "error" && error && (
-                <ErrorState
-                  message={error.message}
-                  onRetry={retry}
-                  onDismiss={() => useSeparationStore.getState().reset()}
-                />
-              )}
-
-              {status === "downloading" && (
-                <ProgressState
-                  title="Downloading model…"
-                  detail={`${formatMegabytes(progress.loaded)} / ${formatMegabytes(progress.total || (descriptor?.approxBytes ?? 0))}`}
-                  pct={pct}
-                  onCancel={cancel}
-                />
-              )}
-
-              {status === "processing" && (
-                <ProgressState
-                  title="Separating vocals…"
-                  detail={progress.total > 0 ? `Chunk ${progress.loaded} of ${progress.total}` : "Preparing…"}
-                  pct={pct}
-                  onCancel={cancel}
-                />
-              )}
-
-              {status === "idle" && !modelCached && (
-                <IdleNoModelState
-                  approxMb={descriptor?.approxMb ?? 85}
-                  onDownload={downloadModel}
-                  onSeparate={separate}
-                />
-              )}
-
-              {status === "idle" && modelCached && (
-                <IdleReadyState
-                  availableStems={availableStems}
-                  currentStem={currentStem}
-                  onSelect={selectAndClose}
-                  onSeparate={separate}
-                />
-              )}
-
-              {status === "ready" && (
-                <IdleReadyState
-                  availableStems={availableStems}
-                  currentStem={currentStem}
-                  onSelect={selectAndClose}
-                  onSeparate={separate}
-                />
-              )}
-
-              {status === "cancelled" && <PopText className="mt-0">Cancelled. Open again to retry.</PopText>}
+            <div className="w-80 p-3.5">
+              <p className="text-[13.5px] font-bold text-composer-text">Playback source</p>
+              <StemSourceRows onSelect={selectAndClose} />
+              <StemModelBlock />
+              <div className="h-px my-2.5 bg-(--divider)" />
+              <VocalOnsetSnapToggle />
+              <div className="mt-3.5">
+                <PitchLineSwitch />
+              </div>
             </div>
           );
         }}
@@ -138,5 +87,7 @@ const VocalSeparationDropdown: React.FC<VocalSeparationDropdownProps> = ({ open,
     </>
   );
 };
+
+// -- Exports ------------------------------------------------------------------
 
 export { VocalSeparationDropdown };

@@ -1,4 +1,6 @@
-import { GUTTER_WIDTH, WAVEFORM_HEIGHT, shownLoopRegion, useTimelineStore } from "@/views/timeline/timeline-store";
+import { useOverviewBandHeight } from "@/views/timeline/overview-band-height";
+import { shownLoopRegion } from "@/views/timeline/shown-loop-region";
+import { GUTTER_WIDTH, useTimelineStore } from "@/views/timeline/timeline-store";
 
 // -- Constants -----------------------------------------------------------------
 
@@ -10,15 +12,16 @@ const GUIDE =
 // Each guide sits on the outer side of its edge, matching the shade borders above it.
 const LoopRegionGuides: React.FC = () => {
   const region = useTimelineStore(shownLoopRegion);
-  const zoom = useTimelineStore((s) => s.zoom);
-  const scrollLeft = useTimelineStore((s) => s.scrollLeft);
+  const zoom = useTimelineStore((s) => (shownLoopRegion(s) ? s.zoom : 0));
+  const scrollLeft = useTimelineStore((s) => (shownLoopRegion(s) ? s.scrollLeft : 0));
+  const bandHeight = useOverviewBandHeight();
   if (!region) return null;
   const offset = GUTTER_WIDTH - scrollLeft;
   return (
     <div
       aria-hidden="true"
       className="pointer-events-none absolute inset-x-0 bottom-0 z-45 overflow-hidden"
-      style={{ top: WAVEFORM_HEIGHT, clipPath: `inset(0 0 0 ${GUTTER_WIDTH}px)` }}
+      style={{ top: bandHeight, clipPath: `inset(0 0 0 ${GUTTER_WIDTH}px)` }}
     >
       <div data-loop-region-guide="begin" className={GUIDE} style={{ left: offset + region.begin * zoom - 1 }} />
       <div data-loop-region-guide="end" className={GUIDE} style={{ left: offset + region.end * zoom }} />

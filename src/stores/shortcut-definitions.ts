@@ -69,6 +69,36 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     needsCommandKey: true,
   },
   {
+    id: "global.seekBackwardFine",
+    scope: "global",
+    description: "Fine seek back",
+    defaultBinding: { key: "<", shift: true, alt: true },
+    repeatable: true,
+  },
+  {
+    id: "global.seekForwardFine",
+    scope: "global",
+    description: "Fine seek forward",
+    defaultBinding: { key: ">", shift: true, alt: true },
+    repeatable: true,
+  },
+  {
+    id: "global.seekBackwardFineWhileTyping",
+    scope: "global",
+    description: "Fine seek back (works while typing)",
+    defaultBinding: { key: "<", shift: true, alt: true, mod: true },
+    repeatable: true,
+    needsCommandKey: true,
+  },
+  {
+    id: "global.seekForwardFineWhileTyping",
+    scope: "global",
+    description: "Fine seek forward (works while typing)",
+    defaultBinding: { key: ">", shift: true, alt: true, mod: true },
+    repeatable: true,
+    needsCommandKey: true,
+  },
+  {
     id: "global.togglePlaybackSpeed",
     scope: "global",
     description: "Switch between normal speed and the last speed you used (0.75x at first)",
@@ -229,6 +259,12 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     defaultBinding: { key: "l" },
   },
   {
+    id: "sync.toggleEdit",
+    scope: "sync",
+    description: "Edit timings",
+    defaultBinding: { key: "e" },
+  },
+  {
     id: "timeline.toggleFollow",
     scope: "timeline",
     description: "Toggle follow",
@@ -277,6 +313,18 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     defaultBinding: { key: "]" },
   },
   {
+    id: "timeline.stepWord",
+    scope: "timeline",
+    description: "Step timing: end the word and start the next",
+    defaultBinding: { key: "\\" },
+  },
+  {
+    id: "timeline.stepTimingOff",
+    scope: "timeline",
+    description: "Turn step timing on or off",
+    defaultBinding: { key: "g" },
+  },
+  {
     id: "timeline.editWord",
     scope: "timeline",
     description: "Edit word",
@@ -291,7 +339,7 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
   {
     id: "timeline.splitWord",
     scope: "timeline",
-    description: "Split word into words",
+    description: "Split into separate words",
     defaultBinding: { key: "s", shift: true },
   },
   {
@@ -327,7 +375,7 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
   {
     id: "timeline.expandAll",
     scope: "timeline",
-    description: "Expand all lines",
+    description: "Split all lines into words",
     defaultBinding: { key: "x" },
   },
   {
@@ -357,7 +405,7 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
   {
     id: "timeline.toggleAllCollapsed",
     scope: "timeline",
-    description: "Collapse / expand all instances",
+    description: "Collapse / expand all groups",
     defaultBinding: { key: "c", shift: true },
   },
   {
@@ -377,6 +425,18 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     scope: "timeline",
     description: "Play the selection",
     defaultBinding: { key: "Enter", alt: true },
+  },
+  {
+    id: "timeline.playFromCue",
+    scope: "timeline",
+    description: "Play from the cue",
+    defaultBinding: { key: "d", shift: true },
+  },
+  {
+    id: "timeline.toggleReturnToCue",
+    scope: "timeline",
+    description: "Toggle return to cue",
+    defaultBinding: { key: "d" },
   },
   {
     id: "timeline.jumpPrevInstance",
@@ -455,6 +515,24 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     defaultBinding: { key: "t" },
   },
   {
+    id: "timeline.toggleBeatGrid",
+    scope: "timeline",
+    description: "Show or hide the beat grid",
+    defaultBinding: { key: "b" },
+  },
+  {
+    id: "timeline.toggleSpectrum",
+    scope: "timeline",
+    description: "Show spectrum",
+    defaultBinding: { key: "v" },
+  },
+  {
+    id: "timeline.togglePitchLine",
+    scope: "timeline",
+    description: "Pitch line",
+    defaultBinding: { key: "k" },
+  },
+  {
     id: "timeline.toggleRollingEdit",
     scope: "timeline",
     description: "Toggle rolling edit tool",
@@ -507,6 +585,34 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     repeatable: true,
   },
   {
+    id: "timeline.jumpPrevBar",
+    scope: "timeline",
+    description: "Jump to previous bar",
+    defaultBinding: { key: "ArrowLeft", shift: true, mod: true },
+    repeatable: true,
+  },
+  {
+    id: "timeline.jumpNextBar",
+    scope: "timeline",
+    description: "Jump to next bar",
+    defaultBinding: { key: "ArrowRight", shift: true, mod: true },
+    repeatable: true,
+  },
+  {
+    id: "timeline.jumpPrevGridLine",
+    scope: "timeline",
+    description: "Jump to previous beat grid line",
+    defaultBinding: { key: "ArrowLeft", shift: true, mod: true, alt: true },
+    repeatable: true,
+  },
+  {
+    id: "timeline.jumpNextGridLine",
+    scope: "timeline",
+    description: "Jump to next beat grid line",
+    defaultBinding: { key: "ArrowRight", shift: true, mod: true, alt: true },
+    repeatable: true,
+  },
+  {
     id: "timeline.copy",
     scope: "timeline",
     description: "Copy selected words",
@@ -528,5 +634,5 @@ const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
 
 // -- Exports ------------------------------------------------------------------
 
+export type { ShortcutBinding, ShortcutDefinition, ShortcutScope };
 export { SHORTCUT_DEFINITIONS };
-export type { ShortcutBinding, ShortcutScope, ShortcutDefinition };

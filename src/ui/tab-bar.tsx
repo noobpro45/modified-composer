@@ -1,8 +1,10 @@
 import { getLanguageAlignmentErrorItems } from "@/domain/language/alignment-errors";
 import { getLanguageReviewItems } from "@/domain/language/review";
-import { PROJECT_TABS, type ProjectTab } from "@/domain/project/tab";
+import { PROJECT_TABS, type ProjectTab, TAB_LABELS } from "@/domain/project/tab";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
+import { getEffectiveKeysArray, useShortcutBindingsStore } from "@/stores/shortcut-bindings";
 import { InlineKeyBadge } from "@/ui/inline-key-badge";
 import { StatusChip } from "@/ui/status-chip";
 import { TabStrip } from "@/ui/tab-strip";
@@ -15,14 +17,14 @@ import { IconAlertCircle, IconAlertTriangle } from "@tabler/icons-react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { useId } from "react";
 
-const TAB_LABELS: Record<ProjectTab, string> = {
-  import: "Import",
-  edit: "Edit",
-  languages: "Languages",
-  sync: "Sync",
-  timeline: "Timeline",
-  preview: "Preview",
-  export: "Export",
+const TAB_SHORTCUTS: Record<ProjectTab, string> = {
+  import: "global.goToImport",
+  edit: "global.goToEdit",
+  languages: "global.goToLanguages",
+  sync: "global.goToSync",
+  timeline: "global.goToTimeline",
+  preview: "global.goToPreview",
+  export: "global.goToExport",
 };
 
 const TABS = PROJECT_TABS.map((id) => ({ id, label: TAB_LABELS[id] }));
@@ -55,6 +57,8 @@ const TabBar: React.FC = () => {
   const setActiveTab = useProjectStore((s) => s.setActiveTab);
   const lines = useProjectStore((s) => s.lines);
   const showHints = useSettingsStore((s) => s.showShortcutHints);
+  useShortcutBindingsStore((s) => s.overrides);
+  useShortcutBindingsStore((s) => s.preset);
   const languageReviewCount = getLanguageReviewItems(lines).length;
   const languageErrorCount = getLanguageAlignmentErrorItems(lines).length;
   const selectionPlayback = useTimelineStore((s) => s.selectionPlayback);
@@ -67,13 +71,16 @@ const TabBar: React.FC = () => {
     <TabStrip
       tabs={TABS}
       active={activeTab}
-      onSelect={setActiveTab}
-      navAttributes={{ "data-tour": "tab-bar" }}
+      onSelect={(tab) => {
+        if (tab !== activeTab) noteGuideSignal("app.tabButton");
+        setActiveTab(tab);
+      }}
+      navAttributes={{ "data-tour": "tab-bar", "data-guide-spot": "tabs" }}
       tabAttributes={(tab) => ({
         "data-tour": `tab-${tab.id}`,
         "aria-describedby": tab.id === "timeline" && rangeIndicator ? rangeStateId : undefined,
       })}
-      renderTab={(tab, index, isActive) => {
+      renderTab={(tab, _index, isActive) => {
         const showLanguageWarning = tab.id === "languages" && languageReviewCount > 0;
         const showLanguageError = tab.id === "languages" && languageErrorCount > 0;
         return (
@@ -115,7 +122,7 @@ const TabBar: React.FC = () => {
                   isActive ? "text-composer-accent-text" : "text-composer-text-faint",
                 )}
               >
-                <InlineKeyBadge keys={["Mod", String(index + 1)]} />
+                <InlineKeyBadge keys={getEffectiveKeysArray(TAB_SHORTCUTS[tab.id])} />
               </span>
             )}
           </>

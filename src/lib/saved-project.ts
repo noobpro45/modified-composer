@@ -6,8 +6,9 @@ import type { LyricLine } from "@/domain/line/model";
 import type { SavedAudioSource } from "@/domain/project/audio-source";
 import type { MetadataKey } from "@/domain/project/imported-metadata";
 import type { ProjectMetadata } from "@/domain/project/metadata";
-import type { TimingGranularity } from "@/domain/project/timing-granularity";
 import type { SyllableSplitDefaults } from "@/domain/project/syllable-split-defaults";
+import type { StoredData } from "@/domain/storage/stored-data";
+import type { TimingGranularity } from "@/domain/project/timing-granularity";
 import type { SnapPoint } from "@/domain/snap-point/model";
 import type { GranularityMode } from "@/stores/project";
 import type { TtmlEditState } from "@/stores/project/types";
@@ -31,23 +32,45 @@ interface SavedProject {
   dismissedMetadataMatches?: string[];
   currentStem?: Stem;
   primingStripped?: boolean;
+  primingCorrected?: boolean;
   customSnapPoints?: (SnapPoint | number)[];
+  beatGrid?: unknown;
   hasUnexportedImport?: boolean;
   importedMetadataKeys?: MetadataKey[];
   ttmlEditState?: TtmlEditState;
+  alignedTimings?: unknown;
+  alignmentNoticeDismissed?: boolean;
+  unisonLyricId?: string;
+  playedRanges?: unknown;
 }
 
 interface SavedAudioFile {
   name: string;
   type: string;
-  data: ArrayBuffer;
+  data: StoredData;
 }
 
 // -- Constants ----------------------------------------------------------------
 
 const SAVED_PROJECT_VERSION = 3;
 
+// -- Errors -------------------------------------------------------------------
+
+class NewerProjectError extends Error {
+  readonly projectId: string;
+
+  constructor(projectId: string) {
+    super(`Project ${projectId} was saved by a newer version of Composer`);
+    this.name = "NewerProjectError";
+    this.projectId = projectId;
+  }
+}
+
 // -- Upgrade ------------------------------------------------------------------
+
+function isFromNewerComposer(saved: { version?: unknown } | undefined): boolean {
+  return typeof saved?.version === "number" && saved.version > SAVED_PROJECT_VERSION;
+}
 
 function upgradeSavedProject(project: SavedProject): boolean {
   if (project.version >= SAVED_PROJECT_VERSION) return false;
@@ -58,5 +81,5 @@ function upgradeSavedProject(project: SavedProject): boolean {
 
 // -- Exports ------------------------------------------------------------------
 
-export { SAVED_PROJECT_VERSION, upgradeSavedProject };
-export type { SavedProject, SavedAudioFile };
+export type { SavedAudioFile, SavedProject };
+export { NewerProjectError, SAVED_PROJECT_VERSION, isFromNewerComposer, upgradeSavedProject };

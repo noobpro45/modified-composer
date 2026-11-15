@@ -14,7 +14,7 @@ const ExportSection: React.FC = () => (
         <strong>Copy</strong>: Copies the minified TTML to your clipboard.
       </li>
       <li>
-        <strong>Edit</strong>: Lets you manually tweak the XML before downloading. Click "Regenerate" to go back to the
+        <strong>Edit</strong>: Tweak the XML by hand before downloading. Click "Regenerate" to go back to the
         auto-generated version.
       </li>
       <li>
@@ -23,7 +23,8 @@ const ExportSection: React.FC = () => (
         with collaborators or back things up.
       </li>
       <li>
-        <strong>Clear</strong>: Wipes the current project. This is permanent, so it asks for confirmation.
+        <strong>Clear project</strong>: In the same Project menu, wipes the current project. This is permanent, so it
+        asks for confirmation.
       </li>
     </ul>
     <p className={PROSE}>

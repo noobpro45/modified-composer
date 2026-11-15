@@ -1,11 +1,13 @@
+import { type LanguageTextVariant, isLanguageTextVariant } from "@/domain/language/display";
+import { hasTransliteration } from "@/domain/language/has-transliteration";
 import { type ResumePosition, isResumePosition } from "@/domain/project/resume-position";
 import { type ProjectTab, isProjectTab } from "@/domain/project/tab";
 import { applySavedProject } from "@/lib/apply-saved-project";
-import { stripLamePriming } from "@/lib/priming-migration";
+import { migratePrimingTimings, repairProjectStems } from "@/lib/priming-migration";
 import { loadProjectAudio } from "@/lib/project-audio";
 import { loadProjectIndexEntry, saveProjectRecord } from "@/lib/project-repository";
 import { loadProjectRecord } from "@/lib/project-storage";
-import { type SavedProject, upgradeSavedProject } from "@/lib/saved-project";
+import { NewerProjectError, type SavedProject, isFromNewerComposer, upgradeSavedProject } from "@/lib/saved-project";
 import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { useSeparationStore } from "@/stores/separation";
@@ -19,6 +21,7 @@ interface RestorePayload {
   audio: File | undefined;
   lastTab: ProjectTab | undefined;
   resumePosition: ResumePosition | undefined;
+  textVariant: LanguageTextVariant | undefined;
 }
 
 // -- Constants ----------------------------------------------------------------
@@ -29,6 +32,7 @@ const EMPTY_RESTORE: RestorePayload = {
   audio: undefined,
   lastTab: undefined,
   resumePosition: undefined,
+  textVariant: undefined,
 };
 
 // -- Module state -------------------------------------------------------------
@@ -43,16 +47,19 @@ async function loadProjectForRestore(id: string): Promise<RestorePayload> {
     loadProjectAudio(id),
     loadProjectIndexEntry(id),
   ]);
+  if (isFromNewerComposer(project)) throw new NewerProjectError(id);
   if (project) {
     const upgraded = upgradeSavedProject(project);
-    const primingStripped = await stripLamePriming(project, audio);
-    if (upgraded || primingStripped) await saveProjectRecord(id, project);
+    const migrated = await migratePrimingTimings(project, audio);
+    await repairProjectStems(id, audio);
+    if (upgraded || migrated) await saveProjectRecord(id, project);
   }
   return {
     project,
     audio,
     lastTab: isProjectTab(entry?.lastTab) ? entry.lastTab : undefined,
     resumePosition: isResumePosition(entry?.resumePosition) ? entry.resumePosition : undefined,
+    textVariant: isLanguageTextVariant(entry?.textVariant) ? entry.textVariant : undefined,
   };
 }
 
@@ -78,7 +85,8 @@ function applyStoredProject(project: SavedProject, audio: File | undefined): voi
   if (project.currentStem) useSeparationStore.getState().restoreCurrentStem(project.currentStem);
 
   const savedSource = project.audioSource;
-  if (savedSource?.kind === "youtube" && audio) useAudioStore.getState().setYouTubeSource(savedSource.videoId, audio);
+  if (savedSource?.kind === "youtube" && audio)
+    useAudioStore.getState().setYouTubeSource(savedSource.videoId, audio, savedSource.details);
   else if (audio) useAudioStore.getState().setSource({ type: "file", file: audio });
   else if (savedSource) useAudioStore.getState().expectProjectAudio(savedSource);
 
@@ -103,6 +111,9 @@ function applyProjectToStores(payload: RestorePayload): void {
     if (payload.project) applyStoredProject(payload.project, payload.audio);
     else if (payload.audio) useAudioStore.getState().setSource({ type: "file", file: payload.audio });
     if (payload.lastTab) useProjectStore.getState().setActiveTab(payload.lastTab);
+    if (payload.textVariant && hasTransliteration(useProjectStore.getState().lines)) {
+      useTimelineStore.getState().setTextVariant(payload.textVariant);
+    }
     resumeTimeline(payload.resumePosition ?? { time: 0, zoom: useSettingsStore.getState().defaultZoom });
     useProjectStore.getState().markClean();
   } finally {

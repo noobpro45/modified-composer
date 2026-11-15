@@ -2,6 +2,8 @@ import { withNewInstance } from "@/domain/group/own-timing";
 import { pickedTemplateSource } from "@/domain/group/template-source";
 import { instanceBounds } from "@/domain/instance/bounds";
 import { linesOfInstance } from "@/domain/instance/enumerate";
+import { instanceKey } from "@/domain/instance/key";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { livePlaybackTime, useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { showGroupActionToast } from "@/utils/group-toast";
@@ -30,7 +32,8 @@ function useInstanceMenuActions(clearContextMenu: () => void) {
   const handleToggleCollapse = useCallback(() => {
     if (!contextMenu || contextMenu.target.kind !== "group-banner") return;
     const { groupId, instanceIdx } = contextMenu.target;
-    useTimelineStore.getState().toggleInstanceCollapsed(`${groupId}:${instanceIdx}`);
+    useTimelineStore.getState().toggleInstanceCollapsed(instanceKey(groupId, instanceIdx));
+    noteGuideSignal("timeline.collapseOne");
     clearContextMenu();
   }, [contextMenu, clearContextMenu]);
 

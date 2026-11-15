@@ -25,13 +25,17 @@ import {
   hasStoredProject,
   loadProjectForRestore,
 } from "@/lib/project-restore";
-import { buildSaveInput, storedAudioFile } from "@/lib/project-snapshot";
+import { buildSaveInput, openProjectView, storedAudioFile } from "@/lib/project-snapshot";
 import { clearAllProjects } from "@/lib/project-storage";
 import { ProjectDeletedError, isProjectDeleted } from "@/lib/project-tombstones";
 import { saveResumePositionNow } from "@/lib/resume-position";
 import { awaitInFlightSaves, trackSave } from "@/lib/save-status";
+import { NewerProjectError } from "@/lib/saved-project";
+import { useGuideStore } from "@/stores/guide";
 import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
+import { useSeparationStore } from "@/stores/separation";
+import { saveOpenStemsTo } from "@/stores/stem-fork";
 
 // -- Types --------------------------------------------------------------------
 
@@ -73,7 +77,13 @@ async function restoreOpenProject(): Promise<void> {
   const baseline = openProjectChanges;
   const id = await findOpenProjectId();
   if (!id) return;
-  const payload = await loadProjectForRestore(id);
+  let payload: RestorePayload;
+  try {
+    payload = await loadProjectForRestore(id);
+  } catch (error) {
+    if (error instanceof NewerProjectError && openProjectChanges === baseline) openEmptyProject();
+    throw error;
+  }
   if (openProjectChanges !== baseline || !hasRestorableContent(payload)) return;
   applyProjectToStores(payload);
   markProjectOpened(id, Date.now()).catch(logFailure("could not record when the project was opened"));
@@ -122,10 +132,14 @@ async function openProject(id: string): Promise<void> {
 }
 
 function createProject(): string {
-  claimRequest();
-  markOpenProjectChanged();
   flushPendingSaveQuietly();
   saveResumePositionNow();
+  return openEmptyProject();
+}
+
+function openEmptyProject(): string {
+  claimRequest();
+  markOpenProjectChanged();
   const id = createProjectId();
   adoptOpenProjectId(id);
   applyProjectToStores(EMPTY_RESTORE);
@@ -175,6 +189,7 @@ async function deleteProject(id: string): Promise<void> {
   closeIfOpen(id);
   await removeProjectData(id);
   closeIfOpen(id);
+  useGuideStore.getState().forgetProject(id);
 }
 
 async function closeAndClearAllProjects(): Promise<void> {
@@ -186,6 +201,7 @@ async function closeAndClearAllProjects(): Promise<void> {
   cancelPendingSave();
   forgetOpenProjectId();
   applyProjectToStores(EMPTY_RESTORE);
+  useGuideStore.setState({ projects: {} });
 }
 
 // -- Recovery -----------------------------------------------------------------
@@ -197,11 +213,12 @@ async function forkOpenProject(): Promise<string> {
   const id = createProjectId();
   adoptOpenProjectId(id);
   const args = buildSaveInput();
-  if (args)
-    await trackSave("project", saveProjectRecord(id, buildSavedProject(args), useProjectStore.getState().activeTab));
+  if (args) await trackSave("project", saveProjectRecord(id, buildSavedProject(args), openProjectView()));
   const file = storedAudioFile(useAudioStore.getState().source);
   if (file) await trackSave("audio", saveProjectAudio(id, file));
+  await trackSave("audio", saveOpenStemsTo(id));
   await setOpenProjectId(id);
+  void useSeparationStore.getState().refreshForCurrentSource();
   return id;
 }
 

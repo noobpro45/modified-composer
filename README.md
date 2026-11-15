@@ -2,11 +2,11 @@
   <img src="public/logo.svg" width="90" height="90" alt="Composer Logo" />
 </p>
 
-<h1 align="center">Composer (Modified Edition)</h1>
+<h1 align="center">Composer (Modified Desktop Edition)</h1>
 
 <p align="center">
   <b>A fast, beautiful, and DAW-grade editor for word-synced lyrics (TTML, LRC, QRC, SRT).</b><br/>
-  Enhanced with a native Windows desktop app, Unison provider, smart syllable merging, and timeline controls.
+  Enhanced with a native Windows desktop app, official Unison integration, AI vocal separation, auto-alignment, and timeline controls.
 </p>
 
 <p align="center">
@@ -19,77 +19,79 @@
 
 <p align="center">
   <a href="https://github.com/noobpro45/modified-composer/releases/latest"><b>Download for Windows (.zip)</b></a> •
-  <a href="#key-enhancements"><b>Key Enhancements</b></a> •
-  <a href="#core-features"><b>Core Features</b></a> •
+  <a href="#why-composer"><b>Why Composer</b></a> •
+  <a href="#features"><b>Features</b></a> •
   <a href="#quick-start"><b>Quick Start</b></a> •
   <a href="#upstream--credits"><b>Credits</b></a>
 </p>
 
-<p align="center">
-  <img src="public/og-image.png" alt="Composer Preview Banner" width="90%" style="border-radius: 8px;" />
-</p>
-
 ---
 
-## Key Enhancements
+## Why Composer
 
-This repository is an enhanced distribution of [Better Lyrics Composer](https://github.com/better-lyrics/composer), introducing native desktop packaging and workflow improvements for lyrics syncers:
+You don't need to know TTML to use Composer. Import a song, paste the lyrics and sync them, by tapping along or by dragging words on the Timeline. Use the step-by-step tabs or the Timeline, whichever suits you. They edit the same project.
 
-### 💻 Native Windows Desktop Application
-* Built as a high-performance, standalone Windows x64 binary with [Wails v2](https://wails.io).
-* Runs locally with hardware-accelerated WebGPU/DirectX rendering, free of browser memory and storage limitations.
-* Integrated desktop window controls (Minimize, Maximize, Close) elevated above modals and preview popups.
+The heavy tools are there when a song asks for them. Composer can separate the vocals (via Mel-Band RoFormer or HTDemucs) and align each word to the voice (HubertFA CTC alignment), leaving you fixing what it missed instead of timing every syllable manually. A pitch line, a tile-cached spectrum, a beat grid, and choruses that share timing are all built in.
 
-### 🔍 Extended Lyrics Search (Unison Provider)
-* Added the **Unison** provider alongside LRCLib and Binimum for searching synced lyrics.
-* Supports exact **ISRC** queries and standard Track / Artist searches to automatically find matching synced lyrics.
+### 💻 Native Desktop Enhancements
 
-### 🗣️ Smart Word Merge & Pronunciation Protection
-* Merging words or split syllables preserves existing phonetic transliterations and pronunciations without corrupting custom edits.
-* Line transliterations updated manually are tagged with `manual` origin to prevent accidental overwrites from Google Auto-Refresh.
+- **Standalone Windows Application**: Packaged with [Wails v2](https://wails.io) as a native Windows x64 binary.
+- **Hardware-accelerated WebGPU/DirectX**: Bypasses browser memory quotas and persistent storage limitations.
+- **Local Proxy Bridge**: Built-in Go bridge proxies external API requests and model downloads, bypassing Cloudflare/CORS origin blocks seamlessly.
+- **Bilingual Timeline Display**: View original lyrics and romanization simultaneously directly on the word blocks.
 
-### 🎛️ Timeline Zoom & Smooth Audio Scrubbing
-* Predictable timeline zoom stepping (20% intervals) anchored precisely around the playhead and cursor.
-* Ultra-smooth time-stretched audio scrubbing powered by [Signalsmith Stretch](https://signalsmith-audio.co.uk/code/stretch/), with a toggle for classic snippet playback.
+## How it works
 
-### 🌐 Bilingual Timeline Display
-* View original text, romanization / transliteration, or both simultaneously directly on the timeline word blocks.
-* Optimized for syncing international songs (Japanese, Korean, Chinese, etc.).
+1. **Import** an audio file (MP3, WAV, M4A, OGG, FLAC) or paste a YouTube link
+2. **Edit** the lyrics, assign singers, and add background vocals
+3. **Sync** by tapping along with the music, or by dragging word blocks on the Timeline
+4. **Export** TTML, publish to Unison, or keep working later from your projects library
 
----
+Your work saves automatically as you go. Audio files you load stay on your machine.
 
-## Core Features
+## Features
 
-Composer provides a linear, intuitive path: **Import → Edit → Sync → Export**.
+### Syncing
 
-### 1. Syncing
-* **Tap-to-sync**: Tap <kbd>Space</kbd> in time with the music to stamp words, or hold to stretch syllable timing.
-* **DAW-Style Timeline**: Drag word blocks directly on the audio waveform, multi-select, and proportionally stretch regions.
-* **Snapping**: Snap to neighboring words, the playhead, custom markers, and detected vocal onsets.
-* **Syllable Splitting**: Split words into individual syllables so every phoneme gets precise timing.
-* **Linked Groups**: Synchronize repeated sections (e.g. choruses). Edit timing or text on one instance and all other instances update automatically.
-* **In-Browser Vocal Separation**: Extract vocal stems with the HTDemucs AI model to sync against vocals cleanly.
+- Tap-to-sync: press Space in time with the music to stamp each word, or hold to stretch it. Works with touch too.
+- Timeline editor: a DAW-style view with draggable word blocks on a waveform, multi-select, and proportional stretch.
+- Snapping to neighboring words, the playhead, your own markers, and detected vocal onsets.
+- Syllable splitting, so each part of a word gets its own timing.
+- Linked groups for repeated sections like choruses. Edit one instance and the others follow, timing included.
+- Vocal separation that isolates the vocal stem in the browser, so you can sync against the voice alone.
+- HubertFA auto-alignment for automatic word timing from tapped line timing (English, Japanese, Chinese).
 
-### 2. Lyrics & Roles
-* Multiple singers with dedicated color badges and custom vocal agent roles.
-* Background vocals exported with the standard TTML `x-bg` role.
-* Automatic translations and romanizations via Google Language Provider.
-* Integrated Lyric Best Practices linter to catch common timing and formatting issues.
+### Unison Ecosystem
 
-### 3. Import & Export
-* Import lyrics from `.ttml`, `.lrc`, `.srt`, `.qrc`, and `.txt` files.
-* Export standardized, publication-ready TTML 1 (W3C subset) compatible with Apple Music and Better Lyrics players.
-* Built-in format converters between TTML, LRC, SRT, and QRC.
-* Self-contained `.composer` project files and backup bundles.
+- **Official Unison Integration**: Search lyrics created by the community, view wanted songs, and manage your published synced lyrics directly inside the app.
+- Search by artist, title, or exact ISRC.
+- One-click publishing to Unison with authentication and review status tracking.
+
+### Audio Tools
+
+- **Vocal Separation**: Mel-Band RoFormer (high-quality) and HTDemucs v4, running in-browser/desktop via ONNX Runtime Web with WebGPU acceleration and automatic CPU fallback.
+- **Pitch Tracking**: Swift-F0 neural pitch estimation displayed alongside your waveform.
+- **Beat & Tempo Detection**: Beat-This neural beat grid alignment.
+- **Spectrum & Pitch Guide**: Switch between native tile-cached Spectrum and classic waveform, inspect vocal harmonics, or track pitch contours directly on the timeline.
+- **Smooth Audio Scrubbing**: Time-stretched scrubbing powered by Signalsmith Stretch with classic playback option.
+
+### Lyrics & Import / Export
+
+- Multiple singers, each with their own color badge, plus background vocals exported with TTML `x-bg`.
+- Automatic and manual translations / romanizations with pronunciation protection.
+- Import from `.ttml`, `.lrc`, `.srt`, `.qrc`, and `.txt` files.
+- Export standardized TTML 1 (W3C subset) compatible with Apple Music and Better Lyrics players.
+- Built-in format converters between TTML, LRC, SRT, and QRC.
 
 ---
 
 ## Quick Start
 
 ### Download Desktop App (Windows)
+
 1. Go to the [Latest Release](https://github.com/noobpro45/modified-composer/releases/latest).
 2. Download `composer-windows-x64.zip`.
-3. Extract and launch `composer.exe`. No installation required!
+3. Extract and run `composer.exe`. No installation required!
 
 ### Running Web / Dev Build Locally
 
@@ -106,13 +108,14 @@ pnpm install
 # Start local dev server (Web)
 pnpm dev
 
-# Build production web bundle
-pnpm build
+# Run verification checks
+pnpm typecheck
+pnpm test
 ```
 
 ### Building Desktop App (Wails)
 
-Prerequisites: Go 1.22+ and Wails CLI.
+Prerequisites: Go 1.22+ and Wails CLI (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`).
 
 ```bash
 # Run desktop dev mode
@@ -122,7 +125,7 @@ wails dev
 wails build -platform windows/amd64
 ```
 
-Output binary is located at `build/bin/composer.exe`.
+Output binary is generated at `build/bin/composer.exe`.
 
 ---
 
@@ -136,5 +139,5 @@ Composer outputs a subset of **TTML 1** ([W3C Recommendation, Nov 2018](https://
 
 This project is a fork of [Composer](https://github.com/better-lyrics/composer), created and maintained by [@boidushya](https://github.com/boidushya) for the [Better Lyrics](https://betterlyrics.org) ecosystem.
 
-* Upstream Repository: [better-lyrics/composer](https://github.com/better-lyrics/composer)
-* Licensed under [AGPL-3.0](LICENSE).
+- Upstream Repository: [better-lyrics/composer](https://github.com/better-lyrics/composer)
+- Licensed under [AGPL-3.0](LICENSE).

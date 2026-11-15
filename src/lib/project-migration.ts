@@ -6,8 +6,10 @@ import {
   PROJECT_STORE_NAME,
   runTransaction,
 } from "@/lib/persistence-idb";
+import { storedDataBytes } from "@/domain/storage/stored-data";
 import { protectStorageForFirstProject } from "@/lib/browser-storage";
-import { createProjectId, indexEntryForProject } from "@/lib/project-repository";
+import { indexEntryForProject } from "@/lib/project-index-write";
+import { createProjectId } from "@/lib/project-repository";
 import { LEGACY_AUDIO_KEY, LEGACY_PROJECT_KEY, OPEN_PROJECT_KEY, getOpenProjectId } from "@/lib/project-storage";
 import type { SavedAudioFile, SavedProject } from "@/lib/saved-project";
 
@@ -43,7 +45,7 @@ async function migrateLegacyProject(): Promise<string | undefined> {
             tx.objectStore(PROJECT_RECORD_STORE_NAME).put(project, id);
             tx.objectStore(PROJECT_INDEX_STORE_NAME).put(
               indexEntryForProject(id, project, {
-                storedAudioBytes: audio?.data.byteLength ?? 0,
+                storedAudioBytes: audio ? storedDataBytes(audio.data) : 0,
                 openedAt: project.savedAt,
               }),
               id,

@@ -12,14 +12,28 @@ interface SegmentedOption<T extends string> {
   disabled?: boolean;
 }
 
+type SegmentedControlSize = "md" | "sm";
+
 interface SegmentedControlProps<T extends string> {
   value: T;
   options: readonly SegmentedOption<T>[];
   onChange: (value: T) => void;
   "aria-label": string;
+  size?: SegmentedControlSize;
   className?: string;
-  size?: "sm" | "md";
 }
+
+// -- Constants ----------------------------------------------------------------
+
+const TRAY_SIZE_STYLES: Record<SegmentedControlSize, string> = {
+  md: "",
+  sm: "tray-compact",
+};
+
+const OPTION_SIZE_STYLES: Record<SegmentedControlSize, string> = {
+  md: "h-7 px-3 text-[13px] rounded-lg",
+  sm: "h-6 min-w-9 px-2 text-xs rounded-md tabular-nums",
+};
 
 // -- Helpers ------------------------------------------------------------------
 
@@ -35,12 +49,11 @@ function SegmentedControl<T extends string>({
   options,
   onChange,
   "aria-label": ariaLabel,
-  className,
   size = "md",
+  className,
 }: SegmentedControlProps<T>) {
-  const isSm = size === "sm";
   return (
-    <div role="group" aria-label={ariaLabel} className={cn("tray select-none", className)}>
+    <div role="group" aria-label={ariaLabel} className={cn("tray select-none", TRAY_SIZE_STYLES[size], className)}>
       {options.map((option) => {
         const isSelected = option.value === value;
         const OptionIcon = option.icon;
@@ -54,17 +67,17 @@ function SegmentedControl<T extends string>({
             disabled={option.disabled}
             onClick={() => onChange(option.value)}
             className={cn(
-              "inline-flex items-center justify-center font-medium rounded-lg whitespace-nowrap transition-[color,background-color,box-shadow] cursor-pointer",
-              isSm ? "h-6.5 px-2 text-[11.5px] gap-1" : "h-7 px-3 text-[13px] gap-1.5",
-              option.iconOnly && (isSm ? "w-6.5 px-0" : "w-7 px-0"),
+              "inline-flex items-center justify-center gap-1.5 font-medium whitespace-nowrap transition-[color,background-color,box-shadow] cursor-pointer",
+              OPTION_SIZE_STYLES[size],
+              option.iconOnly && "w-7 px-0",
               "disabled:cursor-not-allowed disabled:text-composer-text-faint disabled:line-through",
               isSelected
                 ? "latch-on [&_svg]:text-composer-accent-text"
                 : "text-[var(--muted)] hover:text-[var(--label)] hover:bg-[var(--layer-1)]",
             )}
           >
-            {OptionIcon && <OptionIcon aria-hidden="true" className={cn("shrink-0", isSm ? "size-3.5" : "size-4")} />}
-            {!option.iconOnly && <span className="truncate">{option.label}</span>}
+            {OptionIcon && <OptionIcon aria-hidden="true" className="size-4 shrink-0" />}
+            {!option.iconOnly && option.label}
             {option.count !== undefined && (
               <span
                 className={cn(

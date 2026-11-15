@@ -3,31 +3,39 @@ import type { ModalNavSection } from "@/ui/modal-nav-layout";
 import {
   IconAlertTriangle,
   IconClock,
+  IconCloudUpload,
+  IconCpu,
   IconDeviceFloppy,
+  IconFileText,
+  IconGrain,
   IconKeyboard,
-  IconLayoutList,
   IconLayoutRows,
+  IconMagnet,
   IconPalette,
-  IconPlayerPlay,
+  IconPencilCog,
+  IconPlayerPlayFilled,
   IconPlugConnected,
-  IconServer,
   IconSettings,
 } from "@tabler/icons-react";
 
 // -- Icons ---------------------------------------------------------------------
 
 const SETTINGS_SECTION_ICONS: Record<SettingsSectionId, ModalNavSection["icon"]> = {
+  changed: IconPencilCog,
   general: IconSettings,
-  projects: IconLayoutList,
   theme: IconPalette,
-  playback: IconPlayerPlay,
-  timeline: IconLayoutRows,
-  sync: IconClock,
   shortcuts: IconKeyboard,
   confirmations: IconAlertTriangle,
+  unison: IconCloudUpload,
+  lyrics: IconFileText,
+  playback: IconPlayerPlayFilled,
+  sync: IconClock,
+  timeline: IconLayoutRows,
+  snap: IconMagnet,
+  spectrum: IconGrain,
   storage: IconDeviceFloppy,
+  models: IconCpu,
   advanced: IconPlugConnected,
-  bridge: IconServer,
 };
 
 // -- Exports -------------------------------------------------------------------

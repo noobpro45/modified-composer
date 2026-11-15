@@ -4,6 +4,13 @@ import { isDesktop } from "@/utils/platform";
 
 // -- Types --------------------------------------------------------------------
 
+/** What a model's license asks its users to be told, such as weights it's derived from and the license they bind them to. */
+interface ModelTerms {
+  notice: string;
+  /** The full license text. */
+  url: string;
+}
+
 /** One selectable alignment checkpoint. Every model must share the bundled phone vocabulary. */
 interface AlignmentModel {
   id: string;
@@ -15,6 +22,8 @@ interface AlignmentModel {
   languages: string[];
   /** Marked in the manifest as the one to use; the picker tags it. */
   recommended: boolean;
+  /** Shown with the model wherever it's picked; null when its license asks for nothing. */
+  terms: ModelTerms | null;
 }
 
 // -- Constants ----------------------------------------------------------------
@@ -53,7 +62,19 @@ function builtinModel(baseUrl: string): AlignmentModel {
     approxBytes: BUILTIN_ALIGNMENT_MODEL.approxBytes,
     languages: BUILTIN_ALIGNMENT_MODEL.languages,
     recommended: false,
+    terms: null,
   };
+}
+
+// A model whose license asks for a notice isn't listed without one, so terms
+// that can't be read throw and drop the entry.
+function parseTerms(raw: unknown, manifestUrl: string): ModelTerms | null {
+  if (raw === undefined) return null;
+  const { notice, url } = (raw ?? {}) as Record<string, unknown>;
+  if (typeof notice !== "string" || !notice.trim() || typeof url !== "string" || !url.trim()) {
+    throw new Error("terms need a notice and a url");
+  }
+  return { notice: notice.trim(), url: new URL(url, manifestUrl).href };
 }
 
 // The base language of a code ("en_US" -> "en"), or null for one Intl can't
@@ -80,7 +101,7 @@ function parseLanguages(raw: unknown, fallback: string[]): string[] {
 
 function parseEntry(raw: unknown, manifestUrl: string, fallback: AlignmentModel): AlignmentModel | null {
   if (!raw || typeof raw !== "object") return null;
-  const { id, label, model, dictionary, sizeMb, languages, recommended } = raw as Record<string, unknown>;
+  const { id, label, model, dictionary, sizeMb, languages, recommended, terms } = raw as Record<string, unknown>;
   if (typeof id !== "string" || !id || typeof model !== "string" || !model) return null;
   if (id === RECOMMENDED_ALIGNMENT_MODEL) {
     console.warn(`${LOG_PREFIX} skipping manifest entry ${id}: that id is reserved for following the recommendation`);
@@ -95,9 +116,10 @@ function parseEntry(raw: unknown, manifestUrl: string, fallback: AlignmentModel)
       approxBytes: typeof sizeMb === "number" && sizeMb > 0 ? sizeMb * MIB : fallback.approxBytes,
       languages: parseLanguages(languages, fallback.languages),
       recommended: recommended === true,
+      terms: parseTerms(terms, manifestUrl),
     };
   } catch (err) {
-    console.warn(`${LOG_PREFIX} skipping manifest entry ${id}: bad URL`, err);
+    console.warn(`${LOG_PREFIX} skipping manifest entry ${id}: bad URL or terms`, err);
     return null;
   }
 }
@@ -121,21 +143,6 @@ function getManifestUrl(baseUrl: string): string {
   return typeof override === "string" && override.trim() ? override.trim() : `${baseUrl}/${MANIFEST_FILENAME}`;
 }
 
-// No manifest is the normal case for a deployment: only the built-in model.
-async function fetchModels(baseUrl: string): Promise<AlignmentModel[]> {
-  const url = getManifestUrl(baseUrl);
-  try {
-    // The models host caches everything at the edge; the manifest must stay fresh.
-    const response = await fetch(url, { cache: "no-store" });
-    if (response.status === 404) return [builtinModel(baseUrl)];
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-    return parseAlignmentManifest(await response.json(), url, baseUrl);
-  } catch (err) {
-    console.warn(`${LOG_PREFIX} could not load ${url}; only the built-in model is available`, err);
-    return [builtinModel(baseUrl)];
-  }
-}
-
 const DEFAULT_ALIGNMENT_MODEL_BASE_URL = "https://models.composer.dacubeking.com";
 
 function getAlignmentModelBaseUrl(): string {
@@ -151,6 +158,21 @@ function getAlignmentModelBaseUrl(): string {
     return vocalBase;
   }
   return DEFAULT_ALIGNMENT_MODEL_BASE_URL;
+}
+
+// No manifest is the normal case for a deployment: only the built-in model.
+async function fetchModels(baseUrl: string): Promise<AlignmentModel[]> {
+  const url = getManifestUrl(baseUrl);
+  try {
+    // The models host caches everything at the edge; the manifest must stay fresh.
+    const response = await fetch(url, { cache: "no-store" });
+    if (response.status === 404) return [builtinModel(baseUrl)];
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    return parseAlignmentManifest(await response.json(), url, baseUrl);
+  } catch (err) {
+    console.warn(`${LOG_PREFIX} could not load ${url}; only the built-in model is available`, err);
+    return [builtinModel(baseUrl)];
+  }
 }
 
 /** Every selectable model, fetched once per page load. Empty when model hosting isn't configured. */
@@ -175,12 +197,12 @@ async function resolveAlignmentModel(id: string): Promise<AlignmentModel | null>
 
 export {
   BUILTIN_ALIGNMENT_MODEL,
-  getAlignmentModelBaseUrl,
   DICTIONARY_APPROX_BYTES,
+  getAlignmentModelBaseUrl,
   loadAlignmentModels,
   RECOMMENDED_ALIGNMENT_MODEL,
   parseAlignmentManifest,
   pickAlignmentModel,
   resolveAlignmentModel,
 };
-export type { AlignmentModel };
+export type { AlignmentModel, ModelTerms };

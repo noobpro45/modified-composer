@@ -1,18 +1,20 @@
-import { useOpenProjectId } from "@/hooks/useOpenProjectId";
-import { useAudioStore } from "@/stores/audio";
+import { instanceKey, lineInstanceKey } from "@/domain/instance/key";
 import { manualBackgroundWordEdit } from "@/domain/line/background";
 import type { LyricLine } from "@/domain/line/model";
-import { useProjectStore } from "@/stores/project";
+import { isLineSynced } from "@/domain/line/predicates";
 import type { WordTiming } from "@/domain/word/timing";
+import { useOpenProjectId } from "@/hooks/useOpenProjectId";
+import { useAudioStore } from "@/stores/audio";
+import { useProjectStore } from "@/stores/project";
+import { useSettingsStore } from "@/stores/settings";
 import { applyWordPatch } from "@/utils/word-patch";
 import { GROUP_HEADER_HEIGHT, GroupHeaderRow } from "@/views/timeline/group-header-row";
 import { LineRow } from "@/views/timeline/line-row";
-import { GUTTER_WIDTH, useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
+import { useOverviewBandHeight } from "@/views/timeline/overview-band-height";
+import { PitchRowsScope } from "@/views/timeline/pitch/pitch-rows";
 import { emptyBgRowHeight, lineRowHeight } from "@/views/timeline/row-geometry";
-import { instanceCount, instanceOrdinal } from "@/domain/instance/enumerate";
-import { isLinked } from "@/domain/instance/predicates";
-import { isLineSynced } from "@/domain/line/predicates";
-import { type EffectiveRow, getEffectiveRows } from "@/views/timeline/utils";
+import { GUTTER_WIDTH, useTimelineStore } from "@/views/timeline/timeline-store";
+import { type EffectiveRow, getEffectiveRows } from "@/views/timeline/effective-rows";
 import { type RefObject, useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 
@@ -22,12 +24,18 @@ interface TimelineRowsProps {
   scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
+// -- Functions -----------------------------------------------------------------
+
+function rowKey(_: number, row: EffectiveRow): string {
+  return row.kind === "group-header" ? `header:${row.firstLineId}` : row.line.id;
+}
+
 // -- Component -----------------------------------------------------------------
 
 const TimelineRows: React.FC<TimelineRowsProps> = ({ scrollContainerRef }) => {
+  const bandHeight = useOverviewBandHeight();
   const lines = useProjectStore((s) => s.lines);
   const groups = useProjectStore((s) => s.groups);
-  const updateLineWithHistory = useProjectStore((s) => s.updateLineWithHistory);
   const duration = useAudioStore((s) => s.duration);
   const zoom = useTimelineStore((s) => s.zoom);
   const rowHeights = useTimelineStore((s) => s.rowHeights);
@@ -35,8 +43,10 @@ const TimelineRows: React.FC<TimelineRowsProps> = ({ scrollContainerRef }) => {
   const collapsedInstances = useTimelineStore((s) => s.collapsedInstances);
   const focusedGroup = useTimelineStore((s) => s.focusedGroup);
   const openProjectId = useOpenProjectId();
+  const splitCharacter = useSettingsStore((s) => s.splitCharacter);
 
-  const allRows = useMemo(() => getEffectiveRows(lines, focusedGroup), [lines, focusedGroup]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: getEffectiveRows splits words by the split character
+  const allRows = useMemo(() => getEffectiveRows(lines, focusedGroup), [lines, focusedGroup, splitCharacter]);
 
   const visibleRows = useMemo(() => {
     const out: EffectiveRow[] = [];
@@ -44,7 +54,7 @@ const TimelineRows: React.FC<TimelineRowsProps> = ({ scrollContainerRef }) => {
     let activeKey: string | null = null;
     for (const row of allRows) {
       if (row.kind === "group-header") {
-        const key = `${row.groupId}:${row.instanceIdx}`;
+        const key = instanceKey(row.groupId, row.instanceIdx);
         const hidden = collapsedInstances[key] ?? false;
         out.push(row);
         hideUntilNextNonGroup = hidden;
@@ -52,7 +62,7 @@ const TimelineRows: React.FC<TimelineRowsProps> = ({ scrollContainerRef }) => {
         continue;
       }
       if (hideUntilNextNonGroup) {
-        const lineKey = isLinked(row.line) ? `${row.line.groupId}:${row.line.instanceIdx}` : null;
+        const lineKey = lineInstanceKey(row.line);
         if (lineKey === activeKey) continue;
         hideUntilNextNonGroup = false;
         activeKey = null;
@@ -72,14 +82,14 @@ const TimelineRows: React.FC<TimelineRowsProps> = ({ scrollContainerRef }) => {
       adjacentIndex?: number,
       adjacentUpdates?: Partial<WordTiming>,
     ) => {
-      const realLine = lines.find((l) => l.id === lineId);
+      const realLine = useProjectStore.getState().lines.find((l) => l.id === lineId);
       if (!realLine) return;
 
       if (isLineSynced(realLine)) {
         const lineUpdates: Partial<LyricLine> = {};
         if (updates.begin !== undefined) lineUpdates.begin = updates.begin;
         if (updates.end !== undefined) lineUpdates.end = updates.end;
-        updateLineWithHistory(lineId, lineUpdates, { propagateToSiblings: false });
+        useProjectStore.getState().updateLineWithHistory(lineId, lineUpdates, { propagateToSiblings: false });
         return;
       }
 
@@ -91,9 +101,9 @@ const TimelineRows: React.FC<TimelineRowsProps> = ({ scrollContainerRef }) => {
         adjacentIndex !== undefined && adjacentUpdates ? { index: adjacentIndex, updates: adjacentUpdates } : undefined,
       );
       if (!updatedWords) return;
-      updateLineWithHistory(lineId, { words: updatedWords }, { propagateToSiblings: false });
+      useProjectStore.getState().updateLineWithHistory(lineId, { words: updatedWords }, { propagateToSiblings: false });
     },
-    [lines, updateLineWithHistory],
+    [],
   );
 
   const handleUpdateBgWord = useCallback(
@@ -104,7 +114,7 @@ const TimelineRows: React.FC<TimelineRowsProps> = ({ scrollContainerRef }) => {
       adjacentIndex?: number,
       adjacentUpdates?: Partial<WordTiming>,
     ) => {
-      const line = lines.find((l) => l.id === lineId);
+      const line = useProjectStore.getState().lines.find((l) => l.id === lineId);
       if (!line?.backgroundWords) return;
 
       const updatedWords = applyWordPatch(
@@ -114,9 +124,40 @@ const TimelineRows: React.FC<TimelineRowsProps> = ({ scrollContainerRef }) => {
         adjacentIndex !== undefined && adjacentUpdates ? { index: adjacentIndex, updates: adjacentUpdates } : undefined,
       );
       if (!updatedWords) return;
-      updateLineWithHistory(lineId, manualBackgroundWordEdit(updatedWords), { propagateToSiblings: false });
+      useProjectStore
+        .getState()
+        .updateLineWithHistory(lineId, manualBackgroundWordEdit(updatedWords), { propagateToSiblings: false });
     },
-    [lines, updateLineWithHistory],
+    [],
+  );
+
+  const renderRow = useCallback(
+    (_: number, row: EffectiveRow) => {
+      if (row.kind === "group-header") {
+        const group = groupsById.get(row.groupId);
+        if (!group) return <div style={{ height: GROUP_HEADER_HEIGHT }} />;
+        return (
+          <GroupHeaderRow
+            group={group}
+            instanceIdx={row.instanceIdx}
+            ordinal={row.ordinal}
+            totalInstances={row.totalInstances}
+            instanceStart={row.instanceStart}
+            instanceEnd={row.instanceEnd}
+          />
+        );
+      }
+      return (
+        <LineRow
+          line={row.line}
+          lineIndex={row.lineIndex}
+          duration={duration}
+          onUpdateWord={handleUpdateWord}
+          onUpdateBgWord={handleUpdateBgWord}
+        />
+      );
+    },
+    [groupsById, duration, handleUpdateWord, handleUpdateBgWord],
   );
 
   const totalWidth = duration * zoom;
@@ -142,48 +183,22 @@ const TimelineRows: React.FC<TimelineRowsProps> = ({ scrollContainerRef }) => {
   );
 
   return (
-    <div style={{ width: totalWidth + GUTTER_WIDTH, minWidth: "100%", height: totalHeight }}>
+    <PitchRowsScope
+      viewportRef={scrollContainerRef}
+      style={{ width: totalWidth + GUTTER_WIDTH, minWidth: "100%", height: totalHeight }}
+    >
       <Virtuoso
         key={`${openProjectId}:${offscreenLayoutKey}`}
         data={visibleRows}
-        computeItemKey={(_, row) => (row.kind === "group-header" ? `header:${row.firstLineId}` : row.line.id)}
-        itemContent={(_, row) => {
-          if (row.kind === "group-header") {
-            const group = groupsById.get(row.groupId);
-            if (!group) return <div style={{ height: GROUP_HEADER_HEIGHT }} />;
-            return (
-              <GroupHeaderRow
-                group={group}
-                instanceIdx={row.instanceIdx}
-                ordinal={instanceOrdinal(lines, row.groupId, row.instanceIdx)}
-                totalInstances={instanceCount(lines, row.groupId)}
-                instanceStart={row.instanceStart}
-                instanceEnd={row.instanceEnd}
-              />
-            );
-          }
-          const line = row.line;
-          return (
-            <LineRow
-              line={line}
-              lineIndex={row.lineIndex}
-              duration={duration}
-              onUpdateWord={(wordIndex, updates, adjacentIndex, adjacentUpdates) =>
-                handleUpdateWord(line.id, wordIndex, updates, adjacentIndex, adjacentUpdates)
-              }
-              onUpdateBgWord={(wordIndex, updates, adjacentIndex, adjacentUpdates) =>
-                handleUpdateBgWord(line.id, wordIndex, updates, adjacentIndex, adjacentUpdates)
-              }
-            />
-          );
-        }}
+        computeItemKey={rowKey}
+        itemContent={renderRow}
         style={{ height: "100%", width: "100%" }}
         customScrollParent={scrollContainerRef.current ?? undefined}
         overscan={200}
         heightEstimates={heightEstimates}
-        increaseViewportBy={{ top: WAVEFORM_HEIGHT, bottom: 0 }}
+        increaseViewportBy={{ top: bandHeight, bottom: 0 }}
       />
-    </div>
+    </PitchRowsScope>
   );
 };
 

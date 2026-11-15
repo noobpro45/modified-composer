@@ -3,45 +3,74 @@ import {
   adjacentSnapPoint,
   computeCoveredOnsets,
   isTimeOnOnset,
-  snapTimeToOnset,
+  onsetIndicesInView,
+  onsetWindowStep,
+  snapTimeToPoints,
 } from "@/views/timeline/snap-marker-math";
 
 // -- Tests ---------------------------------------------------------------------
 
-describe("snapTimeToOnset", () => {
+describe("snapTimeToPoints", () => {
   it("snaps to an onset within the pixel threshold", () => {
-    expect(snapTimeToOnset(2.05, [2], 100, 12)).toBe(2);
+    expect(snapTimeToPoints(2.05, [{ t: 2, thresholdPx: 12 }], 100)).toBe(2);
   });
 
   it("leaves the time untouched when no onset is within threshold", () => {
-    expect(snapTimeToOnset(2.5, [2], 100, 12)).toBe(2.5);
+    expect(snapTimeToPoints(2.5, [{ t: 2, thresholdPx: 12 }], 100)).toBe(2.5);
   });
 
   it("snaps just inside the threshold", () => {
-    expect(snapTimeToOnset(2.11, [2], 100, 12)).toBe(2);
+    expect(snapTimeToPoints(2.11, [{ t: 2, thresholdPx: 12 }], 100)).toBe(2);
   });
 
   it("does not snap just beyond the threshold", () => {
-    expect(snapTimeToOnset(2.13, [2], 100, 12)).toBe(2.13);
+    expect(snapTimeToPoints(2.13, [{ t: 2, thresholdPx: 12 }], 100)).toBe(2.13);
   });
 
   it("snaps to the nearest of several onsets", () => {
-    expect(snapTimeToOnset(2.04, [2, 2.1], 100, 20)).toBe(2);
-    expect(snapTimeToOnset(2.07, [2, 2.1], 100, 20)).toBe(2.1);
+    expect(
+      snapTimeToPoints(
+        2.04,
+        [
+          { t: 2, thresholdPx: 20 },
+          { t: 2.1, thresholdPx: 20 },
+        ],
+        100,
+      ),
+    ).toBe(2);
+    expect(
+      snapTimeToPoints(
+        2.07,
+        [
+          { t: 2, thresholdPx: 20 },
+          { t: 2.1, thresholdPx: 20 },
+        ],
+        100,
+      ),
+    ).toBe(2.1);
   });
 
   it("scales the threshold by zoom (lower zoom = wider time window)", () => {
-    expect(snapTimeToOnset(2.2, [2], 50, 12)).toBe(2);
-    expect(snapTimeToOnset(2.2, [2], 100, 12)).toBe(2.2);
+    expect(snapTimeToPoints(2.2, [{ t: 2, thresholdPx: 12 }], 50)).toBe(2);
+    expect(snapTimeToPoints(2.2, [{ t: 2, thresholdPx: 12 }], 100)).toBe(2.2);
+  });
+
+  it("reaches each point only within its own distance", () => {
+    const points = [
+      { t: 2, thresholdPx: 4 },
+      { t: 2.1, thresholdPx: 12 },
+    ];
+    expect(snapTimeToPoints(2.03, points, 100)).toBe(2);
+    expect(snapTimeToPoints(2.05, points, 100)).toBe(2.1);
   });
 
   describe("edge cases", () => {
     it("returns the input when there are no onsets", () => {
-      expect(snapTimeToOnset(2, [], 100, 12)).toBe(2);
+      expect(snapTimeToPoints(2, [], 100)).toBe(2);
     });
 
     it("handles the timeline origin", () => {
-      expect(snapTimeToOnset(0.05, [0], 100, 12)).toBe(0);
+      expect(snapTimeToPoints(0.05, [{ t: 0, thresholdPx: 12 }], 100)).toBe(0);
     });
   });
 });
@@ -202,5 +231,19 @@ describe("adjacentSnapPoint", () => {
     it("handles the timeline origin as a target", () => {
       expect(adjacentSnapPoint([0, 3], -0.5, 1)).toBe(0);
     });
+  });
+});
+
+describe("onsetIndicesInView", () => {
+  it("mounts only onsets near the view, keeping their song indices", () => {
+    const onsets = Array.from({ length: 3600 }, (_, index) => index * 0.25);
+    const zoom = 100;
+    const scrollLeft = 40_000;
+    const step = onsetWindowStep(scrollLeft);
+    const indices = onsetIndicesInView(onsets, zoom, step, step, 1440);
+    const shown = indices.map((index) => onsets[index] * zoom);
+    expect(indices.length).toBeLessThan(onsets.length / 10);
+    expect(Math.min(...shown)).toBeLessThanOrEqual(scrollLeft - 1);
+    expect(Math.max(...shown)).toBeGreaterThanOrEqual(scrollLeft + 1440);
   });
 });

@@ -4,6 +4,8 @@ import { changesProject, editedLyricsWrite } from "@/domain/project/edited-lyric
 import { importedKeysAfterWrite, metadataAfterImport } from "@/domain/project/imported-metadata";
 import { normalizeLoadedMetadata } from "@/domain/project/normalize-metadata";
 import { createAgentsInitialState } from "@/stores/project/agents-slice";
+import { createAlignmentReviewInitialState } from "@/stores/project/alignment-review-slice";
+import { createBeatGridInitialState } from "@/stores/project/beat-grid-slice";
 import { createDismissalsInitialState } from "@/stores/project/dismissals-slice";
 import { createGroupsInitialState } from "@/stores/project/groups-slice";
 import { commitHistory } from "@/stores/project/history-helpers";
@@ -12,6 +14,7 @@ import { createLinesInitialState } from "@/stores/project/lines-slice";
 import { createSnapPointsInitialState } from "@/stores/project/snap-points-slice";
 import type { MetadataActions, MetadataState, ProjectState, ProjectStore } from "@/stores/project/types";
 import { createUiInitialState } from "@/stores/project/ui-slice";
+import { createUnisonLinkInitialState } from "@/stores/project/unison-link-slice";
 import { isStructurallyEqual } from "@/utils/structural-equal";
 import type { StateCreator } from "zustand";
 
@@ -41,6 +44,9 @@ function createProjectInitialState(): ProjectState {
     ...createUiInitialState(),
     ...createDismissalsInitialState(),
     ...createSnapPointsInitialState(),
+    ...createBeatGridInitialState(),
+    ...createAlignmentReviewInitialState(),
+    ...createUnisonLinkInitialState(),
     ...createHistoryInitialState(),
   };
 }

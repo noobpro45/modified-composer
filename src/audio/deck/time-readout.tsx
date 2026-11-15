@@ -1,14 +1,19 @@
 import { lineStarts, startedLineIndex } from "@/domain/line/line-at-time";
 import { useFrameLoop } from "@/hooks/use-frame-loop";
-import { livePlaybackTime, useAudioStore } from "@/stores/audio";
+import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { formatTime } from "@/utils/format-time";
+import { playheadTime } from "@/views/timeline/playhead-time";
 import { useLayoutEffect, useMemo, useRef } from "react";
 
 // -- Helpers ------------------------------------------------------------------
 
 function writeText(element: HTMLElement | null, text: string): void {
-  if (element && element.textContent !== text) element.textContent = text;
+  if (!element) return;
+  const node = element.firstChild;
+  if (node instanceof Text) {
+    if (node.nodeValue !== text) node.nodeValue = text;
+  } else element.textContent = text;
 }
 
 // -- Component ----------------------------------------------------------------
@@ -22,7 +27,7 @@ const TimeReadout: React.FC = () => {
   const lineRef = useRef<HTMLSpanElement>(null);
 
   const paint = () => {
-    const time = livePlaybackTime();
+    const time = playheadTime();
     const [whole, fraction] = formatTime(time, 2).split(".");
     writeText(wholeRef.current, whole);
     writeText(fractionRef.current, `.${fraction}`);

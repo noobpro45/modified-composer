@@ -269,8 +269,12 @@ func main() {
 						// Enable SharedArrayBuffer for multithreaded WASM (Rayon)
 						w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 						w.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
+						w.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
 
-						// Fix Windows Registry MIME type issue for WASM
+						// Fix Windows Registry MIME type issue for JS and WASM
+						if strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".mjs") {
+							w.Header().Set("Content-Type", "application/javascript")
+						}
 						if strings.HasSuffix(r.URL.Path, ".wasm") {
 							w.Header().Set("Content-Type", "application/wasm")
 						}
@@ -284,6 +288,12 @@ func main() {
 						// Proxy model requests to bypass Cloudflare/CORS origin restriction
 						if strings.HasPrefix(r.URL.Path, "/composer-models/") {
 							handleComposerModelsProxy(w, r)
+							return
+						}
+
+						// Proxy external avatar/images to bypass COEP require-corp & CORS
+						if r.URL.Path == "/proxy-image" {
+							handleProxyImage(w, r)
 							return
 						}
 

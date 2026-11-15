@@ -1,9 +1,9 @@
 import { LYRICS_FORMATS_PROSE } from "@/domain/lyrics-file/supported-formats";
 import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
+import { HelpSectionLink } from "@/ui/help-section-link";
 import { HelpTopic } from "@/ui/help-topic";
 import { InlineKeyBadge } from "@/ui/inline-key-badge";
 import { PROSE, PROSE_LINK } from "@/ui/typography";
-import { MOD_KEY } from "@/utils/platform";
 import { PROJECT_FILE_PROSE } from "@/views/lyrics-import-modal/accepted-files";
 
 // -- Getting Started ----------------------------------------------------------
@@ -16,12 +16,12 @@ const GettingStartedSection: React.FC = () => (
         <a href="https://betterlyrics.org" target="_blank" rel="noopener noreferrer" className={PROSE_LINK}>
           Better Lyrics
         </a>
-        . It guides you through four steps to create synced lyrics. Follow the tabs left-to-right for a guided
-        experience, or jump straight to the Timeline for a DAW-like workflow.
+        . It guides you through four steps to create synced lyrics. Work through the tabs from left to right, or go
+        straight to the Timeline if you prefer a DAW-style workflow.
       </p>
       <p className={PROSE}>
-        As of now, Composer is still in early access, so expect some rough edges. If you run into any issues or have
-        feedback, please reach out on{" "}
+        Composer is still in early access, so expect some rough edges. If something breaks or you have feedback, reach
+        out on{" "}
         <a href="https://discord.gg/UsHE3d5fWF" target="_blank" rel="noopener noreferrer" className={PROSE_LINK}>
           Discord
         </a>{" "}
@@ -35,6 +35,9 @@ const GettingStartedSection: React.FC = () => (
           GitHub
         </a>
         .
+      </p>
+      <p className={PROSE}>
+        Used AMLL Tool or osu! before? Start with <HelpSectionLink section="moving-over" />.
       </p>
     </div>
 
@@ -56,10 +59,14 @@ const GettingStartedSection: React.FC = () => (
       </HelpTopic>
       <HelpTopic title="3. Sync the timing">
         <p className={PROSE}>
-          The Sync tab lets you sync words to the music using two keys: tap Space to mark gapless word boundaries, or
-          hold F to capture a word's full duration. You can also tap Space while holding F to create gapless syllable
-          boundaries. If you miss one, use the arrow keys to nudge the timing. For finer control, switch to Timeline and
-          drag word blocks directly on the waveform.
+          In the Sync tab you sync words to the music with two keys: tap{" "}
+          <InlineKeyBadge keys={getEffectiveKeysArray("sync.tap")} /> to mark gapless word boundaries, or hold{" "}
+          <InlineKeyBadge keys={getEffectiveKeysArray("sync.holdSync")} /> to capture a word's full duration. You can
+          also tap <InlineKeyBadge keys={getEffectiveKeysArray("sync.tap")} /> while holding{" "}
+          <InlineKeyBadge keys={getEffectiveKeysArray("sync.holdSync")} /> to create gapless syllable boundaries. If you
+          miss one, press <InlineKeyBadge keys={getEffectiveKeysArray("sync.nudgeLeft")} /> or{" "}
+          <InlineKeyBadge keys={getEffectiveKeysArray("sync.nudgeRight")} /> to nudge the timing. For finer control,
+          switch to Timeline and drag word blocks directly on the waveform.
         </p>
       </HelpTopic>
       <HelpTopic title="4. Preview and export">
@@ -71,8 +78,9 @@ const GettingStartedSection: React.FC = () => (
     </div>
 
     <p className={PROSE}>
-      The tabs are meant to be followed left-to-right, but you can jump between them anytime using {MOD_KEY} + 1 through
-      6.
+      The tabs are meant to be followed left-to-right, but you can jump between them anytime using{" "}
+      <InlineKeyBadge keys={getEffectiveKeysArray("global.goToImport")} /> through{" "}
+      <InlineKeyBadge keys={getEffectiveKeysArray("global.goToExport")} />.
     </p>
 
     <div className="aspect-video w-full rounded-lg overflow-hidden border border-composer-border">

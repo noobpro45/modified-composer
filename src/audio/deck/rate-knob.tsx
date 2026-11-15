@@ -1,6 +1,8 @@
 import { DeckKnob } from "@/audio/deck/deck-knob";
+import { noteGuideGesture } from "@/lib/guide-gesture-signal";
 import { NORMAL_PLAYBACK_RATE, useAudioStore } from "@/stores/audio";
 import { useSettingsStore } from "@/stores/settings";
+import { settingEntry } from "@/stores/settings-catalog";
 import { Button } from "@/ui/button";
 import { Slider } from "@/ui/slider";
 import { Switch } from "@/ui/switch";
@@ -11,6 +13,7 @@ const RATE_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const RATE_MIN = 0.25;
 const RATE_MAX = 2;
 const RATE_STEP = 0.05;
+const PRESERVE_PITCH = settingEntry("preservePitch");
 
 // -- Helpers ------------------------------------------------------------------
 
@@ -26,15 +29,24 @@ const RateKnob: React.FC = () => {
   const setPlaybackRate = useAudioStore((state) => state.setPlaybackRate);
   const preservePitch = useSettingsStore((state) => state.preservePitch);
   const setSetting = useSettingsStore((state) => state.set);
+  const changeRate = (next: number) => {
+    setPlaybackRate(next);
+    noteGuideGesture("sync.speed");
+    noteGuideGesture("transport.rateKnob");
+  };
 
   return (
     <DeckKnob
       label="Rate"
+      guideSpot="rate"
       valueText={`${rate.toFixed(2)}×`}
       fraction={(rate - RATE_MIN) / (RATE_MAX - RATE_MIN)}
-      onFraction={(fraction) => setPlaybackRate(roundedRate(RATE_MIN + fraction * (RATE_MAX - RATE_MIN)))}
-      onStep={(direction) => setPlaybackRate(roundedRate(rate + direction * RATE_STEP))}
-      onReset={() => setPlaybackRate(NORMAL_PLAYBACK_RATE)}
+      onFraction={(fraction) => changeRate(roundedRate(RATE_MIN + fraction * (RATE_MAX - RATE_MIN)))}
+      onStep={(direction) => changeRate(roundedRate(rate + direction * RATE_STEP))}
+      onReset={() => {
+        setPlaybackRate(NORMAL_PLAYBACK_RATE);
+        noteGuideGesture("transport.rateKnob");
+      }}
       rememberValue={() => {
         const { playbackRate, otherPlaybackRate, restorePlaybackRates } = useAudioStore.getState();
         return () => restorePlaybackRates({ playbackRate, otherPlaybackRate });
@@ -47,7 +59,7 @@ const RateKnob: React.FC = () => {
               key={preset}
               size="sm"
               variant={rate === preset ? "primary" : "secondary"}
-              onClick={() => setPlaybackRate(preset)}
+              onClick={() => changeRate(preset)}
               className="font-mono"
             >
               {preset}x
@@ -61,7 +73,7 @@ const RateKnob: React.FC = () => {
             min={RATE_MIN}
             max={RATE_MAX}
             step={RATE_STEP}
-            onChange={(value) => setPlaybackRate(Math.round(value * 100) / 100)}
+            onChange={(value) => changeRate(Math.round(value * 100) / 100)}
             aria-label="Playback rate"
             className="w-full"
           />
@@ -69,12 +81,12 @@ const RateKnob: React.FC = () => {
         </div>
         <div className="flex items-center justify-between gap-2.5 mt-3 pt-3 border-t border-(--divider)">
           <div className="flex flex-col gap-0.5 min-w-0">
-            <span className="text-sm text-composer-text">Preserve pitch</span>
-            <span className="text-xs text-composer-text-muted">Keeps pitch steady when speed changes.</span>
+            <span className="text-sm text-composer-text">{PRESERVE_PITCH.label}</span>
+            <span className="text-xs text-composer-text-muted">{PRESERVE_PITCH.description}</span>
           </div>
           <Switch
             checked={preservePitch}
-            label="Preserve pitch"
+            label={PRESERVE_PITCH.label}
             onCheckedChange={(value) => setSetting("preservePitch", value)}
           />
         </div>

@@ -1,0 +1,226 @@
+import type { LyricLine } from "@/domain/line/model";
+import { livePlaybackTime, useAudioStore } from "@/stores/audio";
+import { useProjectStore } from "@/stores/project";
+import { useSettingsStore } from "@/stores/settings";
+import { getBannerNodes } from "@/views/timeline/banner-progress-registry";
+import { GUTTER_WIDTH, timeToX } from "@/views/timeline/coords";
+import { currentFocusScrollRange } from "@/views/timeline/effective-focus";
+import { createFollowInput, fillFollowInput } from "@/views/timeline/follow-input";
+import { clampScrollLeft } from "@/views/timeline/group-focus";
+import { createRowLayoutCache } from "@/views/timeline/row-layout-cache";
+import { followRulerScroll } from "@/views/timeline/ruler-scroll";
+import { createTimelineLights, paintTimelineLights } from "@/views/timeline/timeline-lights";
+import { playheadMask } from "@/views/timeline/timeline-playhead-mask";
+import { useTimelineStore } from "@/views/timeline/timeline-store";
+import { readViewScroll, scrollView, viewScrollLeft, viewScrollTop } from "@/views/timeline/view-scroll";
+import { createWordBlockBoxes, refreshWordBlockBoxes, releaseWordBlockBoxes } from "@/views/timeline/word-block-boxes";
+import { createFollowMemory, followScrollTop, followStep, resetFollowMemory } from "@/views/timeline/vertical-follow";
+import { pinCutWordLabels } from "@/views/timeline/word-label-pin";
+import type { RefObject } from "react";
+
+// -- Types ---------------------------------------------------------------------
+
+interface PlayheadElements {
+  playhead: RefObject<HTMLDivElement | null>;
+  cap: RefObject<HTMLDivElement | null>;
+  overlay: RefObject<HTMLDivElement | null>;
+  scrollContainer: RefObject<HTMLDivElement | null>;
+  rulerTrack?: RefObject<HTMLDivElement | null>;
+}
+
+interface PlayheadFrame {
+  followMemory: ReturnType<typeof createFollowMemory>;
+  followInput: ReturnType<typeof createFollowInput>;
+  rowLayoutFor: ReturnType<typeof createRowLayoutCache>;
+  lights: ReturnType<typeof createTimelineLights>;
+  pinnedLabels: Set<HTMLElement>;
+  verticalTarget: number | null;
+  lastMask: string;
+  playheadCenterXLocal: number;
+  containerLeft: number;
+  ready: boolean;
+  hideScrollbars: boolean;
+  position: number;
+  displayTime: number;
+  currentTime: number;
+  scrollLeft: number;
+  contentHeight: number;
+  wordBlocks: ReturnType<typeof createWordBlockBoxes>;
+  lines: readonly LyricLine[];
+  mask: string | null;
+  written: WrittenPositions;
+}
+
+interface WrittenPositions {
+  playhead: HTMLElement | null;
+  playheadX: number;
+  cap: HTMLElement | null;
+  capX: number;
+}
+
+// -- Functions -----------------------------------------------------------------
+
+function createPlayheadFrame(): PlayheadFrame {
+  return {
+    followMemory: createFollowMemory(),
+    followInput: createFollowInput(),
+    rowLayoutFor: createRowLayoutCache(),
+    lights: createTimelineLights(),
+    pinnedLabels: new Set(),
+    verticalTarget: null,
+    lastMask: "",
+    playheadCenterXLocal: 0,
+    containerLeft: 0,
+    ready: false,
+    hideScrollbars: false,
+    position: 0,
+    displayTime: 0,
+    currentTime: 0,
+    scrollLeft: 0,
+    contentHeight: 0,
+    wordBlocks: createWordBlockBoxes(),
+    lines: [],
+    mask: null,
+    written: { playhead: null, playheadX: Number.NaN, cap: null, capX: Number.NaN },
+  };
+}
+
+function followPlayback(frame: PlayheadFrame, container: HTMLDivElement, currentTime: number, zoom: number): void {
+  const viewportWidth = container.clientWidth;
+  const centerOffset = viewportWidth / 2 - GUTTER_WIDTH;
+  const targetScrollLeft = Math.max(0, currentTime * zoom - centerOffset);
+  const focusRange = currentFocusScrollRange(container);
+  scrollView(container, focusRange ? clampScrollLeft(targetScrollLeft, focusRange) : targetScrollLeft);
+
+  fillFollowInput(frame.followInput, frame.rowLayoutFor, currentTime, container.clientHeight);
+  const rows = followStep(frame.followMemory, frame.followInput);
+  if (rows) frame.verticalTarget = followScrollTop(rows, frame.followInput, container.scrollHeight);
+
+  if (frame.verticalTarget === null) return;
+  const diff = frame.verticalTarget - viewScrollTop();
+  if (Math.abs(diff) > 0.5) {
+    scrollView(container, null, viewScrollTop() + diff * 0.15);
+  } else {
+    scrollView(container, null, frame.verticalTarget);
+    frame.verticalTarget = null;
+  }
+}
+
+// Follow scrolling happens here: a scroll write leaves layout clean, and every later read in the frame sees it.
+function readPlayheadFrame(frame: PlayheadFrame, elements: PlayheadElements): void {
+  frame.ready = false;
+  if (!elements.playhead.current) return;
+
+  const isPlaying = useAudioStore.getState().isPlaying;
+  const currentTime = livePlaybackTime();
+  const { zoom, isDraggingPlayhead, dragTime, loopRegionDrag } = useTimelineStore.getState();
+  const { followPlayhead } = useSettingsStore.getState();
+  const container = elements.scrollContainer.current;
+
+  // Follow would scroll the lanes under a region drag and stretch the region.
+  if (followPlayhead && isPlaying && container && !isDraggingPlayhead && !loopRegionDrag) {
+    followPlayback(frame, container, currentTime, zoom);
+  } else {
+    resetFollowMemory(frame.followMemory);
+    frame.verticalTarget = null;
+  }
+
+  frame.hideScrollbars = isPlaying && followPlayhead;
+  frame.currentTime = currentTime;
+  frame.displayTime = isDraggingPlayhead ? dragTime : currentTime;
+  // A zoom clamps the scroller during layout with no scroll event until next frame; write callbacks read this refresh.
+  const scroll = container ? readViewScroll(container) : null;
+  const actualScrollLeft = scroll ? scroll.left : viewScrollLeft();
+  frame.position = timeToX(frame.displayTime, zoom, actualScrollLeft) - 1;
+
+  if (container && scroll) {
+    frame.contentHeight = container.scrollHeight;
+    frame.scrollLeft = actualScrollLeft;
+    frame.lines = useProjectStore.getState().lines;
+    refreshWordBlockBoxes(frame.wordBlocks, container, scroll);
+  }
+
+  frame.mask = null;
+  const overlayRect = elements.overlay.current?.getBoundingClientRect();
+  if (overlayRect) {
+    const playheadCenterXLocal = timeToX(frame.displayTime, zoom, actualScrollLeft);
+    frame.playheadCenterXLocal = playheadCenterXLocal;
+    frame.containerLeft = overlayRect.left;
+    frame.mask = container
+      ? playheadMask(frame.wordBlocks, container, playheadCenterXLocal + overlayRect.left, overlayRect.top)
+      : "";
+  }
+  frame.ready = true;
+}
+
+function bannerFill(banner: HTMLElement, currentTime: number): string | null {
+  const startStr = banner.dataset.instanceStart;
+  const endStr = banner.dataset.instanceEnd;
+  if (!startStr || !endStr) return null;
+  const startNum = Number.parseFloat(startStr);
+  const endNum = Number.parseFloat(endStr);
+  const span = endNum - startNum;
+  if (!Number.isFinite(span) || span <= 0) return "0%";
+  const ratio = (currentTime - startNum) / span;
+  const clamped = Math.max(0, Math.min(1, ratio));
+  return `${(clamped * 100).toFixed(2)}%`;
+}
+
+function writeBannerProgress(currentTime: number): void {
+  for (const banner of getBannerNodes()) {
+    const fill = bannerFill(banner, currentTime);
+    if (fill === null || banner.style.getPropertyValue("--progress-fill") === fill) continue;
+    banner.style.setProperty("--progress-fill", fill);
+  }
+}
+
+// React renders neither transform, so the last written value stays true until the element remounts.
+function writePositions(frame: PlayheadFrame, playhead: HTMLElement, cap: HTMLElement | null): void {
+  const written = frame.written;
+  if (written.playhead !== playhead || written.playheadX !== frame.position) {
+    written.playhead = playhead;
+    written.playheadX = frame.position;
+    playhead.style.transform = `translate3d(${frame.position}px, 0, 0)`;
+  }
+  const capX = frame.position + 1 - GUTTER_WIDTH;
+  if (cap && (written.cap !== cap || written.capX !== capX)) {
+    written.cap = cap;
+    written.capX = capX;
+    cap.style.transform = `translate3d(${capX}px, 0, 0)`;
+  }
+}
+
+function writePlayheadFrame(frame: PlayheadFrame, elements: PlayheadElements): void {
+  const playhead = elements.playhead.current;
+  const cap = elements.cap.current;
+  const container = elements.scrollContainer.current;
+  if (!frame.ready || !playhead) return;
+
+  container?.parentElement?.classList.toggle("scrollbar-hidden", frame.hideScrollbars);
+  writePositions(frame, playhead, cap);
+
+  if (container) {
+    const height = `${frame.contentHeight}px`;
+    if (playhead.style.height !== height) playhead.style.height = height;
+    paintTimelineLights(frame.lights, container, frame.wordBlocks.blocks, frame.lines, frame.displayTime);
+    pinCutWordLabels(frame.wordBlocks.blocks, frame.scrollLeft, frame.pinnedLabels);
+    const rulerTrack = elements.rulerTrack?.current;
+    if (rulerTrack) followRulerScroll(rulerTrack, frame.scrollLeft);
+  }
+
+  if (frame.mask !== null && frame.mask !== frame.lastMask) {
+    frame.lastMask = frame.mask;
+    playhead.style.maskImage = frame.mask;
+    playhead.style.webkitMaskImage = frame.mask;
+  }
+
+  writeBannerProgress(frame.currentTime);
+}
+
+// -- Exports -------------------------------------------------------------------
+
+function releasePlayheadFrame(frame: PlayheadFrame): void {
+  releaseWordBlockBoxes(frame.wordBlocks);
+}
+
+export { createPlayheadFrame, readPlayheadFrame, releasePlayheadFrame, writePlayheadFrame };

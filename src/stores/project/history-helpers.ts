@@ -4,9 +4,12 @@ import type { LinkGroup } from "@/domain/group/template";
 import type { LyricLine, RawLine } from "@/domain/line/model";
 import { withDerivedText } from "@/domain/line/reconstruct-text";
 import type { SnapPoint } from "@/domain/snap-point/model";
+import type { BeatGrid } from "@/domain/tempo/beat-grid";
 import { notifySharedTimingCopied } from "@/lib/shared-timing-signals";
+import { deepFreeze } from "@/stores/project/deep-freeze";
 import type { HistoryEntry, ProjectState } from "@/stores/project/types";
 import { getSplitCharacter } from "@/utils/split-character";
+import { isStructurallyEqual } from "@/utils/structural-equal";
 
 // -- Constants ----------------------------------------------------------------
 
@@ -14,24 +17,26 @@ const MAX_HISTORY_SIZE = 100;
 
 // -- Snapshots ----------------------------------------------------------------
 
-type SnapshotFields = Pick<HistoryEntry, "lines" | "groups" | "agents" | "customSnapPoints">;
+type SnapshotFields = Pick<HistoryEntry, "lines" | "groups" | "agents" | "customSnapPoints" | "beatGrid">;
 
 function snapshotEntry(fields: SnapshotFields): HistoryEntry {
-  return {
-    lines: structuredClone(fields.lines),
-    groups: structuredClone(fields.groups),
-    agents: structuredClone(fields.agents),
-    customSnapPoints: structuredClone(fields.customSnapPoints),
+  return deepFreeze({
+    lines: fields.lines,
+    groups: fields.groups,
+    agents: fields.agents,
+    customSnapPoints: fields.customSnapPoints,
+    beatGrid: fields.beatGrid,
     timestamp: Date.now(),
-  };
+  });
 }
 
 function restoreEntry(entry: HistoryEntry): SnapshotFields {
   return {
-    lines: structuredClone(entry.lines),
-    groups: structuredClone(entry.groups),
-    agents: structuredClone(entry.agents),
-    customSnapPoints: structuredClone(entry.customSnapPoints),
+    lines: entry.lines,
+    groups: entry.groups,
+    agents: entry.agents,
+    customSnapPoints: entry.customSnapPoints,
+    beatGrid: entry.beatGrid,
   };
 }
 
@@ -44,14 +49,24 @@ function capHistory(history: HistoryEntry[]): HistoryEntry[] {
 
 function commitHistory(
   state: ProjectState,
-  changes: { lines?: RawLine[]; groups?: LinkGroup[]; agents?: Agent[]; customSnapPoints?: SnapPoint[] },
+  changes: {
+    lines?: RawLine[];
+    groups?: LinkGroup[];
+    agents?: Agent[];
+    customSnapPoints?: SnapPoint[];
+    beatGrid?: BeatGrid | null;
+  },
   options: { deriveText?: boolean } = {},
 ) {
   const splitChar = getSplitCharacter();
   const deriveText = options.deriveText ?? true;
+  const unchangedLines = new Set<RawLine>(state.lines);
+  const previousById = new Map(state.lines.map((line) => [line.id, line]));
   const nextLines = changes.lines
     ? deriveText
-      ? changes.lines.map((line) => withDerivedText(line, splitChar))
+      ? changes.lines.map((line) =>
+          unchangedLines.has(line) ? line : withDerivedText(line, splitChar, previousById.get(line.id)),
+        )
       : changes.lines
     : state.lines;
   const next: SnapshotFields = {
@@ -59,6 +74,7 @@ function commitHistory(
     groups: changes.groups ?? state.groups,
     agents: changes.agents ?? state.agents,
     customSnapPoints: changes.customSnapPoints ?? state.customSnapPoints,
+    beatGrid: changes.beatGrid === undefined ? state.beatGrid : changes.beatGrid,
   };
 
   const newHistory = state.history.slice(0, state.historyIndex + 1);
@@ -72,6 +88,37 @@ function commitHistory(
     history: newHistory,
     historyIndex: newHistory.length - 1,
   };
+}
+
+function sameGridApartFromOffset(a: BeatGrid | null, b: BeatGrid | null): boolean {
+  return a !== null && b !== null && isStructurallyEqual({ ...a, offsetMs: 0 }, { ...b, offsetMs: 0 });
+}
+
+const offsetNudgeSteps = new WeakSet<HistoryEntry>();
+
+// Nudges in a row join one step, so a single undo returns to the offset before nudging.
+function commitBeatGridOffset(state: ProjectState, grid: BeatGrid) {
+  const index = state.historyIndex;
+  const current = state.history[index];
+  const previous = state.history[index - 1];
+  const joinsStep =
+    !state.isDirtySinceHistory &&
+    index === state.history.length - 1 &&
+    current !== undefined &&
+    previous !== undefined &&
+    offsetNudgeSteps.has(current) &&
+    sameGridApartFromOffset(state.beatGrid, grid);
+  if (!joinsStep) {
+    const committed = commitHistory(state, { beatGrid: grid });
+    offsetNudgeSteps.add(committed.history[committed.historyIndex]);
+    return committed;
+  }
+  if (isStructurallyEqual(previous.beatGrid, grid)) {
+    return { beatGrid: grid, isDirty: true, history: state.history.slice(0, index), historyIndex: index - 1 };
+  }
+  const joined = snapshotEntry({ ...state, beatGrid: grid });
+  offsetNudgeSteps.add(joined);
+  return { beatGrid: grid, isDirty: true, history: state.history.with(index, joined) };
 }
 
 function changedLineIds(before: readonly RawLine[], after: readonly RawLine[]): string[] {
@@ -173,6 +220,7 @@ function canUndoFrom(state: ProjectState): boolean {
 export {
   amendCurrentStep,
   canUndoFrom,
+  commitBeatGridOffset,
   commitHistory,
   commitPendingEdit,
   commitSharedTimingHistory,

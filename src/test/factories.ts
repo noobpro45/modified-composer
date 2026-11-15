@@ -101,12 +101,18 @@ function createProjectSaveInput(overrides: Partial<ProjectSaveInput> = {}): Proj
     dismissedMetadataMatches: [],
     currentStem: "original",
     primingStripped: false,
+    primingCorrected: true,
     customSnapPoints: [],
+    beatGrid: null,
     hasUnexportedImport: false,
     importedMetadataKeys: [],
     ttmlEditState: null,
+    alignedTimings: {},
+    unisonLyricId: null,
+    alignmentNoticeDismissed: false,
+    playedRanges: [],
     ...overrides,
   };
 }
 
-export { createLine, createWord, createGroup, createProjectSaveInput, snapPoints };
+export { createGroup, createLine, createProjectSaveInput, createWord, snapPoints };

@@ -1,8 +1,12 @@
+import { useMemo } from "react";
 import { getAgentColor } from "@/domain/agent/colors";
+import { agentDisplayName } from "@/domain/agent/display-name";
+import { instanceKey } from "@/domain/instance/key";
 import type { LyricLine } from "@/domain/line/model";
 import { selectionBounds } from "@/domain/selection/bounds";
 import { lineWordSelections } from "@/domain/selection/line-selections";
 import type { WordSelection } from "@/domain/selection/model";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { useProjectStore } from "@/stores/project";
 import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
 import { Menu, type MenuAnchor, MenuItem, MenuLabel, MenuRadioItem, MenuSeparator } from "@/ui/menu";
@@ -23,7 +27,7 @@ import { useInstanceMenuActions } from "@/views/timeline/use-instance-menu-actio
 import { useLineMenuActions } from "@/views/timeline/use-line-menu-actions";
 import { useSharedTimingMenuActions } from "@/views/timeline/use-shared-timing-menu-actions";
 import { useWordMenuActions } from "@/views/timeline/use-word-menu-actions";
-import { useMemo } from "react";
+import { WordEditMenuItems } from "@/views/timeline/word-edit-menu-items";
 
 // -- Grouping section ---------------------------------------------------------
 
@@ -77,11 +81,9 @@ function GroupingMenuSection({
 
 // -- Labels -------------------------------------------------------------------
 
-type ExplicitToggleContext = NonNullable<ContextMenuTargets["explicitToggleContext"]>;
-
-function explicitToggleLabel({ allMarked, indices }: ExplicitToggleContext): string {
-  if (indices.length > 1) return `${allMarked ? "Unmark" : "Mark"} ${indices.length} as explicit`;
-  return allMarked ? "Unmark explicit" : "Mark as explicit";
+function explicitToggleLabel(marks: boolean, count: number): string {
+  if (count > 1) return `${marks ? "Mark" : "Unmark"} ${count} as explicit`;
+  return marks ? "Mark as explicit" : "Unmark explicit";
 }
 
 function splitIntoWordsLabel(count: number): string {
@@ -89,7 +91,7 @@ function splitIntoWordsLabel(count: number): string {
 }
 
 function autoAlignLabel({ count, realign }: { count: number; realign: boolean }): string {
-  const verb = realign ? "Re-align" : "Auto-align";
+  const verb = realign ? "Re-align" : "Align";
   return count > 1 ? `${verb} ${count} lines` : `${verb} words`;
 }
 
@@ -142,12 +144,20 @@ function PlaybackMenuItems({
       <MenuItem
         label={`Play ${noun}`}
         shortcut={getEffectiveKeysArray("timeline.playSelection")}
-        onSelect={() => selectAndRun(playSelection)}
+        onSelect={() => {
+          selectAndRun(playSelection);
+          noteGuideSignal("timeline.play");
+          noteGuideSignal("timeline.menuPlay");
+        }}
       />
       <MenuItem
         label={`Loop ${noun}`}
         shortcut={getEffectiveKeysArray("global.toggleLoop")}
-        onSelect={() => selectAndRun(loopSelection)}
+        onSelect={() => {
+          selectAndRun(loopSelection);
+          noteGuideSignal("timeline.play");
+          noteGuideSignal("timeline.loop");
+        }}
       />
       <MenuSeparator />
     </>
@@ -158,25 +168,9 @@ type WordTarget = Extract<ContextMenuTarget, { kind: "word" }>;
 
 function WordMenuSection({ targets, clearContextMenu, target }: SectionProps & { target: WordTarget }) {
   const selectedWords = useTimelineStore((s) => s.selectedWords);
-  const {
-    mergeInfo,
-    groupedWordInfo,
-    snapNeededInfo,
-    splitIntoWordsInfo,
-    autoAlignInfo,
-    explicitToggleContext,
-    clickedSelectionCount,
-  } = targets;
-  const {
-    handleEditWord,
-    handleSplitSyllables,
-    handleSplitWord,
-    handleToggleExplicit,
-    handleDeleteWord,
-    handleMergeSyllables,
-    handleSnapSyllables,
-    handleMergeWords,
-  } = useWordMenuActions(targets, clearContextMenu);
+  const { groupedWordInfo, splitIntoWordsInfo, autoAlignInfo, explicitToggle, clickedSelectionCount } = targets;
+  const actions = useWordMenuActions(targets, clearContextMenu);
+  const { handleToggleExplicit, handleDeleteWord } = actions;
   const { handleSplitIntoWords, handleAutoAlign } = useLineMenuActions(targets, clearContextMenu);
   const word: WordSelection = {
     lineId: target.lineId,
@@ -197,28 +191,7 @@ function WordMenuSection({ targets, clearContextMenu, target }: SectionProps & {
         select={() => selectWordUnlessSelected(word)}
         clearContextMenu={clearContextMenu}
       />
-      <MenuItem label="Edit text" shortcut={getEffectiveKeysArray("timeline.editWord")} onSelect={handleEditWord} />
-      <MenuItem
-        label="Split syllables"
-        shortcut={getEffectiveKeysArray("timeline.splitSyllable")}
-        onSelect={handleSplitSyllables}
-      />
-      <MenuItem label="Split word" shortcut={getEffectiveKeysArray("timeline.splitWord")} onSelect={handleSplitWord} />
-      {mergeInfo && (
-        <MenuItem
-          label="Merge words"
-          shortcut={getEffectiveKeysArray("timeline.mergeWords")}
-          onSelect={handleMergeWords}
-        />
-      )}
-      {groupedWordInfo && (
-        <MenuItem
-          label="Merge syllables"
-          shortcut={getEffectiveKeysArray("timeline.mergeSyllablesIntoWord")}
-          onSelect={handleMergeSyllables}
-        />
-      )}
-      {snapNeededInfo && <MenuItem label="Snap syllables flush" onSelect={handleSnapSyllables} />}
+      <WordEditMenuItems targets={targets} actions={actions} />
       {splitIntoWordsInfo && (
         <>
           <MenuSeparator />
@@ -232,15 +205,19 @@ function WordMenuSection({ targets, clearContextMenu, target }: SectionProps & {
       {autoAlignInfo && (
         <>
           {!splitIntoWordsInfo && <MenuSeparator />}
-          <MenuItem label={autoAlignLabel(autoAlignInfo)} onSelect={handleAutoAlign} />
+          <MenuItem
+            label={autoAlignLabel(autoAlignInfo)}
+            shortcut={getEffectiveKeysArray("timeline.autoAlign")}
+            onSelect={handleAutoAlign}
+          />
         </>
       )}
       <SelectionGrouping targets={targets} clearContextMenu={clearContextMenu} />
-      {explicitToggleContext && (
+      {explicitToggle && (
         <>
           <MenuSeparator />
           <MenuItem
-            label={explicitToggleLabel(explicitToggleContext)}
+            label={explicitToggleLabel(explicitToggle.value, selectedWords.length)}
             shortcut={getEffectiveKeysArray("timeline.toggleExplicit")}
             onSelect={handleToggleExplicit}
           />
@@ -275,7 +252,7 @@ function TrackMenuSection({ targets, clearContextMenu, target }: SectionProps & 
         clearContextMenu={clearContextMenu}
       />
       <MenuItem label="Add word here" shortcut={["Double Click"]} onSelect={handleAddWordHere} />
-      <PasteHereMenuItem time={target.time} lineIndex={target.lineIndex} />
+      <PasteHereMenuItem time={target.time} lineIndex={target.lineIndex} lane={target.type} />
       {targets.placeLineHereInfo && <MenuItem label="Place line here" onSelect={handlePlaceLineHere} />}
       {targets.placeAtPlayheadInfo && <MenuItem label="Place at playhead" onSelect={handlePlaceAtPlayhead} />}
       <SelectionGrouping targets={targets} clearContextMenu={clearContextMenu} />
@@ -295,8 +272,8 @@ function AgentAssignment({ targets, clearContextMenu, lineIndex }: SectionProps 
       {agents.map((agent) => (
         <MenuRadioItem
           key={agent.id}
-          lead={<SingerTag color={getAgentColor(agent.id)}>{agent.name || agent.id}</SingerTag>}
-          label={agent.name || agent.id}
+          lead={<SingerTag color={getAgentColor(agent.id)}>{agentDisplayName(agent)}</SingerTag>}
+          label={agentDisplayName(agent)}
           hideLabel
           checked={activeAgentId === agent.id}
           onSelect={() => handleAssignAgent(agent.id)}
@@ -327,8 +304,16 @@ function GutterMenuSection({ targets, clearContextMenu, target }: SectionProps &
         select={() => selectLine(lineId, lineIndex)}
         clearContextMenu={clearContextMenu}
       />
-      <MenuItem label="Add line above" shortcut={["Shift", "N"]} onSelect={() => handleAddLine("above")} />
-      <MenuItem label="Add line below" shortcut={["N"]} onSelect={() => handleAddLine("below")} />
+      <MenuItem
+        label="Add line above"
+        shortcut={getEffectiveKeysArray("timeline.insertLineAbove")}
+        onSelect={() => handleAddLine("above")}
+      />
+      <MenuItem
+        label="Add line below"
+        shortcut={getEffectiveKeysArray("timeline.insertLineBelow")}
+        onSelect={() => handleAddLine("below")}
+      />
       {targets.placeAtPlayheadInfo && <MenuItem label="Place at playhead" onSelect={handlePlaceAtPlayhead} />}
       <SelectionGrouping targets={targets} clearContextMenu={clearContextMenu} />
       <MenuSeparator />
@@ -365,7 +350,7 @@ function GroupBannerMenuSection({ targets, clearContextMenu, target }: SectionPr
     target.instanceIdx,
     clearContextMenu,
   );
-  const isCollapsed = useTimelineStore.getState().collapsedInstances[`${target.groupId}:${target.instanceIdx}`];
+  const isCollapsed = useTimelineStore.getState().collapsedInstances[instanceKey(target.groupId, target.instanceIdx)];
   const openGroup = useTimelineStore((s) => s.openGroup);
   const groupColor = useProjectStore((s) => s.groups.find((group) => group.id === target.groupId)?.color);
 
@@ -374,7 +359,10 @@ function GroupBannerMenuSection({ targets, clearContextMenu, target }: SectionPr
       <MenuItem
         label="Open group"
         shortcut={getEffectiveKeysArray("timeline.openGroup")}
-        onSelect={() => openGroup(target.groupId, target.instanceIdx)}
+        onSelect={() => {
+          openGroup(target.groupId, target.instanceIdx);
+          noteGuideSignal("timeline.openGroup");
+        }}
       />
       <MenuItem
         label={isCollapsed ? "Expand instance" : "Collapse instance"}

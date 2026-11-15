@@ -1,11 +1,15 @@
 import { IconButton } from "@/ui/icon-button";
 import { INPUT_STYLES } from "@/ui/input-styles";
+import { KEEPS_POPOVERS_OPEN_PROPS } from "@/ui/keeps-popovers-open";
 import { nextFrame } from "@/lib/frame-loop";
 import { cn } from "@/utils/cn";
 import { MAX_ZOOM, MIN_ZOOM, useTimelineStore } from "@/views/timeline/timeline-store";
 import { useTimelineZoom } from "@/views/timeline/use-timeline-zoom";
 import { IconMinus, IconPlus } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
+
+// The old zoom cap stays 100%, so the label keeps its meaning past it.
+const ZOOM_AT_100_PERCENT = 500;
 
 const TimelineZoomControls: React.FC<{ scrollContainerRef?: React.RefObject<HTMLDivElement | null> }> = ({
   scrollContainerRef,
@@ -23,7 +27,7 @@ const TimelineZoomControls: React.FC<{ scrollContainerRef?: React.RefObject<HTML
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const zoomPercent = Math.round(((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100);
+  const zoomPercent = Math.round(((zoom - MIN_ZOOM) / (ZOOM_AT_100_PERCENT - MIN_ZOOM)) * 100);
 
   useEffect(() => {
     if (isEditing) {
@@ -39,8 +43,11 @@ const TimelineZoomControls: React.FC<{ scrollContainerRef?: React.RefObject<HTML
     setIsEditing(false);
     const parsed = Number.parseInt(inputValue.replace(/[^0-9]/g, ""), 10);
     if (Number.isNaN(parsed)) return;
-    const clampedPct = Math.max(0, Math.min(100, parsed));
-    const targetZoom = Math.round(MIN_ZOOM + (clampedPct / 100) * (MAX_ZOOM - MIN_ZOOM));
+    const clampedPct = Math.max(0, parsed);
+    const targetZoom = Math.min(
+      MAX_ZOOM,
+      Math.max(MIN_ZOOM, Math.round(MIN_ZOOM + (clampedPct / 100) * (ZOOM_AT_100_PERCENT - MIN_ZOOM))),
+    );
     applyZoom(targetZoom);
   };
 
@@ -55,7 +62,7 @@ const TimelineZoomControls: React.FC<{ scrollContainerRef?: React.RefObject<HTML
   };
 
   return (
-    <div className="tray">
+    <div className="tray" data-guide-spot="zoom" {...KEEPS_POPOVERS_OPEN_PROPS}>
       <IconButton
         label="Zoom out"
         icon={<IconMinus size={18} />}

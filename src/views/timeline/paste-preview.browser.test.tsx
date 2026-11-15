@@ -1,17 +1,21 @@
+import { useRef } from "react";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
+import { userEvent } from "vitest/browser";
 import type { LyricLine } from "@/domain/line/model";
 import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
+import { useSettingsStore } from "@/stores/settings";
+import { installUtilitiesUsedIn } from "@/test/browser-css";
 import { createGroup, createLine, createWord } from "@/test/factories";
 import { render } from "@/test/render";
+import { ChoiceModalHost } from "@/ui/choice-modal";
 import { ConfirmModalHost } from "@/ui/confirm-modal";
 import { GROUP_HEADER_HEIGHT } from "@/views/timeline/group-header-row";
 import { PastePreview } from "@/views/timeline/paste-preview";
-import type { ClipboardData } from "@/views/timeline/selection-types";
-import { GUTTER_WIDTH, WAVEFORM_HEIGHT, useTimelineStore } from "@/views/timeline/timeline-store";
-import { computeRowLayout } from "@/views/timeline/utils";
-import { useRef } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
 import { wordBlockWidth } from "@/views/timeline/row-geometry";
+import type { ClipboardData } from "@/views/timeline/selection-types";
+import { GUTTER_WIDTH, useTimelineStore, WAVEFORM_HEIGHT } from "@/views/timeline/timeline-store";
+import { computeRowLayout } from "@/views/timeline/utils";
 
 // -- Fixtures -----------------------------------------------------------------
 
@@ -55,15 +59,25 @@ function Harness({ clipboard }: { clipboard: ClipboardData }) {
   const ref = useRef<HTMLDivElement>(null);
   return (
     <>
-      <div ref={ref} style={{ position: "relative", overflow: "auto", width: 800, height: 600 }}>
+      <div style={{ position: "relative", width: 800, height: 600 }}>
+        <div ref={ref} data-scroll-container style={{ overflow: "auto", width: 800, height: 600 }}>
+          <div style={{ height: 2000 }} />
+        </div>
         <PastePreview clipboard={clipboard} scrollContainerRef={ref} />
       </div>
       <ConfirmModalHost />
+      <ChoiceModalHost />
     </>
   );
 }
 
-function pointOnRow(container: HTMLElement, lineId: string, time: number) {
+function scrollContainerOf(screen: Awaited<ReturnType<typeof render>>) {
+  const container = screen.container.querySelector<HTMLElement>("[data-scroll-container]");
+  if (!container) throw new Error("no scroll container");
+  return container;
+}
+
+function pointOnRow(container: HTMLElement, lineId: string, time: number, lane: "word" | "bg" = "word") {
   const { zoom, rowHeights, defaultRowHeight, collapsedInstances, focusedGroup } = useTimelineStore.getState();
   const layout = computeRowLayout({
     lines: useProjectStore.getState().lines,
@@ -77,22 +91,31 @@ function pointOnRow(container: HTMLElement, lineId: string, time: number) {
   const row = layout.lineTops.get(lineId);
   if (!row) throw new Error(`row ${lineId} has no layout`);
   const rect = container.getBoundingClientRect();
-  return { clientX: rect.left + GUTTER_WIDTH + time * zoom, clientY: rect.top + row.top + 2 };
+  const laneTop = lane === "word" ? row.top : row.mainBottom;
+  return { clientX: rect.left + GUTTER_WIDTH + time * zoom, clientY: rect.top + laneTop + 2 };
 }
 
-async function hoverRow(screen: Awaited<ReturnType<typeof render>>, lineId: string, time: number) {
-  const container = screen.container.querySelector("div");
-  if (!container) throw new Error("no scroll container");
-  const point = pointOnRow(container, lineId, time);
+async function hoverRow(
+  screen: Awaited<ReturnType<typeof render>>,
+  lineId: string,
+  time: number,
+  lane: "word" | "bg" = "word",
+) {
+  const container = scrollContainerOf(screen);
+  const point = pointOnRow(container, lineId, time, lane);
   document.dispatchEvent(new MouseEvent("mousemove", point));
-  const overlay = screen.getByRole("button", { name: "Place pasted content here" });
-  await expect.element(overlay).toBeInTheDocument();
-  return { overlay: overlay.element(), point };
+  await expect.poll(() => screen.container.querySelector("[data-lane]")).not.toBeNull();
+  return { container, point };
 }
 
-async function pasteOnRow(screen: Awaited<ReturnType<typeof render>>, lineId: string, time: number) {
-  const { overlay, point } = await hoverRow(screen, lineId, time);
-  overlay.dispatchEvent(new MouseEvent("click", { ...point, bubbles: true, button: 0 }));
+async function pasteOnRow(
+  screen: Awaited<ReturnType<typeof render>>,
+  lineId: string,
+  time: number,
+  lane: "word" | "bg" = "word",
+) {
+  const { container, point } = await hoverRow(screen, lineId, time, lane);
+  container.dispatchEvent(new MouseEvent("click", { ...point, bubbles: true, button: 0 }));
 }
 
 const pasteOnEmptyRow = (screen: Awaited<ReturnType<typeof render>>) => pasteOnRow(screen, "e", PASTE_TIME);
@@ -163,6 +186,19 @@ describe("PastePreview · paste into a group that shares timing", () => {
       expect(lineById("e")?.groupId).toBeUndefined();
       expect(store().groups[0].ownTimingInstances).toEqual([0, 1]);
     });
+
+    it("regression: the timeline scrolls under an open paste preview", async () => {
+      const clipboard = { entries: entriesOf(ownTimingChorus), sourceInstance: { groupId: "g1", instanceIdx: 0 } };
+      const screen = await render(<Harness clipboard={clipboard} />);
+      const container = scrollContainerOf(screen);
+      await hoverRow(screen, "e", PASTE_TIME);
+      const utilities = await installUtilitiesUsedIn(screen.container);
+      onTestFinished(() => utilities.remove());
+
+      await userEvent.wheel(screen.container.firstElementChild ?? container, { delta: { y: 400 } });
+
+      await expect.poll(() => container.scrollTop).toBeGreaterThan(0);
+    });
   });
 });
 
@@ -174,6 +210,7 @@ describe("PastePreview · paste words onto a line of a group that shares timing"
 
   function seedChorus(sharesTiming: boolean) {
     useAudioStore.setState({ duration: 20 });
+    useSettingsStore.setState({ timelineSnap: false });
     useTimelineStore.setState({ zoom: ZOOM });
     useProjectStore.setState({
       groups: [createGroup({ id: "g1", ...(sharesTiming ? { sharesTiming: true } : {}) })],
@@ -182,8 +219,8 @@ describe("PastePreview · paste words onto a line of a group that shares timing"
     useProjectStore.getState().clearHistory();
   }
 
-  const ghostWidth = (overlay: Element) => {
-    const ghost = overlay.querySelector<HTMLElement>(".pointer-events-none");
+  const ghostWidth = (screen: Awaited<ReturnType<typeof render>>) => {
+    const ghost = screen.container.querySelector<HTMLElement>("[data-lane]");
     if (!ghost) throw new Error("no ghost word");
     return Number.parseFloat(ghost.style.width);
   };
@@ -204,9 +241,9 @@ describe("PastePreview · paste words onto a line of a group that shares timing"
     seedChorus(true);
     const screen = await render(<Harness clipboard={wordClipboard} />);
 
-    const { overlay } = await hoverRow(screen, "c0", 12.5);
+    await hoverRow(screen, "c0", 12.5);
 
-    expect(ghostWidth(overlay)).toBeCloseTo(wordBlockWidth(12.5, 13, ZOOM), 3);
+    expect(ghostWidth(screen)).toBeCloseTo(wordBlockWidth(12.5, 13, ZOOM), 3);
   });
 
   describe("regressions", () => {
@@ -214,11 +251,49 @@ describe("PastePreview · paste words onto a line of a group that shares timing"
       seedChorus(false);
       const screen = await render(<Harness clipboard={wordClipboard} />);
 
-      expect(ghostWidth((await hoverRow(screen, "c0", 12.5)).overlay)).toBeCloseTo(wordBlockWidth(12.5, 13.5, ZOOM), 3);
+      await hoverRow(screen, "c0", 12.5);
+      expect(ghostWidth(screen)).toBeCloseTo(wordBlockWidth(12.5, 13.5, ZOOM), 3);
       await pasteOnRow(screen, "c0", 12.5);
 
       await expect.poll(() => lineById("c0")?.words).toHaveLength(3);
       expect(lineById("c0")?.words?.[2].end).toBeCloseTo(13.5, 5);
     });
+  });
+});
+
+describe("PastePreview · paste into the hovered lane", () => {
+  it("pastes words copied from a main lane into the hovered background lane", async () => {
+    useAudioStore.setState({ duration: 60 });
+    useProjectStore.setState({ lines: [createLine({ id: "l", text: "go now", words: ownTimingChorus.words })] });
+    const clipboard: ClipboardData = {
+      entries: [{ word: createWord({ text: "you", begin: 0, end: 1 }), lineOffset: 0, trackType: "word" }],
+    };
+    const screen = await render(<Harness clipboard={clipboard} />);
+
+    await pasteOnRow(screen, "l", 10, "bg");
+
+    await expect.poll(() => lineById("l")?.backgroundWords?.map((word) => word.text)).toEqual(["you"]);
+    expect(lineById("l")?.words).toEqual(ownTimingChorus.words);
+  });
+});
+
+describe("PastePreview · paste an instance", () => {
+  it("regression: places a line-synced main line where its ghost shows when its background starts later", async () => {
+    useAudioStore.setState({ duration: 60 });
+    const chorus = createLine({ id: "c", text: "oh", begin: 10, end: 11, groupId: "g1", instanceIdx: 0 });
+    useProjectStore.setState({
+      groups: [createGroup({ id: "g1" })],
+      lines: [
+        { ...chorus, templateLineIdx: 0, backgroundWords: [createWord({ text: "ah", begin: 12, end: 13 })] },
+        createLine({ id: "e", text: "" }),
+      ],
+    });
+    const screen = await render(
+      <Harness clipboard={{ entries: [], sourceInstance: { groupId: "g1", instanceIdx: 0 } }} />,
+    );
+
+    await pasteOnEmptyRow(screen);
+
+    await expect.poll(() => lineById("e")?.begin).toBeCloseTo(PASTE_TIME, 5);
   });
 });

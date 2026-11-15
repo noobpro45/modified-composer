@@ -53,8 +53,6 @@ async function resetAllStores(): Promise<void> {
   const settings = useSettingsStore.getState();
   useTimelineStore.setState({
     zoom: settings.defaultZoom,
-    followEnabled: settings.followPlayhead,
-    previewSidebarOpen: false,
     selectedWords: [],
     selectionPlayback: null,
     loopRegion: null,
@@ -63,12 +61,12 @@ async function resetAllStores(): Promise<void> {
     pasteMode: { status: "idle" },
     scrollLeft: 0,
     rowHeights: {},
+    lastResizedLineId: null,
     defaultRowHeight: settings.defaultRowHeight,
     isDraggingPlayhead: false,
     dragTime: 0,
     contextMenu: null,
     editingWord: null,
-    rollingEditMode: false,
     markerMode: false,
     hoveredSnapPointId: null,
     collapsedInstances: {},
@@ -83,6 +81,7 @@ async function resetAllStores(): Promise<void> {
     vocalOnsetSnapPoints: [],
     vocalOnsetDetectionStatus: "idle",
     vocalOnsetDetectionError: null,
+    pitchTrackGeneration: 0,
   });
 
   if (hasLocalStorage()) globalThis.localStorage.clear();

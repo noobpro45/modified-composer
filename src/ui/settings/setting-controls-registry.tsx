@@ -1,13 +1,24 @@
-import { AlignmentModelSetting } from "@/ui/settings/alignment-model-setting";
+import { SPECTRUM_CONTRAST } from "@/domain/spectrum/settings";
 import { useSettingsStore } from "@/stores/settings";
 import type { SettingId } from "@/stores/settings-catalog";
+import { SNAP_DISTANCE_RANGE_PX } from "@/stores/settings-snap";
+import { BEAT_GRID_LINE_OPTIONS } from "@/ui/beat-grid-line-options";
 import { LAUNCH_SCREEN_OPTIONS, LIBRARY_SORT_OPTIONS } from "@/ui/projects/library-options";
+import type { SelectOption } from "@/ui/select";
+import { AlignmentModelSetting } from "@/ui/settings/alignment-model-setting";
 import { BridgeSection } from "@/ui/settings/bridge-section";
 import { CobaltInstancesSetting } from "@/ui/settings/cobalt-instances-setting";
 import { DefaultPlaybackRateSetting } from "@/ui/settings/default-playback-rate-setting";
 import { LibraryViewSetting } from "@/ui/settings/library-view-setting";
-import { ResetAllSettingsSetting, ResetTourSetting } from "@/ui/settings/reset-settings";
-import type { SelectOption, SliderAction } from "@/ui/settings/setting-controls";
+import { LoupeSizeSetting } from "@/ui/settings/loupe-size/loupe-size-setting";
+import {
+  AlignmentModelFilesSetting,
+  BeatModelFilesSetting,
+  VocalModelFilesSetting,
+} from "@/ui/settings/models/model-file-list";
+import { ResetAllSettingsSetting, ResetGuideSetting, UnmuteGuideHintsSetting } from "@/ui/settings/reset-settings";
+import type { SliderAction } from "@/ui/settings/setting-controls";
+import { ShortcutPresetGallery } from "@/ui/settings/shortcuts/shortcut-preset-gallery";
 import { SplitCharacterSetting } from "@/ui/settings/split-character-setting";
 import { BackUpAllProjectsSetting, DeleteAllProjectsSetting } from "@/ui/settings/storage/backup-settings-setting";
 import { ProjectAudioListSetting } from "@/ui/settings/storage/project-audio-list-setting";
@@ -15,7 +26,18 @@ import { KEEP_YOUTUBE_AUDIO_OPTIONS, STORAGE_LIMIT_OPTIONS } from "@/ui/settings
 import { StorageProtectionSetting } from "@/ui/settings/storage/storage-protection-setting";
 import { StorageUsageSetting } from "@/ui/settings/storage/storage-usage-setting";
 import { ThemeSettings } from "@/ui/settings/theme/theme-settings";
-import { useTimelineStore } from "@/views/timeline/timeline-store";
+import { UnisonAccountSetting } from "@/ui/settings/unison-account-setting";
+import { VocalModelSetting } from "@/ui/settings/vocal-model-setting";
+import {
+  ANALYSIS_WINDOW_OPTIONS,
+  FREQUENCY_SCALE_OPTIONS,
+  PHASE_COLOUR_OPTIONS,
+  PITCH_LINE_OPTIONS,
+  SPECTRUM_PALETTE_OPTIONS,
+  SPECTRUM_SOURCE_OPTIONS,
+  SPECTRUM_TOP_OPTIONS,
+} from "@/ui/spectrum-options";
+import { MAX_ZOOM, MIN_ZOOM, useTimelineStore, ZOOM_STEP } from "@/views/timeline/timeline-store";
 
 // -- Types ---------------------------------------------------------------------
 
@@ -35,37 +57,21 @@ type SettingControl =
 // -- Formats -------------------------------------------------------------------
 
 const TOGGLE: SettingControl = { kind: "toggle" };
+const SNAP_DISTANCE: SettingControl = { kind: "slider", ...SNAP_DISTANCE_RANGE_PX, step: 1, format: (v) => `${v}px` };
 const asMilliseconds = (seconds: number) => `${(seconds * 1000).toFixed(0)}ms`;
 
 // -- Registry ------------------------------------------------------------------
 
-const LANGUAGE_DEFAULT_TARGET_OPTIONS: SelectOption[] = [
-  { value: "none", label: "None (transliteration only)" },
-  { value: "en", label: "English" },
-  { value: "id", label: "Indonesian" },
-  { value: "es", label: "Spanish" },
-  { value: "fr", label: "French" },
-  { value: "de", label: "German" },
-  { value: "ja", label: "Japanese" },
-  { value: "ko", label: "Korean" },
-  { value: "zh-Hans", label: "Chinese (Simplified)" },
-  { value: "zh-Hant", label: "Chinese (Traditional)" },
-  { value: "pt", label: "Portuguese" },
-  { value: "it", label: "Italian" },
-  { value: "ru", label: "Russian" },
-  { value: "vi", label: "Vietnamese" },
-  { value: "ar", label: "Arabic" },
-  { value: "hi", label: "Hindi" },
-  { value: "tr", label: "Turkish" },
-];
-
-const TIMELINE_VISUALIZATION_OPTIONS: SelectOption[] = [
-  { value: "waveform", label: "Waveform (Default)" },
-  { value: "spectrogram", label: "Spectrogram" },
-];
-
 const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
   showShortcutHints: TOGGLE,
+  showGuide: TOGGLE,
+  guideHints: TOGGLE,
+  unmuteGuideHints: { kind: "custom", Component: UnmuteGuideHintsSetting },
+  unisonEnabled: TOGGLE,
+  unisonAccount: { kind: "custom", Component: UnisonAccountSetting },
+  unisonLibraryColumn: TOGGLE,
+  unisonLibraryNotices: TOGGLE,
+  unisonWantedShelf: TOGGLE,
   showSyllableIndicators: TOGGLE,
   autoExtractBackgroundVocals: TOGGLE,
   mergeStandaloneBackgroundLines: TOGGLE,
@@ -74,18 +80,28 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
     kind: "select",
     options: [
       { value: "auto", label: "Automatic" },
-      { value: "manual", label: "On request" },
+      { value: "manual", label: "Manual" },
     ],
   },
   languageDefaultTarget: {
     kind: "select",
-    options: LANGUAGE_DEFAULT_TARGET_OPTIONS,
+    options: [
+      { value: "none", label: "None (transliteration only)" },
+      { value: "en", label: "English" },
+      { value: "id", label: "Indonesian" },
+      { value: "ja", label: "Japanese" },
+      { value: "zh", label: "Chinese" },
+      { value: "ko", label: "Korean" },
+      { value: "es", label: "Spanish" },
+      { value: "fr", label: "French" },
+      { value: "de", label: "German" },
+    ],
   },
   romanizationCase: {
     kind: "select",
     options: [
-      { value: "preserve", label: "Preserve case" },
-      { value: "lowercase", label: "All lowercase" },
+      { value: "preserve", label: "Keep original case" },
+      { value: "lowercase", label: "Lowercase" },
     ],
   },
   musicBrainzLookup: {
@@ -96,9 +112,17 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
       { value: "off", label: "Off" },
     ],
   },
-  resetTour: { kind: "custom", Component: ResetTourSetting },
+  resetGuide: { kind: "custom", Component: ResetGuideSetting },
   resetAllSettings: { kind: "custom", Component: ResetAllSettingsSetting },
   libraryView: { kind: "custom", Component: LibraryViewSetting },
+  linkedDivergenceAction: {
+    kind: "select",
+    options: [
+      { value: "ask", label: "Ask every time" },
+      { value: "apply", label: "Apply to all" },
+      { value: "detach", label: "Detach" },
+    ],
+  },
   librarySort: { kind: "select", options: LIBRARY_SORT_OPTIONS },
   launchScreen: { kind: "select", options: LAUNCH_SCREEN_OPTIONS },
   theme: { kind: "custom", Component: ThemeSettings },
@@ -107,28 +131,19 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
   rememberPlaybackRate: TOGGLE,
   rememberVolume: TOGGLE,
   audioScrubPreview: TOGGLE,
-  scrubStyle: {
-    kind: "select",
-    options: [
-      { value: "smooth", label: "Smooth (Time-stretched)" },
-      { value: "classic", label: "Classic (Snippets)" },
-    ],
-  },
+  showLevelMeters: TOGGLE,
+  vocalModelFiles: { kind: "custom", Component: VocalModelFilesSetting },
   autoSeparateOnImport: TOGGLE,
+  vocalModelVariant: { kind: "custom", Component: VocalModelSetting },
+  alignmentModelFiles: { kind: "custom", Component: AlignmentModelFilesSetting },
   alignmentModelId: { kind: "custom", Component: AlignmentModelSetting },
   keepAlignmentModelLoaded: TOGGLE,
-  vocalModelVariant: {
-    kind: "select",
-    options: [
-      { value: "fp32", label: "fp32 (~171 MB, recommended)" },
-      { value: "fp16", label: "fp16 (~85 MB, experimental)" },
-    ],
-  },
+  beatModelFiles: { kind: "custom", Component: BeatModelFilesSetting },
   defaultZoom: {
     kind: "slider",
-    min: 20,
-    max: 500,
-    step: 20,
+    min: MIN_ZOOM,
+    max: MAX_ZOOM,
+    step: ZOOM_STEP,
     format: (v) => `${v} px/s`,
     action: {
       label: "Use current",
@@ -143,31 +158,60 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
     format: (v) => `${v}px`,
     action: {
       label: "Use current",
-      onClick: () => useSettingsStore.getState().set("defaultRowHeight", useTimelineStore.getState().defaultRowHeight),
+      onClick: () => {
+        const { rowHeights, lastResizedLineId, defaultRowHeight } = useTimelineStore.getState();
+        const resizedHeight = lastResizedLineId === null ? undefined : rowHeights[lastResizedLineId];
+        useSettingsStore.getState().set("defaultRowHeight", resizedHeight ?? defaultRowHeight);
+      },
     },
-  },
-  timelineVisualization: {
-    kind: "select",
-    options: TIMELINE_VISUALIZATION_OPTIONS,
   },
   timelineSnap: TOGGLE,
   vocalOnsetSnap: TOGGLE,
+  snapWordsAndLines: TOGGLE,
+  snapMarkers: TOGGLE,
+  beatSnap: TOGGLE,
+  snapToPlayhead: TOGGLE,
+  beatGridVisible: TOGGLE,
+  beatGridLines: { kind: "select", options: [...BEAT_GRID_LINE_OPTIONS] },
   shareTimingInNewGroups: TOGGLE,
   loopOpenGroup: TOGGLE,
+  stepTimingBackground: TOGGLE,
   selectionLeadIn: { kind: "slider", min: 0, max: 1, step: 0.05, format: (v) => (v === 0 ? "Off" : asMilliseconds(v)) },
-  timelineSnapThreshold: { kind: "slider", min: 4, max: 24, step: 1, format: (v) => `${v}px` },
+  snapDistanceWords: SNAP_DISTANCE,
+  snapDistanceMarkers: SNAP_DISTANCE,
+  snapDistanceOnsets: SNAP_DISTANCE,
+  snapDistanceBeats: SNAP_DISTANCE,
+  snapDistancePlayhead: SNAP_DISTANCE,
   snapPlayheadToPoints: TOGGLE,
   followPlayhead: TOGGLE,
-  defaultRollingEdit: TOGGLE,
+  returnToCue: TOGGLE,
+  rollingEdit: TOGGLE,
   syllablesFollowRolling: TOGGLE,
-  defaultPreviewSidebar: TOGGLE,
+  previewSidebar: TOGGLE,
   timelineHorizontalScroll: TOGGLE,
+  pitchLine: { kind: "select", options: [...PITCH_LINE_OPTIONS] },
+  showSpectrum: TOGGLE,
+  spectrumSource: { kind: "select", options: [...SPECTRUM_SOURCE_OPTIONS] },
+  spectrumPalette: { kind: "select", options: [...SPECTRUM_PALETTE_OPTIONS] },
+  spectrumContrast: {
+    kind: "slider",
+    min: SPECTRUM_CONTRAST.min,
+    max: SPECTRUM_CONTRAST.max,
+    step: 1,
+    format: (v) => `${v} dB`,
+  },
+  spectrumScale: { kind: "select", options: [...FREQUENCY_SCALE_OPTIONS] },
+  spectrumTop: { kind: "select", options: [...SPECTRUM_TOP_OPTIONS] },
+  spectrumWindow: { kind: "select", options: [...ANALYSIS_WINDOW_OPTIONS] },
+  loupeSize: { kind: "custom", Component: LoupeSizeSetting },
+  spectrumPhase: { kind: "select", options: [...PHASE_COLOUR_OPTIONS] },
   splitCharacter: { kind: "custom", Component: SplitCharacterSetting },
   nudgeAmount: { kind: "slider", min: 0.01, max: 0.2, step: 0.01, format: asMilliseconds },
   defaultWordDuration: { kind: "slider", min: 0.1, max: 1, step: 0.05, format: asMilliseconds },
   minWordDuration: { kind: "slider", min: 0.01, max: 0.2, step: 0.01, format: asMilliseconds },
   redoPreroll: { kind: "slider", min: 0, max: 5, step: 0.1, format: asMilliseconds },
-  seekStep: { kind: "slider", min: 1, max: 10, step: 1, format: (v) => `${v}s` },
+  seekStep: { kind: "slider", min: 0.1, max: 5, step: 0.1, format: (v) => `${v.toFixed(1)}s` },
+  fineSeekStep: { kind: "slider", min: 0.01, max: 0.5, step: 0.01, format: asMilliseconds },
   syncCountIn: { kind: "slider", min: 0, max: 10, step: 1, format: (v) => (v === 0 ? "Off" : `${v}s`) },
   defaultGranularity: {
     kind: "select",
@@ -180,6 +224,7 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
   confirmSyncReset: TOGGLE,
   confirmClearProject: TOGGLE,
   confirmResetSettings: TOGGLE,
+  shortcutPreset: { kind: "custom", Component: ShortcutPresetGallery },
   confirmResetShortcuts: TOGGLE,
   confirmApplyToAllSyllableSplit: TOGGLE,
   confirmConformToGroup: TOGGLE,

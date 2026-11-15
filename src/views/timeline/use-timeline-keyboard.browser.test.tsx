@@ -22,16 +22,16 @@ describe("useTimelineKeyboard", () => {
 
   it("toggles rolling edit mode when the rolling edit shortcut is pressed", async () => {
     useProjectStore.setState({ activeTab: "timeline" });
-    expect(useTimelineStore.getState().rollingEditMode).toBe(false);
+    expect(useSettingsStore.getState().rollingEdit).toBe(false);
     const scrollContainerRef = createRef<HTMLDivElement | null>();
     await renderHook(() => useTimelineKeyboard(scrollContainerRef, [], 0));
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "r", bubbles: true }));
-    expect(useTimelineStore.getState().rollingEditMode).toBe(true);
+    expect(useSettingsStore.getState().rollingEdit).toBe(true);
   });
 
   it("regression: holding the rolling edit key toggles it once instead of on every auto-repeat", async () => {
     useProjectStore.setState({ activeTab: "timeline" });
-    expect(useTimelineStore.getState().rollingEditMode).toBe(false);
+    expect(useSettingsStore.getState().rollingEdit).toBe(false);
     const scrollContainerRef = createRef<HTMLDivElement | null>();
     await renderHook(() => useTimelineKeyboard(scrollContainerRef, [], 0));
 
@@ -40,7 +40,7 @@ describe("useTimelineKeyboard", () => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "r", repeat: true, bubbles: true }));
     }
 
-    expect(useTimelineStore.getState().rollingEditMode).toBe(true);
+    expect(useSettingsStore.getState().rollingEdit).toBe(true);
   });
 
   it("toggles marker mode on and off when the marker mode shortcut is pressed", async () => {
@@ -304,51 +304,6 @@ describe("useTimelineKeyboard · jump to snap point", () => {
     );
 
     expect(seek.get()).toBe(5);
-  });
-
-  function buildScrollContainer(width: number, contentWidth: number): HTMLDivElement {
-    const container = document.createElement("div");
-    container.style.width = `${width}px`;
-    container.style.overflow = "auto";
-    const spacer = document.createElement("div");
-    spacer.style.width = `${contentWidth}px`;
-    spacer.style.height = "10px";
-    container.appendChild(spacer);
-    document.body.appendChild(container);
-    return container;
-  }
-
-  it("scrolls an off-screen jump target back into view", async () => {
-    const container = buildScrollContainer(300, 8000);
-    const ref = createRef<HTMLDivElement | null>();
-    ref.current = container;
-    useAudioStore.setState({ currentTime: 0, duration: 80 });
-    useProjectStore.setState({ activeTab: "timeline", customSnapPoints: snapPoints([50]) });
-    useTimelineStore.setState({ zoom: 100, vocalOnsetSnapPoints: [] });
-    const seek = trackSeek();
-    await renderHook(() => useTimelineKeyboard(ref, [], 80));
-
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", shiftKey: true, bubbles: true }));
-
-    expect(seek.get()).toBe(50);
-    expect(container.scrollLeft).toBeGreaterThan(0);
-    container.remove();
-  });
-
-  it("leaves the scroll position alone when the jump target is already visible", async () => {
-    const container = buildScrollContainer(600, 8000);
-    const ref = createRef<HTMLDivElement | null>();
-    ref.current = container;
-    useAudioStore.setState({ currentTime: 0, duration: 80 });
-    useProjectStore.setState({ activeTab: "timeline", customSnapPoints: snapPoints([2]) });
-    useTimelineStore.setState({ zoom: 100, vocalOnsetSnapPoints: [] });
-    trackSeek();
-    await renderHook(() => useTimelineKeyboard(ref, [], 80));
-
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", shiftKey: true, bubbles: true }));
-
-    expect(container.scrollLeft).toBe(0);
-    container.remove();
   });
 });
 
