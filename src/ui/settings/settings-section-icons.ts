@@ -15,7 +15,6 @@ import {
   IconPencilCog,
   IconPlayerPlayFilled,
   IconPlugConnected,
-  IconServer,
   IconSettings,
 } from "@tabler/icons-react";
 
@@ -37,7 +36,6 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionId, ModalNavSection["icon"]>
   storage: IconDeviceFloppy,
   models: IconCpu,
   advanced: IconPlugConnected,
-  bridge: IconServer,
 };
 
 // -- Exports -------------------------------------------------------------------

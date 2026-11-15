@@ -50,6 +50,7 @@ const SpectrogramUnplayedOverlay: React.FC<SpectrogramUnplayedOverlayProps> = ({
   return (
     <div
       ref={overlayRef}
+      data-playback-style="clip-path"
       data-spectrogram-unplayed
       aria-hidden="true"
       className="absolute top-0 left-0 pointer-events-none z-10 transition-opacity duration-150 ease-out"

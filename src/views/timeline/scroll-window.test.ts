@@ -27,9 +27,7 @@ describe("scrollWindowStart", () => {
     });
 
     it("stops at the song end, where the content ends", () => {
-      expect(windowStart(0, SONG_WIDTH - 1400, SONG_WIDTH, SONG_WIDTH)).toBe(
-        SONG_WIDTH - WINDOW_WIDTH,
-      );
+      expect(windowStart(0, SONG_WIDTH - 1400, SONG_WIDTH, SONG_WIDTH)).toBe(SONG_WIDTH - WINDOW_WIDTH);
     });
 
     it("moves a window left past the end of a song that got shorter after a zoom out", () => {

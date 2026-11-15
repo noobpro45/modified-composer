@@ -117,46 +117,45 @@ const WordTrack: React.FC<WordTrackProps> = ({
           const groups = computeSyllableGroups(words);
           const group = groups.find((g) => wordIndex >= g.startIndex && wordIndex <= g.endIndex);
           if (group) {
-            const groupIndices = Array.from(
-              { length: group.endIndex - group.startIndex + 1 },
-              (_, i) => group.startIndex + i,
-            );
-            const allSelected = groupIndices.every((i) => selectedIndices.has(i));
-            for (const i of groupIndices) {
-              if (allSelected) {
-                if (selectedIndices.has(i)) toggleSelection(lineId, i, trackType);
-              } else {
-                if (!selectedIndices.has(i)) toggleSelection(lineId, i, trackType);
-              }
-            }
+            const selections = Array.from({ length: group.endIndex - group.startIndex + 1 }, (_, i) => ({
+              lineId,
+              lineIndex,
+              wordIndex: group.startIndex + i,
+              type: trackType,
+            }));
+            setSelectedWords(selections);
             return;
           }
         }
       }
 
+      const selection = { lineId, lineIndex, wordIndex, type: trackType };
       if (e.metaKey || e.ctrlKey) {
-        toggleSelection(lineId, wordIndex, trackType);
+        toggleSelection(selection);
       } else {
-        setSelectedWords([{ lineId, wordIndex, type: trackType }]);
+        const { selectedWords } = useTimelineStore.getState();
+        const alreadySelected = isWordSelected(selectedWords, lineId, wordIndex, trackType);
+        if (alreadySelected && selectedWords.length === 1 && !stepTiming) {
+          setSelectedWords([]);
+        } else {
+          setSelectedWords([selection]);
+        }
       }
     },
-    [lineId, trackType, words, syllablePositions, selectedIndices, toggleSelection, setSelectedWords],
+    [words, syllablePositions, lineId, lineIndex, trackType, setSelectedWords, toggleSelection],
   );
 
   const handleWordDoubleClick = useCallback(
-    (e: React.MouseEvent, wordIndex: number) => {
-      e.stopPropagation();
+    (_e: React.MouseEvent, wordIndex: number) => {
       useTimelineStore.getState().setEditingWord({ lineId, wordIndex, type: trackType });
+      noteGuideSignal("timeline.editTextDirect");
     },
     [lineId, trackType],
   );
 
   const handleWordContextMenu = useCallback(
     (e: React.MouseEvent, wordIndex: number) => {
-      const selected = useTimelineStore.getState().selectedWords;
-      if (!isWordSelected(selected, lineId, wordIndex, trackType)) {
-        selectWordUnlessSelected(lineId, wordIndex, trackType);
-      }
+      selectWordUnlessSelected({ lineId, lineIndex, wordIndex, type: trackType });
       useTimelineStore.getState().setContextMenu({
         x: e.clientX,
         y: e.clientY,

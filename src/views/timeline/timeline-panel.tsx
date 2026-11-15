@@ -42,7 +42,6 @@ import { syncViewScroll, viewScrollLeft } from "@/views/timeline/view-scroll";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { TimelineSyllableSplitter } from "@/views/timeline/timeline-syllable-splitter";
 import { TimelineWaveform } from "@/views/timeline/timeline-waveform";
-import { BeatGridCorner } from "@/views/timeline/beat-grid/beat-grid-corner";
 import { TimelineVisualizationCorner } from "@/views/timeline/timeline-visualization-corner";
 import { useLineRevealRequest } from "@/views/timeline/line-reveal-request";
 import { useGestureInputReplay } from "@/views/timeline/use-gesture-input-replay";

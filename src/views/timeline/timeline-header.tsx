@@ -1,4 +1,3 @@
-
 import {
   IconArrowBackUp,
   IconArrowBarBoth,
@@ -97,8 +96,7 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
       if (!line.text.trim()) continue;
 
       if (isLineSynced(line)) {
-        const onsets = useTimelineStore.getState().vocalOnsetSnapPoints;
-        const converted = convertLineToWord(line, { onsets });
+        const converted = convertLineToWord(line);
         if (converted.words) {
           updates.push({ id: line.id, updates: { words: converted.words, begin: undefined, end: undefined } });
         }
@@ -147,7 +145,9 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ onImportLyrics, scrollC
           <div className="tray">
             <ShortcutToggleButton
               active={textVariant !== "original"}
-              label={textVariant === "both" ? "Both" : textVariant === "transliteration" ? "Transliteration" : "Original"}
+              label={
+                textVariant === "both" ? "Both" : textVariant === "transliteration" ? "Transliteration" : "Original"
+              }
               stateInLabel
               shortcut="timeline.toggleTextVariant"
               onClick={toggleTextVariant}

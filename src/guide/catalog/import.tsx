@@ -1,11 +1,6 @@
 import { stageTip } from "@/guide/catalog/types";
 import { PROJECT_FILE_EXTENSIONS_LABEL } from "@/lib/project-file-read";
-import {
-  IconFileMusic,
-  IconFolderOpen,
-  IconMicrophone2,
-  IconReplace,
-} from "@tabler/icons-react";
+import { IconFileMusic, IconFolderOpen, IconMicrophone2, IconReplace } from "@tabler/icons-react";
 
 // -- Tips ---------------------------------------------------------------------
 

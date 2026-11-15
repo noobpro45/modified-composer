@@ -155,7 +155,7 @@ const TimelineVisualizationCorner: React.FC = () => {
             <span className="text-[11px] font-medium text-composer-text-muted">Audio Display</span>
             <SegmentedControl
               aria-label="Audio display mode"
-              value={visualization}
+              value={visualization === "spectrogram" ? "spectrogram" : "waveform"}
               options={VISUALIZATION_OPTIONS}
               onChange={handleToggleVisualization}
               className="flex w-full [&>button]:flex-1"

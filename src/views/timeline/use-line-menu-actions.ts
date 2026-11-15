@@ -1,4 +1,3 @@
-import { useAutoAlign } from "@/hooks/use-auto-align";
 import { isSharedLine } from "@/domain/group/shared-timing";
 import { instanceName } from "@/domain/instance/name";
 import { isLinked } from "@/domain/instance/predicates";

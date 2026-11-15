@@ -151,35 +151,39 @@ const ZOOM_STEP = 20;
 const MIN_ROW_HEIGHT = 32;
 const MAX_ROW_HEIGHT = 120;
 
+const INITIAL_PROJECT_SCOPE = {
+  selectedWords: [] as WordSelection[],
+  selectionPlayback: null as SelectionPlaybackMode | null,
+  loopRegion: null as LoopRegion | null,
+  loopRegionDrag: null as LoopRegionDrag | null,
+  cue: null as number | null,
+  contextMenu: null as ContextMenuState | null,
+  editingWord: null as EditingWord | null,
+  pasteMode: { status: "idle" as const } as PasteMode,
+  scrollLeft: 0,
+  scrollTop: null as number | null,
+  pendingResumeView: null as ResumePosition | null,
+  focusedGroup: null as GroupFocus | null,
+  textVariant: "original" as LanguageTextVariant,
+  stepTiming: false,
+  stepQueue: null as WordSelection[] | null,
+};
+
 // -- Store ---------------------------------------------------------------------
 
 const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
   const settings = useSettingsStore.getState();
   return {
+    ...INITIAL_PROJECT_SCOPE,
     zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, settings.defaultZoom)),
-    textVariant: "original",
-    selectedWords: [],
-    selectionPlayback: null,
-    loopRegion: null,
-    loopRegionDrag: null,
-    cue: null,
     waveformReady: false,
-
     clipboard: null,
-    pasteMode: { status: "idle" },
-    scrollLeft: 0,
-    scrollTop: null,
-    pendingResumeView: null,
     rowHeights: {},
     lastResizedLineId: null,
     defaultRowHeight: settings.defaultRowHeight,
     isDraggingPlayhead: false,
     dragTime: 0,
-    contextMenu: null,
-    editingWord: null,
     markerMode: false,
-    stepTiming: false,
-    stepQueue: null,
     hoveredSnapPointId: null,
     collapsedInstances: {},
     focusedGroup: null,
@@ -204,9 +208,9 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     toggleTextVariant: () =>
       set((s) => {
         if (!hasTransliteration(useProjectStore.getState().lines)) return s;
-        if (s.textVariant === "original") return { textVariant: "transliteration" };
-        if (s.textVariant === "transliteration") return { textVariant: "both" };
-        return { textVariant: "original" };
+        const next =
+          s.textVariant === "original" ? "transliteration" : s.textVariant === "transliteration" ? "both" : "original";
+        return { textVariant: next };
       }),
     setTextVariant: (textVariant) => set({ textVariant }),
     setSelectedWords: (selectedWords, asQueue) => set((s) => selectionWrite(s, selectedWords, asQueue)),
@@ -237,24 +241,7 @@ const useTimelineStore = create<TimelineState & TimelineActions>((set, get) => {
     clearContextMenu: () => set({ contextMenu: null }),
     setEditingWord: (editingWord) => set({ editingWord }),
     clearEditingWord: () => set({ editingWord: null }),
-    resetProjectScope: () =>
-      set({
-        selectedWords: [],
-        selectionPlayback: null,
-        loopRegion: null,
-        loopRegionDrag: null,
-        cue: null,
-        contextMenu: null,
-        editingWord: null,
-        pasteMode: { status: "idle" },
-        scrollLeft: 0,
-        scrollTop: null,
-        pendingResumeView: null,
-        focusedGroup: null,
-        textVariant: "original",
-        stepTiming: false,
-        stepQueue: null,
-      }),
+    resetProjectScope: () => set(INITIAL_PROJECT_SCOPE),
     setCue: (cue) => set({ cue }),
     toggleMarkerMode: () => set((s) => ({ markerMode: !s.markerMode })),
     setStepTiming: (stepTiming) => set((s) => stepTimingPatch(s, stepTiming)),

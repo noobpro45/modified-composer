@@ -13,8 +13,8 @@ const GET_PATH = "/api/get";
 const ID_PREFIX = "lrclib-";
 const LOG_PREFIX = "[LRCLib]";
 const ARTIST_DELIMITERS = [",", "&", "/", "、"] as const;
-const CV_PATTERN = /\s*[\(\[][Cc][Vv][:\s][^\)\]]+[\)\]]/g;
-const FEAT_PAREN_PATTERN = /\s*[\(\[](?:feat|ft)\.?\s+[^\)\]]+[\)\]]/gi;
+const CV_PATTERN = /\s*[([][Cc][Vv][:\s][^)\]]+[)\]]/g;
+const FEAT_PAREN_PATTERN = /\s*[([](?:feat|ft)\.?\s+[^)\]]+[)\]]/gi;
 const FEAT_INLINE_PATTERN = /\s+(?:feat|ft)\.?\s+.*$/i;
 
 // -- Types --------------------------------------------------------------------

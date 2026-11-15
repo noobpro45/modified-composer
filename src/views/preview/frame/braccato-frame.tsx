@@ -105,6 +105,7 @@ function useFrameClock(frameRef: RefObject<HTMLIFrameElement | null>, frameOrigi
     "braccato-frame clock",
     enabled,
   );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: connection is a trigger counter that re-arms the mirror
   useEffect(() => {
     sentRef.current = null;
     stoppedRef.current = false;

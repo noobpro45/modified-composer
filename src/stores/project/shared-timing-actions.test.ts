@@ -168,7 +168,10 @@ describe("groupRepeatingSections", () => {
     it("regression: keeps the trailing space of a line's last word when re-splitting it", () => {
       const ending = (id: string, text: string, words: string[]) =>
         createLine({ id, text, words: words.map((wordText, i) => ({ text: wordText, begin: 10 + i, end: 11 + i })) });
-      seed([], [ending("a", "the outside ", ["the ", "outside "]), ending("b", "the out|side ", ["the ", "out", "side "])]);
+      seed(
+        [],
+        [ending("a", "the outside ", ["the ", "outside "]), ending("b", "the out|side ", ["the ", "out", "side "])],
+      );
       store().groupRepeatingSections([0, 1], 1);
       expect(lineById("a")?.words?.map((word) => word.text)).toEqual(["the ", "out", "side "]);
     });

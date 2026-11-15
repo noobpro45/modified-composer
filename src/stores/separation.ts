@@ -34,7 +34,6 @@ interface SeparationState extends StemImportState {
   stemOrigins: Partial<Record<StemSlot, StemOrigin>>;
   stemDetails: Partial<Record<StemSlot, ImportedStemDetails>>;
   hostingConfigured: boolean;
-  hostingConfigured: boolean;
   visualizationStem: Stem | null;
   /** The song's stems came from a model other than the selected one, such as HTDemucs while the RoFormer is picked. */
   stemsFromOtherModel: boolean;

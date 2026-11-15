@@ -21,7 +21,7 @@ const TIMELINE_CATALOG_ENTRIES = {
     section: "timeline",
     group: "View",
     label: "Audio visualization",
-    description: "Display an amplitude waveform, tile-cached spectrum, or 144fps spectrogram on the timeline.",
+    description: "Display an amplitude waveform, tiled spectrum, or 144fps spectrogram on the timeline.",
     keywords: ["waveform", "spectrum", "spectrogram", "frequencies", "sonogram", "audio", "display"],
     settingKey: "timelineVisualization",
   },

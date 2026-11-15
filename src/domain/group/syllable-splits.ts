@@ -190,7 +190,12 @@ function withEvenSyllableSplits(
     if (!mainTargets || !backgroundTargets) return null;
     for (const start of starts) {
       const copy = lines[start + offset];
-      const evened = evenedTrack(evenedTrack(copy, MAIN_TRACK, mainTargets, splitChar), BACKGROUND_TRACK, backgroundTargets, splitChar);
+      const evened = evenedTrack(
+        evenedTrack(copy, MAIN_TRACK, mainTargets, splitChar),
+        BACKGROUND_TRACK,
+        backgroundTargets,
+        splitChar,
+      );
       result[start + offset] = evened;
     }
   }

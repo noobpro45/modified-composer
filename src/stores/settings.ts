@@ -6,7 +6,15 @@ import type { LaunchScreen, LibraryView } from "@/domain/project/library-prefere
 import { SPECTRUM_SETTING_DEFAULTS, type SpectrumSettings } from "@/domain/spectrum/settings";
 import type { KeepYouTubeAudio } from "@/domain/storage/audio-retention";
 import type { StorageLimit } from "@/domain/storage/storage-limit";
-import type { CobaltInstance, CobaltInstanceStatus } from "@/stores/settings-cobalt";
+import {
+  BUILTIN_COBALT_INSTANCE,
+  type CobaltInstance,
+  type CobaltInstanceStatus,
+  createCobaltActions,
+  DEFAULT_COBALT_INSTANCE_ID,
+  resolveActiveCobaltInstance,
+  resolveIsDefaultCobaltInstance,
+} from "@/stores/settings-cobalt";
 import { RUNS_LOCALLY, mergeLocalBridge } from "@/stores/settings-local-bridge";
 import { SETTINGS_PERSIST_VERSION, migrateSettings } from "@/stores/settings-migration";
 import { SNAP_DEFAULTS, type SnapSettings } from "@/stores/settings-snap";
@@ -23,6 +31,8 @@ type GranularityDefault = "word" | "line";
 type LinkedDivergenceAction = "ask" | "apply" | "detach";
 type PreviewRenderer = "braccato" | "am-lyrics";
 type VocalModelVariant = "fp16" | "fp32" | "roformer";
+type LanguageAutoGenerate = "auto" | "manual";
+type RomanizationCase = "preserve" | "lowercase";
 type TimelineVisualization = "waveform" | "spectrum" | "spectrogram";
 type BooleanSettingKey = {
   [K in keyof SettingsState]: SettingsState[K] extends boolean ? K : never;
@@ -31,8 +41,6 @@ type BooleanSettingKey = {
 interface ExperimentFlags {
   youtubeBridge: boolean;
 }
-
-const DEFAULT_COBALT_INSTANCE_ID = "default";
 
 interface SettingsState extends SnapSettings, SpectrumSettings, UnisonSettings {
   pitchLine: PitchLineMode;
@@ -88,6 +96,9 @@ interface SettingsState extends SnapSettings, SpectrumSettings, UnisonSettings {
   autoExtractBackgroundVocals: boolean;
   mergeStandaloneBackgroundLines: boolean;
   preserveBracketsOnExtraction: boolean;
+  languageAutoGenerate: LanguageAutoGenerate;
+  languageDefaultTarget: string;
+  romanizationCase: RomanizationCase;
 
   confirmReplaceLyrics: boolean;
   confirmSyncReset: boolean;
@@ -134,9 +145,9 @@ const DEFAULTS: SettingsState = {
   ...SNAP_DEFAULTS,
   ...UNISON_SETTING_DEFAULTS,
 
-  defaultPlaybackRate: 1,
+  defaultPlaybackRate: 0.75,
   rememberPlaybackRate: true,
-  lastPlaybackRate: 1,
+  lastPlaybackRate: 0.75,
   preservePitch: true,
   rememberVolume: true,
   lastVolume: 1,
@@ -186,6 +197,9 @@ const DEFAULTS: SettingsState = {
   autoExtractBackgroundVocals: true,
   mergeStandaloneBackgroundLines: true,
   preserveBracketsOnExtraction: true,
+  languageAutoGenerate: "auto",
+  languageDefaultTarget: "en",
+  romanizationCase: "preserve",
 
   confirmReplaceLyrics: true,
   confirmSyncReset: true,
@@ -211,12 +225,6 @@ const DEFAULTS: SettingsState = {
 
   experiments: { youtubeBridge: RUNS_LOCALLY },
   composerBridgeUrl: DEFAULT_BRIDGE_URL,
-};
-
-const BUILTIN_COBALT_INSTANCE: CobaltInstance = {
-  id: DEFAULT_COBALT_INSTANCE_ID,
-  label: "Composer",
-  url: "https://cobalt.boidu.dev",
 };
 
 // -- Store --------------------------------------------------------------------
@@ -247,49 +255,14 @@ const useSettingsStore = create<SettingsState & SettingsActions>()(
           experiments: state.experiments,
           composerBridgeUrl: state.composerBridgeUrl,
         })),
-      addCobaltInstance: (instance) =>
-        set((state) => {
-          const id = crypto.randomUUID();
-          return { cobaltInstances: [...state.cobaltInstances, { ...instance, id }] };
-        }),
-      updateCobaltInstance: (id, updates) =>
-        set((state) => ({
-          cobaltInstances: state.cobaltInstances.map((i) => (i.id === id ? { ...i, ...updates } : i)),
-        })),
-      removeCobaltInstance: (id) =>
-        set((state) => {
-          const { [id]: _removedStatus, ...nextStatus } = state.cobaltInstanceStatus;
-          return {
-            cobaltInstances: state.cobaltInstances.filter((i) => i.id !== id),
-            selectedCobaltInstanceId:
-              state.selectedCobaltInstanceId === id ? DEFAULT_COBALT_INSTANCE_ID : state.selectedCobaltInstanceId,
-            cobaltInstanceStatus: nextStatus,
-          };
-        }),
-      selectCobaltInstance: (id) => set({ selectedCobaltInstanceId: id }),
-      recordCobaltInstanceResult: (id, status, errorMessage) =>
-        set((state) => ({
-          cobaltInstanceStatus: {
-            ...state.cobaltInstanceStatus,
-            [id]: { status, errorMessage, at: Date.now() },
-          },
-        })),
+      ...createCobaltActions(set),
     }),
     { name: "composer-settings", version: SETTINGS_PERSIST_VERSION, migrate: migrateSettings, merge: mergeLocalBridge },
   ),
 );
 
-function getActiveCobaltInstance(): CobaltInstance {
-  const state = useSettingsStore.getState();
-  if (state.selectedCobaltInstanceId === DEFAULT_COBALT_INSTANCE_ID) return BUILTIN_COBALT_INSTANCE;
-  return state.cobaltInstances.find((i) => i.id === state.selectedCobaltInstanceId) ?? BUILTIN_COBALT_INSTANCE;
-}
-
-function isUsingDefaultCobaltInstance(): boolean {
-  const state = useSettingsStore.getState();
-  if (state.selectedCobaltInstanceId === DEFAULT_COBALT_INSTANCE_ID) return true;
-  return !state.cobaltInstances.some((i) => i.id === state.selectedCobaltInstanceId);
-}
+const getActiveCobaltInstance = () => resolveActiveCobaltInstance(useSettingsStore.getState());
+const isUsingDefaultCobaltInstance = () => resolveIsDefaultCobaltInstance(useSettingsStore.getState());
 
 // -- Exports ------------------------------------------------------------------
 
@@ -304,6 +277,8 @@ export {
 export type {
   BooleanSettingKey,
   CobaltInstanceStatus,
+  LanguageAutoGenerate,
+  RomanizationCase,
   SettingsState,
   TimelineVisualization,
   VocalModelVariant,

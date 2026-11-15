@@ -82,6 +82,34 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
   autoExtractBackgroundVocals: TOGGLE,
   mergeStandaloneBackgroundLines: TOGGLE,
   preserveBracketsOnExtraction: TOGGLE,
+  languageAutoGenerate: {
+    kind: "select",
+    options: [
+      { value: "auto", label: "Automatic" },
+      { value: "manual", label: "Manual" },
+    ],
+  },
+  languageDefaultTarget: {
+    kind: "select",
+    options: [
+      { value: "none", label: "None (transliteration only)" },
+      { value: "en", label: "English" },
+      { value: "id", label: "Indonesian" },
+      { value: "ja", label: "Japanese" },
+      { value: "zh", label: "Chinese" },
+      { value: "ko", label: "Korean" },
+      { value: "es", label: "Spanish" },
+      { value: "fr", label: "French" },
+      { value: "de", label: "German" },
+    ],
+  },
+  romanizationCase: {
+    kind: "select",
+    options: [
+      { value: "preserve", label: "Keep original case" },
+      { value: "lowercase", label: "Lowercase" },
+    ],
+  },
   musicBrainzLookup: {
     kind: "select",
     options: [

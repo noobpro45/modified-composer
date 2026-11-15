@@ -1,13 +1,36 @@
+import { useProjectStore } from "@/stores/project";
+import { createLine } from "@/test/factories";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { beforeEach, describe, expect, it } from "vitest";
 
 describe("textVariant", () => {
   it("cycles through original -> transliteration -> both -> original", () => {
+    useProjectStore.setState({
+      lines: [
+        {
+          ...createLine({ text: "a" }),
+          transliteration: {
+            language: "ja-Latn",
+            text: "b",
+            origin: "manual",
+            sourceFingerprint: "fp-a",
+            segments: [],
+          },
+        },
+      ],
+    });
     useTimelineStore.setState({ textVariant: "original" });
     useTimelineStore.getState().toggleTextVariant();
     expect(useTimelineStore.getState().textVariant).toBe("transliteration");
     useTimelineStore.getState().toggleTextVariant();
     expect(useTimelineStore.getState().textVariant).toBe("both");
+    useTimelineStore.getState().toggleTextVariant();
+    expect(useTimelineStore.getState().textVariant).toBe("original");
+  });
+
+  it("does not cycle when no line has transliteration", () => {
+    useProjectStore.setState({ lines: [createLine({ text: "a" })] });
+    useTimelineStore.setState({ textVariant: "original" });
     useTimelineStore.getState().toggleTextVariant();
     expect(useTimelineStore.getState().textVariant).toBe("original");
   });

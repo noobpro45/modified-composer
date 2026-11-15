@@ -4,7 +4,13 @@ import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { type SnapSource, snapDistancePx } from "@/stores/settings-snap";
-import { type SnapAnchor, activeSnapAnchors, beatAnchors, snapSourceOf, vocalOnsetAnchors } from "@/views/timeline/snap";
+import {
+  type SnapAnchor,
+  activeSnapAnchors,
+  beatAnchors,
+  snapSourceOf,
+  vocalOnsetAnchors,
+} from "@/views/timeline/snap";
 import type { PointSnapAnchor } from "@/views/timeline/snap-marker-math";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 

@@ -281,7 +281,6 @@ function withAlignedWords(line: LyricLine): LyricLine {
 
 export {
   alignTrackToLine,
-  inferredBoundaries,
   mappedTransliteration,
   planTransliterationAlignment,
   validateTransliterationAlignment,

@@ -14,7 +14,12 @@ const STRIP_EDGE_SLACK = 1;
 
 // -- Functions -----------------------------------------------------------------
 
-function centredWindowStart(visibleStart: number, visibleEnd: number, contentWidth: number, windowWidth: number): number {
+function centredWindowStart(
+  visibleStart: number,
+  visibleEnd: number,
+  contentWidth: number,
+  windowWidth: number,
+): number {
   const maxStart = Math.max(0, contentWidth - windowWidth);
   const centred = visibleStart - (windowWidth - (visibleEnd - visibleStart)) / 2;
   return Math.round(Math.min(maxStart, Math.max(0, centred)));

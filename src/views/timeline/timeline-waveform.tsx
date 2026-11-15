@@ -217,7 +217,7 @@ const TimelineWaveform: React.FC = () => {
     ws.setTime(time);
   }, "timeline-waveform-progress");
 
-  useWaveformWindow({ ws, duration, zoom, hostRef: waveformHostRef });
+  useWaveformWindow(ws, waveformHostRef, !showSpectrum && visualization !== "spectrogram");
 
   if (!source) return null;
 
@@ -240,7 +240,7 @@ const TimelineWaveform: React.FC = () => {
           onDestroy={onDestroy}
           onReady={onReady}
           isSpectrogram={isSpectrogram}
-          trackHeight={bandHeight - 1}
+          trackHeight={isSpectrogram ? bandHeight - 1 : undefined}
         />
       )}
       {isSpectrogram && ws && (

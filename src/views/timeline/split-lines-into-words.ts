@@ -25,7 +25,7 @@ function splitMultiWordWord(word: WordTiming): WordTiming[] {
     begin: word.begin,
     end: word.end,
   };
-  const parts = convertLineToWord(asLine, { evenly: true }).words;
+  const parts = convertLineToWord(asLine).words;
   if (!parts || parts.length < 2) return [word];
   const { syllableGroupId: _drop, transliteration: _t, transliterationJoinerAfter: _j, ...base } = word;
   const lastIndex = parts.length - 1;
@@ -41,11 +41,7 @@ function splitMultiWordBgWords(bgWords: WordTiming[]): WordTiming[] | null {
   return split.length > bgWords.length ? split : null;
 }
 
-function computeSplitIntoWordsUpdates(
-  targets: Iterable<SplitTarget>,
-  rawLines: LyricLine[],
-  onsets?: readonly number[],
-): LineWordsUpdate[] {
+function computeSplitIntoWordsUpdates(targets: Iterable<SplitTarget>, rawLines: LyricLine[]): LineWordsUpdate[] {
   const tracksByLine = new Map<string, Set<SplitTarget["type"]>>();
   for (const { lineId, type } of targets) {
     const tracks = tracksByLine.get(lineId) ?? new Set();
@@ -62,7 +58,7 @@ function computeSplitIntoWordsUpdates(
     if (!realLine) continue;
     const lineUpdates: Partial<LyricLine> = {};
     if (tracks.has("word") && isLineSynced(realLine)) {
-      const converted = convertLineToWord(realLine, { onsets });
+      const converted = convertLineToWord(realLine);
       if (converted.words) Object.assign(lineUpdates, { words: converted.words, begin: undefined, end: undefined });
     }
     const splitBg =
@@ -102,8 +98,7 @@ function computeSplitSelections(updates: LineWordsUpdate[], effectiveLines: read
 
 function splitLinesIntoWords(targets: Iterable<SplitTarget>, effectiveLines: readonly ReadableLine[]): void {
   const projectState = useProjectStore.getState();
-  const onsets = useTimelineStore.getState().vocalOnsetSnapPoints;
-  const updates = computeSplitIntoWordsUpdates(targets, projectState.lines, onsets);
+  const updates = computeSplitIntoWordsUpdates(targets, projectState.lines);
 
   if (updates.length === 1) {
     projectState.updateLineWithHistory(updates[0].id, updates[0].updates);

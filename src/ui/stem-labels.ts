@@ -3,6 +3,8 @@ import type { Stem } from "@/audio/separation/types";
 
 // -- Constants ----------------------------------------------------------------
 
+const STEMS: readonly Stem[] = ["original", "vocals", "instrumental"] as const;
+
 const STEM_LABELS: Record<Stem, string> = {
   original: "Original",
   vocals: "Vocals",
@@ -17,4 +19,4 @@ const STEM_ICONS: Record<Stem, Icon> = {
 
 // -- Exports ------------------------------------------------------------------
 
-export { STEM_ICONS, STEM_LABELS };
+export { STEMS, STEM_ICONS, STEM_LABELS };

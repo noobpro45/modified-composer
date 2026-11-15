@@ -43,7 +43,7 @@ describe("SyncPanel granularity switch", () => {
       loadMixedProject();
       const screen = await render(<SyncPanel />);
 
-      await screen.getByRole("button", { name: "Word" }).click();
+      await screen.getByRole("button", { name: "Word", exact: true }).click();
 
       await expect.poll(() => useProjectStore.getState().granularity).toBe("word");
       const synced = useProjectStore.getState().lines.find((line) => line.id === "line-synced");
@@ -58,7 +58,7 @@ describe("SyncPanel granularity switch", () => {
       loadMixedProject();
       const screen = await render(<SyncPanel />);
 
-      await screen.getByRole("button", { name: "Word" }).click();
+      await screen.getByRole("button", { name: "Word", exact: true }).click();
 
       await expect.element(screen.getByText("Hello world", { exact: true })).toBeInTheDocument();
       await expect.element(screen.getByText("Good", { exact: true })).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe("SyncPanel granularity switch", () => {
       loadMixedProject();
       const screen = await render(<SyncPanel />);
 
-      await screen.getByRole("button", { name: "Word" }).click();
+      await screen.getByRole("button", { name: "Word", exact: true }).click();
 
       await expect.element(screen.getByText("Not", { exact: true })).toBeInTheDocument();
       await expect.element(screen.getByText("yet", { exact: true })).toBeInTheDocument();
@@ -112,7 +112,7 @@ describe("SyncPanel granularity switch", () => {
       const historyBefore = useProjectStore.getState().history;
       const screen = await render(<SyncPanel />);
 
-      await screen.getByRole("button", { name: "Word" }).click();
+      await screen.getByRole("button", { name: "Word", exact: true }).click();
       await expect.poll(() => useProjectStore.getState().granularity).toBe("word");
       await screen.getByRole("button", { name: "Line" }).click();
       await expect.poll(() => useProjectStore.getState().granularity).toBe("line");
@@ -125,7 +125,7 @@ describe("SyncPanel granularity switch", () => {
       loadMixedProject();
       const screen = await render(<SyncPanel />);
 
-      await screen.getByRole("button", { name: "Word" }).click();
+      await screen.getByRole("button", { name: "Word", exact: true }).click();
       await expect.poll(() => useProjectStore.getState().granularity).toBe("word");
 
       const [, word, plain] = useProjectStore.getState().lines;
