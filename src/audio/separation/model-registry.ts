@@ -28,11 +28,23 @@ const VOCAL_MODEL_APPROX_BYTES: Record<VocalModelVariant, number> = {
   roformer: ROFORMER_APPROX_BYTES,
 };
 
+const DEFAULT_MODEL_BASE_URL = "https://models.composer.dacubeking.com";
+
 function getBaseUrl(): string | null {
+  if (typeof window !== "undefined" && (window as unknown as { go?: unknown }).go) {
+    return `${window.location.origin}/composer-models`;
+  }
+  if (typeof self !== "undefined" && self.location?.origin?.includes("wails.localhost")) {
+    return `${self.location.origin}/composer-models`;
+  }
   const raw = import.meta.env.VITE_VOCAL_MODEL_BASE_URL;
-  if (!raw || typeof raw !== "string") return null;
-  const trimmed = raw.trim().replace(/\/$/, "");
-  return trimmed.length > 0 ? trimmed : null;
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    const trimmed = raw.trim().replace(/\/$/, "");
+    if (!trimmed.includes("huggingface.co")) {
+      return trimmed;
+    }
+  }
+  return DEFAULT_MODEL_BASE_URL;
 }
 
 function getModelDescriptor(variant: HtdemucsVariant): ModelDescriptor | null {
@@ -61,6 +73,7 @@ function isModelHostingConfigured(): boolean {
   return getBaseUrl() !== null;
 }
 
+export type { HtdemucsVariant, ModelDescriptor };
 export {
   getBaseUrl as getModelBaseUrl,
   getModelDescriptor,
@@ -70,4 +83,3 @@ export {
   VOCAL_MODEL_APPROX_BYTES,
   vocalModelFiles,
 };
-export type { HtdemucsVariant, ModelDescriptor };

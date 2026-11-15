@@ -21,6 +21,13 @@ const ICON_SIZES: Record<UnisonAvatarSize, string> = { sm: "size-3.5", md: "size
 function resolveAvatarUrl(url: string | null): string | null {
   if (!url) return null;
   if (url.startsWith("/")) return `${UNISON_BASE_URL}${url}`;
+  if (
+    typeof window !== "undefined" &&
+    (window as unknown as { go?: unknown }).go &&
+    (url.startsWith("http://") || url.startsWith("https://"))
+  ) {
+    return `${window.location.origin}/proxy-image?url=${encodeURIComponent(url)}`;
+  }
   return url;
 }
 
