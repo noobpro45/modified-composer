@@ -1,11 +1,12 @@
 import { cancelNextFrame, nextFrame } from "@/lib/frame-loop";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { useProjectStore } from "@/stores/project";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { manualBackgroundWordEdit } from "@/domain/line/background";
-import { effectiveWordTextEdit, getEffectiveLines } from "@/domain/line/effective-words";
+import { effectiveWordTextEdit, getEffectiveLine } from "@/domain/line/effective-words";
 import { trackWords } from "@/domain/line/tracks";
 import { FloatingPortal } from "@floating-ui/react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 // -- Types --------------------------------------------------------------------
 
@@ -24,8 +25,8 @@ const WordEditOverlay: React.FC<WordEditOverlayProps> = ({ lineId, wordIndex, ty
   const updateLineWithHistory = useProjectStore((s) => s.updateLineWithHistory);
   const clearEditingWord = useTimelineStore((s) => s.clearEditingWord);
 
-  const effectiveLines = useMemo(() => getEffectiveLines(rawLines), [rawLines]);
-  const line = effectiveLines.find((l) => l.id === lineId);
+  const rawLine = rawLines.find((l) => l.id === lineId);
+  const line = rawLine ? getEffectiveLine(rawLine) : undefined;
   const wordsArray = line ? trackWords(line, type) : undefined;
   const word = wordsArray?.[wordIndex];
 
@@ -87,6 +88,7 @@ const WordEditOverlay: React.FC<WordEditOverlayProps> = ({ lineId, wordIndex, ty
           lineId,
           type === "word" ? effectiveWordTextEdit(line, updatedWords) : manualBackgroundWordEdit(updatedWords),
         );
+        noteGuideSignal("timeline.editText");
       }
       clearEditingWord();
     },

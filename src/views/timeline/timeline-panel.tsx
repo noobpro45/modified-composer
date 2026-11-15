@@ -1,46 +1,57 @@
 import { FileDropZone } from "@/audio/file-drop-zone";
 import { getAgentColor } from "@/domain/agent/colors";
 import { AUDIO_FORMATS_PROSE } from "@/domain/audio-file/supported-formats";
-import { getEffectiveLines } from "@/domain/line/effective-words";
-import type { LyricLine } from "@/domain/line/model";
 import { trackWords } from "@/domain/line/tracks";
 import { isWordSelected } from "@/domain/selection/identity";
-import { boundsOverlap } from "@/domain/word/overlap";
 import { useLoadAudioFile } from "@/hooks/useLoadAudioFile";
 import { useAudioStore } from "@/stores/audio";
 import { useImportModal } from "@/stores/import-modal-store";
 import { useProjectStore } from "@/stores/project";
+import { useSettingsStore } from "@/stores/settings";
+import { BeatGridCorner } from "@/views/timeline/beat-grid/beat-grid-corner";
 import { HoverSizedDragGhost, TimelineDragOverlay } from "@/views/timeline/drag-ghost";
 import { dragGhostCells } from "@/views/timeline/drag-ghost-cells";
+import { makeDragOverlapCheck } from "@/views/timeline/drag-overlap-check";
 import { trackSnapModifier } from "@/views/timeline/drag-track-snap";
 import { EmptyTimelineImport } from "@/views/timeline/empty-timeline-import";
 import { GroupFocusBar } from "@/views/timeline/group-focus-bar";
-import { MarqueeSelection } from "@/views/timeline/marquee-selection";
-import { PastePreview } from "@/views/timeline/paste-preview";
+import { forgetPointer, rememberPointer } from "@/views/timeline/last-pointer";
 import { LoopRegionBar } from "@/views/timeline/loop-region-bar";
 import { LoopRegionGuides } from "@/views/timeline/loop-region-guides";
 import { LoopRegionReadout } from "@/views/timeline/loop-region-readout";
+import { EditLoupe } from "@/views/timeline/loupe/edit-loupe";
+import { MarqueeSelection } from "@/views/timeline/marquee-selection";
+import { PastePreview } from "@/views/timeline/paste-preview";
 import { SelectionPlaybackBar } from "@/views/timeline/selection-playback-bar";
 import { selfKey } from "@/views/timeline/snap";
 import { SnapGuideline } from "@/views/timeline/snap-guideline";
 import { SnapMarkersOverlay } from "@/views/timeline/snap-markers-overlay";
+import { StepViewPublisher } from "@/views/timeline/step-timing/step-next";
 import { TimelineContextMenu } from "@/views/timeline/timeline-context-menu";
+import { useTimelineEffectiveLines } from "@/views/timeline/timeline-effective-lines";
 import { TimelineHeader } from "@/views/timeline/timeline-header";
-import { TimelineRuler } from "@/views/timeline/timeline-ruler";
 import { TimelineInfoPanel } from "@/views/timeline/timeline-info-panel";
+import { BoundaryModeChip } from "@/views/timeline/boundary-mode-chip";
 import { TimelinePlayhead } from "@/views/timeline/timeline-playhead";
 import { TimelinePreviewSidebar } from "@/views/timeline/timeline-preview-sidebar";
 import { TimelineRows } from "@/views/timeline/timeline-rows";
+import { keepsTimelineScrollSize } from "@/views/timeline/scroll-size-mutation";
+import { followRulerScroll } from "@/views/timeline/ruler-scroll";
+import { TimelineRuler } from "@/views/timeline/timeline-ruler";
+import { syncViewScroll, viewScrollLeft } from "@/views/timeline/view-scroll";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { TimelineSyllableSplitter } from "@/views/timeline/timeline-syllable-splitter";
 import { TimelineWaveform } from "@/views/timeline/timeline-waveform";
+import { BeatGridCorner } from "@/views/timeline/beat-grid/beat-grid-corner";
 import { TimelineVisualizationCorner } from "@/views/timeline/timeline-visualization-corner";
+import { useLineRevealRequest } from "@/views/timeline/line-reveal-request";
+import { useGestureInputReplay } from "@/views/timeline/use-gesture-input-replay";
 import { useGroupFocusScroll } from "@/views/timeline/use-group-focus-scroll";
 import { useGroupFocusShortcuts } from "@/views/timeline/use-group-focus-shortcuts";
 import { useMarquee } from "@/views/timeline/use-marquee";
 import { useResumeView } from "@/views/timeline/use-resume-view";
+import { useSeekReveal } from "@/views/timeline/use-seek-reveal";
 import { useSharedTimingPing } from "@/views/timeline/use-shared-timing-ping";
-import { useGestureInputReplay } from "@/views/timeline/use-gesture-input-replay";
 import { useTimelineDnd } from "@/views/timeline/use-timeline-dnd";
 import { useTimelineFrameWake } from "@/views/timeline/use-timeline-frame-wake";
 import { useTimelineKeyboard } from "@/views/timeline/use-timeline-keyboard";
@@ -54,49 +65,31 @@ import { useOverlayScrollbars } from "overlayscrollbars-react";
 import "overlayscrollbars/overlayscrollbars.css";
 import { Activity, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-// -- Helpers -------------------------------------------------------------------
-
-function makeDragOverlapCheck(
-  data: { lineId: string; wordIndex: number; trackType: "word" | "bg"; begin: number; end: number },
-  lines: LyricLine[],
-) {
-  const line = lines.find((l) => l.id === data.lineId);
-  if (!line) return () => true;
-  const wordsArr = trackWords(line, data.trackType) ?? [];
-  return (shift: number) => {
-    const newBegin = data.begin + shift;
-    const newEnd = data.end + shift;
-    return !wordsArr.some((w, i) => {
-      if (i === data.wordIndex) return false;
-      return boundsOverlap({ begin: newBegin, end: newEnd }, w);
-    });
-  };
-}
-
 // -- Components ----------------------------------------------------------------
 
 const TimelinePanel: React.FC = () => {
   const source = useAudioStore((s) => s.source);
   const duration = useAudioStore((s) => s.duration);
   const lines = useProjectStore((s) => s.lines);
-  const zoom = useTimelineStore((s) => s.zoom);
-  const setScrollLeft = useTimelineStore((s) => s.setScrollLeft);
-  const setScrollTop = useTimelineStore((s) => s.setScrollTop);
-  const previewSidebarOpen = useTimelineStore((s) => s.previewSidebarOpen);
+  const previewSidebar = useSettingsStore((s) => s.previewSidebar);
+  const timelineVisualization = useSettingsStore((s) => s.timelineVisualization);
   const pasteMode = useTimelineStore((s) => s.pasteMode);
   const editingWord = useTimelineStore((s) => s.editingWord);
   const ghostSnapped = useTimelineStore((s) => s.snappedBlockId !== null);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const rulerTrackRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(400);
   const [rulerLane, setRulerLane] = useState<HTMLDivElement | null>(null);
   const [rulerMarkerHost, setRulerMarkerHost] = useState<HTMLDivElement | null>(null);
   const openImportModal = useImportModal();
 
-  const effectiveLines = useMemo(() => getEffectiveLines(lines), [lines]);
+  const effectiveLines = useTimelineEffectiveLines(lines);
+  const stepTiming = useTimelineStore((s) => s.stepTiming);
+  const timelineShown = !!source && lines.length > 0;
 
-  const [initOverlayScrollbars] = useOverlayScrollbars({
+  const [initOverlayScrollbars, overlayScrollbars] = useOverlayScrollbars({
     defer: true,
     options: {
       scrollbars: {
@@ -104,18 +97,26 @@ const TimelinePanel: React.FC = () => {
         autoHide: "scroll",
         autoHideDelay: 800,
       },
+      update: { ignoreMutation: keepsTimelineScrollSize },
     },
   });
 
   useEffect(() => {
     const target = contentRef.current;
     const viewport = scrollContainerRef.current;
-    if (!target || !viewport) return;
+    if (!timelineShown || !target || !viewport) return;
+    syncViewScroll(viewport);
+    // The scroll container remounts when the lyrics are cleared and added back; init skips while the old instance lives.
+    const instance = overlayScrollbars();
+    if (instance && instance.elements().viewport !== viewport) instance.destroy();
     initOverlayScrollbars({ target, elements: { viewport } });
-  }, [initOverlayScrollbars]);
+  }, [initOverlayScrollbars, overlayScrollbars, timelineShown]);
 
   const { handlePanMouseDown } = useTimelinePan(scrollContainerRef);
   const { sensors, activeDrag, handleDragStart, handleDragEnd, handleDragCancel } = useTimelineDnd(effectiveLines);
+  const dragZoom = useTimelineStore((s) => (activeDrag ? s.zoom : null));
+  // DndContext runs the snap modifier only when it renders, so a bypass change during a held drag must re-render it.
+  useTimelineStore((s) => activeDrag !== null && s.isBypassing);
   const { dragSnapModifier, beginGesture, endGesture, syncDragSnap } = useTimelineSnap();
   const lastDragPointerRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const getLastDragPointer = useCallback(() => lastDragPointerRef.current, []);
@@ -134,11 +135,13 @@ const TimelinePanel: React.FC = () => {
   const { marqueeRect, handleMarqueeMouseDown } = useMarquee(scrollContainerRef);
   const openLyricsModal = useCallback(() => openImportModal(), [openImportModal]);
   useTimelineKeyboard(scrollContainerRef, effectiveLines, duration, openLyricsModal);
+  useLineRevealRequest(scrollContainerRef, effectiveLines);
   useGroupFocusShortcuts();
   useGroupFocusScroll(scrollContainerRef);
-  useTimelineWheel(scrollContainerRef, !!source && lines.length > 0);
-  useTimelineFrameWake(scrollContainerRef, contentRef, !!source && lines.length > 0);
-  useResumeView(scrollContainerRef, !!source && lines.length > 0 && duration > 0);
+  useTimelineWheel(scrollContainerRef, timelineShown);
+  useSeekReveal(scrollContainerRef, timelineShown);
+  useTimelineFrameWake(scrollContainerRef, contentRef, timelineShown);
+  useResumeView(scrollContainerRef, timelineShown && duration > 0);
 
   useEffect(() => {
     const { selectedWords } = useTimelineStore.getState();
@@ -154,22 +157,19 @@ const TimelinePanel: React.FC = () => {
   }, [effectiveLines]);
 
   useEffect(() => {
-    if (!contentRef.current) return;
+    if (!timelineShown || !contentRef.current) return;
     const observer = new ResizeObserver((entries) => {
       setContentHeight(entries[0].contentRect.height);
     });
     // react-doctor-disable-next-line react-doctor/no-initialize-state
     observer.observe(contentRef.current);
     return () => observer.disconnect();
-  }, []);
+  }, [timelineShown]);
 
-  const handleScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
-      setScrollLeft(e.currentTarget.scrollLeft);
-      setScrollTop(e.currentTarget.scrollTop);
-    },
-    [setScrollLeft, setScrollTop],
-  );
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    syncViewScroll(e.currentTarget);
+    if (rulerTrackRef.current) followRulerScroll(rulerTrackRef.current, viewScrollLeft());
+  }, []);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -188,8 +188,8 @@ const TimelinePanel: React.FC = () => {
     : "#888";
 
   const dragCells = useMemo(
-    () => (activeDrag ? dragGhostCells(activeDrag, zoom, effectiveLines) : null),
-    [activeDrag, zoom, effectiveLines],
+    () => (activeDrag && dragZoom !== null ? dragGhostCells(activeDrag, dragZoom, effectiveLines) : null),
+    [activeDrag, dragZoom, effectiveLines],
   );
 
   if (!source) {
@@ -271,12 +271,15 @@ const TimelinePanel: React.FC = () => {
             <div className="flex flex-col flex-1 overflow-hidden">
               <TimelineRuler
                 scrollContainerRef={scrollContainerRef}
+                trackRef={rulerTrackRef}
                 laneRef={setRulerLane}
                 markerHostRef={setRulerMarkerHost}
               />
               <div
                 ref={contentRef}
                 data-timeline-scroll-host
+                onPointerMove={rememberPointer}
+                onPointerLeave={forgetPointer}
                 className="relative flex-1 flex flex-col overflow-hidden isolate"
               >
                 <div
@@ -284,19 +287,20 @@ const TimelinePanel: React.FC = () => {
                   role="application"
                   aria-label="Timeline"
                   data-scroll-container
-                  className="flex-1 overflow-auto overscroll-none static! z-[unset] overflow-anchor-none"
+                  data-step-timing={stepTiming || undefined}
+                  className="flex-1 overflow-auto overscroll-none static! z-[unset] overflow-anchor-none paste-cursor"
                   onScroll={handleScroll}
                   onMouseDown={handleMouseDown}
                   onAuxClick={(e) => e.preventDefault()}
                   onKeyDown={(e) => {
-                    if (e.key === " " || e.key === "Enter") {
-                      e.preventDefault();
-                    }
+                    const fromOwnContent = e.target instanceof Node && e.currentTarget.contains(e.target);
+                    if (fromOwnContent && (e.key === " " || e.key === "Enter")) e.preventDefault();
                   }}
                 >
-                  <TimelineVisualizationCorner />
+                  {timelineVisualization === "spectrogram" ? <TimelineVisualizationCorner /> : <BeatGridCorner />}
                   <TimelineWaveform />
 
+                  <StepViewPublisher lines={effectiveLines} />
                   <TimelineRows scrollContainerRef={scrollContainerRef} />
                 </div>
 
@@ -304,6 +308,7 @@ const TimelinePanel: React.FC = () => {
                   containerHeight={contentHeight}
                   scrollContainerRef={scrollContainerRef}
                   capHost={rulerLane}
+                  rulerTrackRef={rulerTrackRef}
                 />
 
                 <SnapGuideline />
@@ -327,12 +332,15 @@ const TimelinePanel: React.FC = () => {
                     scrollContainerRef={scrollContainerRef}
                   />
                 )}
+
+                <EditLoupe scrollContainerRef={scrollContainerRef} />
               </div>
 
               <TimelineInfoPanel />
+              <BoundaryModeChip />
             </div>
 
-            <Activity mode={previewSidebarOpen ? "visible" : "hidden"}>
+            <Activity mode={previewSidebar ? "visible" : "hidden"}>
               <TimelinePreviewSidebar />
             </Activity>
           </div>

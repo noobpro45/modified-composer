@@ -1,6 +1,6 @@
 import {
-  instanceStart,
   firstFullyTimedInstance,
+  instanceStart,
   isSharedLine,
   sharedInstancesInLineOrder,
 } from "@/domain/group/shared-timing";
@@ -59,4 +59,3 @@ function sharedAnchorAt(
 // -- Exports ------------------------------------------------------------------
 
 export { sharedAnchorAt };
-export type { SharedAnchor };

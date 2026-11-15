@@ -1,9 +1,10 @@
 import { useExportTtml } from "@/hooks/use-export-ttml";
+import { useSettingsStore } from "@/stores/settings";
 import { PREVIEW_SIDEBAR_WIDTH } from "@/utils/preview-sidebar-width";
 import { LyricsRenderer } from "@/views/preview/lyrics-renderer";
 import { useFocusRange } from "@/views/timeline/use-focus-range";
 import { usePreviewSidebarResize } from "@/views/timeline/use-preview-sidebar-resize";
-import { useId } from "react";
+import { memo, useId, useRef } from "react";
 
 // -- Interfaces ---------------------------------------------------------------
 
@@ -11,10 +12,15 @@ interface PreviewSidebarShellProps {
   children: React.ReactNode;
 }
 
+interface PreviewSidebarContentProps {
+  isOpen: boolean;
+}
+
 // -- Components ---------------------------------------------------------------
 
 const PreviewSidebarShell: React.FC<PreviewSidebarShellProps> = ({ children }) => {
-  const { width, onPointerDown, onDoubleClick, onKeyDown } = usePreviewSidebarResize();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const { width, contentWidth, onPointerDown, onDoubleClick, onKeyDown } = usePreviewSidebarResize(contentRef);
   const sidebarId = useId();
 
   return (
@@ -38,12 +44,19 @@ const PreviewSidebarShell: React.FC<PreviewSidebarShellProps> = ({ children }) =
         onKeyDown={onKeyDown}
         className="absolute inset-y-0 left-0 z-20 w-1.5 cursor-ew-resize select-none hover:bg-composer-border focus-visible:bg-composer-border"
       />
-      {children}
+      <div
+        ref={contentRef}
+        style={contentWidth === null ? undefined : { width: contentWidth }}
+        className="flex flex-col flex-1 min-h-0"
+      >
+        {children}
+      </div>
     </aside>
   );
 };
 
-const TimelinePreviewSidebar: React.FC = () => {
+// Memoized on isOpen: while the sidebar is hidden, Timeline re-renders skip it and no TTML is generated.
+const PreviewSidebarContent = memo<PreviewSidebarContentProps>(() => {
   const { content, duration, syncedLineCount } = useExportTtml();
   const focusRange = useFocusRange();
 
@@ -54,10 +67,21 @@ const TimelinePreviewSidebar: React.FC = () => {
           <span className="text-sm text-composer-text-muted">No synced content</span>
         </div>
       ) : (
-        <LyricsRenderer ttmlString={content} durationSeconds={duration} layout="sidebar" focusRange={focusRange} />
+        <LyricsRenderer
+          ttmlString={content}
+          durationSeconds={duration}
+          layout="sidebar"
+          focusRange={focusRange}
+          isolated
+        />
       )}
     </PreviewSidebarShell>
   );
+});
+
+const TimelinePreviewSidebar: React.FC = () => {
+  const isOpen = useSettingsStore((s) => s.previewSidebar);
+  return <PreviewSidebarContent isOpen={isOpen} />;
 };
 
 // -- Exports ------------------------------------------------------------------

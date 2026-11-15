@@ -137,15 +137,14 @@ describe("SyncPanel · shared instance anchor", () => {
   });
 
   describe("labels", () => {
-    it("asks for the placing tap, then marks the skipped lines as shared", async () => {
+    it("asks for the placing tap, then marks the instance placed", async () => {
       load(song({ first: "word", verse: "word" }));
       const screen = await render(<SyncPanel />);
       await jumpToRow(screen, 3);
-      await expect.element(screen.getByText("Tap to place")).toBeInTheDocument();
-      await expect.element(screen.getByText("Chorus 2", { exact: true })).toBeInTheDocument();
+      await expect.element(screen.getByText("Chorus 2 · tap to place")).toBeInTheDocument();
       await tapAt(40, () => firstBegin("c1-0"));
-      await expect.element(screen.getByText("Chorus 2 · shared").first()).toBeInTheDocument();
-      expect(screen.container.textContent).not.toContain("Tap to place");
+      await expect.element(screen.getByText("Chorus 2 · placed")).toBeInTheDocument();
+      expect(screen.container.textContent).not.toContain("tap to place");
     });
 
     it("drops the skipped band once the whole song is synced", async () => {

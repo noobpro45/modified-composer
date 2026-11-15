@@ -1,16 +1,16 @@
 import { scrubPreview } from "@/audio/scrub-preview";
 import { DEFAULT_SCRUB_OPTS, type ScrubSample, computeScrubVelocity } from "@/audio/scrub-velocity";
+import { noteGuideGesture } from "@/lib/guide-gesture-signal";
+import { notePlacement } from "@/lib/replay-cue";
 import { livePlaybackTime, useAudioStore } from "@/stores/audio";
 import { useSettingsStore } from "@/stores/settings";
 import { computeAnchoredScrollLeft } from "@/utils/timeline/zoom-anchor";
-import { GUTTER_WIDTH, MAX_ZOOM, MIN_ZOOM, WAVEFORM_HEIGHT, useTimelineStore } from "@/views/timeline/timeline-store";
-import {
-  computeScrubTime,
-  computeWheelZoom,
-  decideWheelAction,
-  normalizeWheelDelta,
-} from "@/views/timeline/timeline-wheel";
+import { currentOverviewBandHeight } from "@/views/timeline/overview-band-height";
+import { GUTTER_WIDTH, MAX_ZOOM, MIN_ZOOM, ZOOM_STEP, useTimelineStore } from "@/views/timeline/timeline-store";
+import { computeScrubTime, decideWheelAction, normalizeWheelDelta } from "@/views/timeline/timeline-wheel";
 import { type RefObject, useCallback, useEffect, useRef } from "react";
+import { readViewScroll, scrollViewBy } from "@/views/timeline/view-scroll";
+import { zoomView } from "@/views/timeline/zoom-view";
 
 // -- Constants -----------------------------------------------------------------
 
@@ -32,7 +32,9 @@ function useTimelineWheel(scrollContainerRef: RefObject<HTMLDivElement | null>, 
 
       const rect = container.getBoundingClientRect();
       const overWaveform =
-        e.clientY >= rect.top && e.clientY <= rect.top + WAVEFORM_HEIGHT && e.clientX >= rect.left + GUTTER_WIDTH;
+        e.clientY >= rect.top &&
+        e.clientY <= rect.top + currentOverviewBandHeight() &&
+        e.clientX >= rect.left + GUTTER_WIDTH;
 
       const action = decideWheelAction({
         deltaX: e.deltaX,
@@ -49,11 +51,12 @@ function useTimelineWheel(scrollContainerRef: RefObject<HTMLDivElement | null>, 
 
       if (action.kind === "zoom") {
         const anchorViewportX = e.clientX - rect.left - GUTTER_WIDTH;
-        const cursorTime = (anchorViewportX + container.scrollLeft) / zoom;
-        const newZoom = computeWheelZoom(zoom, e.deltaY, e.deltaMode, MIN_ZOOM, MAX_ZOOM);
+        const cursorTime = (anchorViewportX + readViewScroll(container).left) / zoom;
+        const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+        const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom + delta));
         if (newZoom === zoom) return;
-        useTimelineStore.getState().setZoom(newZoom);
-        container.scrollLeft = computeAnchoredScrollLeft(cursorTime, anchorViewportX, newZoom);
+        zoomView(container, newZoom, computeAnchoredScrollLeft(cursorTime, anchorViewportX, newZoom));
+        noteGuideGesture("timeline.zoom");
         return;
       }
 
@@ -61,13 +64,8 @@ function useTimelineWheel(scrollContainerRef: RefObject<HTMLDivElement | null>, 
         const currentTime = livePlaybackTime();
         const newTime = computeScrubTime(currentTime, normalizeWheelDelta(e.deltaY, e.deltaMode), zoom, duration);
         useAudioStore.getState().seekTo(newTime);
-        const playheadX = newTime * zoom;
-        const viewportInner = container.clientWidth - GUTTER_WIDTH;
-        if (playheadX < container.scrollLeft) {
-          container.scrollLeft = Math.max(0, playheadX);
-        } else if (playheadX > container.scrollLeft + viewportInner) {
-          container.scrollLeft = playheadX - viewportInner;
-        }
+        notePlacement(newTime, "keyboard");
+        noteGuideGesture("timeline.scrub");
 
         const curr: ScrubSample = { time: newTime, wallClockMs: performance.now() };
         const velocity = computeScrubVelocity(prevScrubSampleRef.current, curr, DEFAULT_SCRUB_OPTS);
@@ -85,11 +83,8 @@ function useTimelineWheel(scrollContainerRef: RefObject<HTMLDivElement | null>, 
 
       const dominantDelta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
       const scrollAmount = normalizeWheelDelta(dominantDelta, e.deltaMode);
-      if (action.axis === "x") {
-        container.scrollLeft += scrollAmount;
-      } else {
-        container.scrollTop += scrollAmount;
-      }
+      if (action.axis === "x") scrollViewBy(container, scrollAmount, 0);
+      else scrollViewBy(container, 0, scrollAmount);
     },
     [scrollContainerRef],
   );

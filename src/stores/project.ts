@@ -1,4 +1,6 @@
+import { createAlignmentReviewSlice } from "@/stores/project/alignment-review-slice";
 import { createAgentsSlice } from "@/stores/project/agents-slice";
+import { createBeatGridSlice } from "@/stores/project/beat-grid-slice";
 import { createDismissalsSlice } from "@/stores/project/dismissals-slice";
 import { createGroupsSlice } from "@/stores/project/groups-slice";
 import { createHistorySlice } from "@/stores/project/history-slice";
@@ -7,6 +9,7 @@ import { createMetadataSlice, createProjectInitialState } from "@/stores/project
 import { createSnapPointsSlice } from "@/stores/project/snap-points-slice";
 import type { ProjectState, ProjectStore } from "@/stores/project/types";
 import { createUiSlice } from "@/stores/project/ui-slice";
+import { createUnisonLinkSlice } from "@/stores/project/unison-link-slice";
 import { create } from "zustand";
 
 // -- Initial State ------------------------------------------------------------
@@ -28,6 +31,9 @@ const useProjectStore = create<ProjectStore>((set, get, api) => ({
   ...createHistorySlice(set, get, api),
   ...createDismissalsSlice(set, get, api),
   ...createSnapPointsSlice(set, get, api),
+  ...createBeatGridSlice(set, get, api),
+  ...createAlignmentReviewSlice(set, get, api),
+  ...createUnisonLinkSlice(set, get, api),
 }));
 
 export { useProjectStore, INITIAL_STATE };

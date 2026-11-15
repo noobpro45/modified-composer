@@ -1,16 +1,16 @@
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { useProjectStore } from "@/stores/project";
-import { useSettingsStore } from "@/stores/settings";
-import { snapTimeToOnset } from "@/views/timeline/snap-marker-math";
+import { pointSnapAnchors } from "@/views/timeline/point-snap-anchors";
+import { snapTimeToPoints } from "@/views/timeline/snap-marker-math";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 
 // -- Functions ----------------------------------------------------------------
 
-// A placed marker lands on a nearby vocal onset when onset snapping is on.
 function placeSnapPoint(time: number): void {
-  const { zoom, vocalOnsetSnapPoints } = useTimelineStore.getState();
-  const { vocalOnsetSnap, timelineSnapThreshold } = useSettingsStore.getState();
-  const onsets = vocalOnsetSnap ? vocalOnsetSnapPoints : [];
-  useProjectStore.getState().addCustomSnapPoint(snapTimeToOnset(time, onsets, zoom, timelineSnapThreshold));
+  const anchors = pointSnapAnchors({ includeMarkers: false, includeOnsets: true, includeBeats: true });
+  const { zoom } = useTimelineStore.getState();
+  useProjectStore.getState().addCustomSnapPoint(snapTimeToPoints(time, anchors, zoom));
+  noteGuideSignal("timeline.markers");
 }
 
 // -- Exports ------------------------------------------------------------------

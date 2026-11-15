@@ -1,3 +1,10 @@
+import { primingDecodeTag } from "@/audio/decoded-source-audio";
+import {
+  type StemRecord,
+  derivedRecordKey,
+  getDerivedRecord,
+  putDerivedRecords,
+} from "@/audio/separation/stem-derived-records";
 import type { Stem } from "@/audio/separation/types";
 import { type StemJobUsage, oldestStemJobFirst } from "@/domain/storage/usage";
 import { STEM_STORE_NAME, getFromStore, runTransaction } from "@/lib/persistence-idb";
@@ -5,12 +12,6 @@ import { notifyStorageSignal, reportStorageWriteError } from "@/lib/storage-sign
 import type { VocalModelVariant } from "@/stores/settings";
 
 // -- Types --------------------------------------------------------------------
-
-interface StemRecord {
-  blob: Blob;
-  createdAt: number;
-  jobKey: string;
-}
 
 interface StemRemoval {
   jobs: number;
@@ -53,8 +54,19 @@ function stemJobKey(audioHash: string, variant: VocalModelVariant): string {
   return `${audioHash}|${variant}|v${STEM_CACHE_VERSION}`;
 }
 
+// Stems are stored under the model that made them. With the RoFormer picked, a song it couldn't separate has
+// HTDemucs stems from the fallback, which are used until RoFormer stems exist.
+function stemLookupOrder(variant: VocalModelVariant): VocalModelVariant[] {
+  return variant === "roformer" ? ["roformer", "fp16"] : [variant];
+}
+
+async function stemCacheHash(source: Blob, audioHash: string): Promise<string> {
+  const tag = await primingDecodeTag(source);
+  return tag ? `${audioHash}-${tag}` : audioHash;
+}
+
 function onsetsKey(jobKey: string): string {
-  return `${jobKey}|onsets|v${ONSETS_CACHE_VERSION}`;
+  return derivedRecordKey(jobKey, "onsets", `v${ONSETS_CACHE_VERSION}`);
 }
 
 // -- Reads --------------------------------------------------------------------
@@ -76,9 +88,9 @@ function isOnsetList(value: unknown): value is number[] {
 }
 
 async function getStemJobOnsets(jobKey: string): Promise<number[] | null> {
-  const record = await getFromStore<StemRecord>(STEM_STORE_NAME, onsetsKey(jobKey));
-  if (!record) return null;
-  const parsed: unknown = JSON.parse(await record.blob.text());
+  const blob = await getDerivedRecord(onsetsKey(jobKey));
+  if (!blob) return null;
+  const parsed: unknown = JSON.parse(await blob.text());
   return isOnsetList(parsed) ? parsed : null;
 }
 
@@ -127,35 +139,9 @@ async function putStem(audioHash: string, stem: Stem, variant: VocalModelVariant
   await evictIfOverCapacity();
 }
 
-async function putStemJobOnsets(jobKey: string, onsets: readonly number[]): Promise<boolean> {
-  const key = onsetsKey(jobKey);
-  // createdAt 0 keeps derived data from making the job look newer to eviction.
-  const record: StemRecord = {
-    blob: new Blob([JSON.stringify(onsets)], { type: "application/json" }),
-    createdAt: 0,
-    jobKey,
-  };
-  let written = false;
-  try {
-    await runTransaction([STEM_STORE_NAME], "readwrite", (tx) => {
-      const store = tx.objectStore(STEM_STORE_NAME);
-      const request = store.openCursor();
-      request.onsuccess = () => {
-        const cursor = request.result;
-        if (!cursor) return;
-        if (cursor.key !== key && (cursor.value as StemRecord).jobKey === jobKey) {
-          store.put(record, key);
-          written = true;
-          return;
-        }
-        cursor.continue();
-      };
-    });
-  } catch (error) {
-    reportStorageWriteError(error);
-    throw error;
-  }
-  return written;
+function putStemJobOnsets(jobKey: string, onsets: readonly number[]): Promise<boolean> {
+  const blob = new Blob([JSON.stringify(onsets)], { type: "application/json" });
+  return putDerivedRecords(jobKey, new Map([[onsetsKey(jobKey), blob]]));
 }
 
 // -- Removal ------------------------------------------------------------------
@@ -203,7 +189,9 @@ async function evictIfOverCapacity(): Promise<void> {
 // -- Exports ------------------------------------------------------------------
 
 export {
+  stemCacheHash,
   stemJobKey,
+  stemLookupOrder,
   getStem,
   getStemJobOnsets,
   hasStems,

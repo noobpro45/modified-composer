@@ -1,9 +1,19 @@
 import { isLineSynced } from "@/domain/line/predicates";
 import type { LyricLine } from "@/domain/line/model";
+import { type GridPoint, gridPointLabel } from "@/domain/tempo/grid-points";
+import { SNAP_SWITCH_SETTING, type SnapSettings, type SnapSource, type SnapSwitchKey } from "@/stores/settings-snap";
 
 // -- Types ---------------------------------------------------------------------
 
-type AnchorKind = "word-begin" | "word-end" | "line-begin" | "line-end" | "playhead" | "vocal-onset" | "custom";
+type AnchorKind =
+  | "word-begin"
+  | "word-end"
+  | "line-begin"
+  | "line-end"
+  | "playhead"
+  | "vocal-onset"
+  | "custom"
+  | "beat";
 
 interface SnapAnchor {
   t: number;
@@ -16,16 +26,13 @@ interface SnapAnchor {
 
 type SelfKey = string;
 
-interface ActiveSnapSources {
-  timelineSnap: boolean;
-  vocalOnsetSnap: boolean;
-}
+type ActiveSnapSources = Pick<SnapSettings, "timelineSnap" | SnapSwitchKey>;
 
 interface FindSnapShiftArgs {
   edges: number[];
   anchors: SnapAnchor[];
   zoom: number;
-  threshold: number;
+  thresholdPx: (anchor: SnapAnchor) => number;
   overlapCheck?: (shift: number) => boolean;
   invertCheck?: (shift: number) => boolean;
 }
@@ -141,19 +148,36 @@ function vocalOnsetAnchors(times: readonly number[]): SnapAnchor[] {
   return anchors;
 }
 
+function beatAnchors(points: readonly GridPoint[]): SnapAnchor[] {
+  return points.map((point) => ({ t: point.t, kind: "beat", label: gridPointLabel(point) }));
+}
+
+function snapSourceOf(kind: AnchorKind): SnapSource {
+  switch (kind) {
+    case "custom":
+      return "markers";
+    case "vocal-onset":
+      return "onsets";
+    case "beat":
+      return "beats";
+    case "playhead":
+      return "playhead";
+    default:
+      return "words";
+  }
+}
+
 function activeSnapAnchors(anchors: SnapAnchor[], sources: ActiveSnapSources): SnapAnchor[] {
-  if (sources.timelineSnap && sources.vocalOnsetSnap) return anchors;
-  return anchors.filter((anchor) => {
-    if (anchor.kind === "custom") return true;
-    if (anchor.kind === "vocal-onset") return sources.vocalOnsetSnap;
-    return sources.timelineSnap;
-  });
+  if (!sources.timelineSnap) return [];
+  const switches = Object.values(SNAP_SWITCH_SETTING);
+  if (switches.every((key) => sources[key])) return anchors;
+  return anchors.filter((anchor) => sources[SNAP_SWITCH_SETTING[snapSourceOf(anchor.kind)]]);
 }
 
 // -- Snap resolution -----------------------------------------------------------
 
 function findSnapShift(args: FindSnapShiftArgs): SnapResult {
-  const { edges, anchors, zoom, threshold, overlapCheck, invertCheck } = args;
+  const { edges, anchors, zoom, thresholdPx, overlapCheck, invertCheck } = args;
   if (anchors.length === 0 || edges.length === 0) return { shift: 0, anchor: null };
 
   const candidates: CandidateSnap[] = [];
@@ -161,7 +185,7 @@ function findSnapShift(args: FindSnapShiftArgs): SnapResult {
     for (const anchor of anchors) {
       const shift = anchor.t - edge;
       const distPx = Math.abs(shift) * zoom;
-      if (distPx <= threshold) {
+      if (distPx <= thresholdPx(anchor)) {
         candidates.push({ shift, distPx, anchor });
       }
     }
@@ -187,5 +211,5 @@ function findSnapShift(args: FindSnapShiftArgs): SnapResult {
 
 // -- Exports -------------------------------------------------------------------
 
-export { activeSnapAnchors, collectSnapAnchors, findSnapShift, selfKey, vocalOnsetAnchors };
+export { activeSnapAnchors, beatAnchors, collectSnapAnchors, findSnapShift, selfKey, snapSourceOf, vocalOnsetAnchors };
 export type { SnapAnchor };

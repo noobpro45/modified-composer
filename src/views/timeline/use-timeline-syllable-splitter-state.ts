@@ -1,7 +1,11 @@
-import { splitWordsKeepingTransliteration } from "@/domain/language/reconcile-syllable-split";
+import {
+  splitWordIntoWordsKeepingTransliteration,
+  splitWordsKeepingTransliteration,
+} from "@/domain/language/reconcile-syllable-split";
 import { splitTransliterationAtBoundaries } from "@/domain/language/transliteration-format";
 import { manualBackgroundWordEdit } from "@/domain/line/background";
 import type { WordTiming } from "@/domain/word/timing";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { livePlaybackTime } from "@/stores/audio";
 import { useAlignmentStore } from "@/stores/alignment";
 import { useConfirm } from "@/stores/confirm-store";
@@ -9,6 +13,7 @@ import { useProjectStore } from "@/stores/project";
 import { buildApplyToAllConfirmOptions } from "@/utils/apply-to-all-confirm-options";
 import { findIdenticalWords } from "@/utils/identical-word-matcher";
 import { splitWordIntoSyllables } from "@/utils/single-word-syllable-split";
+import { getSplitCharacter } from "@/utils/split-character";
 import { handleWordChangeWithDivergenceCheck } from "@/utils/word-divergence-flow";
 import { splitWordIntoWords } from "@/utils/word-split";
 import { splitSourceWord } from "@/utils/word-timing";
@@ -137,17 +142,23 @@ function useTimelineSyllableSplitterState({
     const line = currentLines.find((l) => l.id === lineId);
     if (!line) return;
 
-    const split = splitWordsKeepingTransliteration(line, type, wordIndex, newWords);
+    const split =
+      mode === "word"
+        ? splitWordIntoWordsKeepingTransliteration(line, type, wordIndex, newWords, getSplitCharacter())
+        : splitWordsKeepingTransliteration(line, type, wordIndex, newWords);
     if (!split) return;
     const extraUpdates = split.transliteration ? { transliteration: split.transliteration } : {};
 
-    const done =
+    const done = (
       type === "word"
         ? handleWordChangeWithDivergenceCheck(lineId, split.words, "words", extraUpdates)
         : handleWordChangeWithDivergenceCheck(lineId, split.words, "backgroundWords", {
             ...manualBackgroundWordEdit(split.words),
             ...extraUpdates,
-          });
+          })
+    ).then((written) => {
+      if (written) noteGuideSignal("timeline.split");
+    });
     // Only a split that wasn't placed by ear is timed from the audio afterwards.
     return placedByEar ? undefined : done;
   }, [target, splitPoints, transliterationSplitPoints]);
@@ -168,6 +179,7 @@ function useTimelineSyllableSplitterState({
         splitPoints,
         caseInsensitive,
       });
+      noteGuideSignal("timeline.split");
       retime();
       resetSplitPoints();
       closeModal();

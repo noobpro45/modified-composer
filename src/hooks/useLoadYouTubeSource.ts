@@ -1,8 +1,13 @@
 import { hasLyricLines } from "@/domain/project/lyrics-presence";
 import type { ProjectMetadata } from "@/domain/project/metadata";
+import { sourceSwapPatch, undoSourceSwap } from "@/domain/project/source-metadata";
 import { confirmClearImportedSongDetails } from "@/hooks/imported-song-details";
+import type { AudioLoadMode } from "@/hooks/useLoadAudioFile";
+import { adoptPrimingForNewAudio } from "@/lib/attach-audio-priming";
 import { deleteProject, openProject, startSongInNewProject } from "@/lib/open-project";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { openProjectIdSnapshot } from "@/lib/open-project-session";
+import { beginSourceSwap, settleSourceSwap, videoSourceMetadata } from "@/lib/source-metadata";
 import { type AudioSource, useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { showNewProjectToast } from "@/utils/project-toast";
@@ -30,8 +35,23 @@ class YouTubeLoadFailedError extends Error {
   }
 }
 
+class YouTubeLoadCancelledError extends Error {
+  constructor() {
+    super("youtube_load_cancelled");
+    this.name = "YouTubeLoadCancelledError";
+  }
+}
+
 function isYouTubeLoadError(error: unknown): boolean {
-  return error instanceof YouTubeLoadFailedError || error instanceof YouTubeLoadSupersededError;
+  return (
+    error instanceof YouTubeLoadFailedError ||
+    error instanceof YouTubeLoadSupersededError ||
+    error instanceof YouTubeLoadCancelledError
+  );
+}
+
+function isYouTubeLoadCancelled(error: unknown): error is YouTubeLoadCancelledError {
+  return error instanceof YouTubeLoadCancelledError;
 }
 
 function isYouTubeLoadFailure(error: unknown): error is YouTubeLoadFailedError {
@@ -40,19 +60,58 @@ function isYouTubeLoadFailure(error: unknown): error is YouTubeLoadFailedError {
 
 // -- Hook ---------------------------------------------------------------------
 
-function useLoadYouTubeSource(): (videoId: string) => Promise<void> {
-  return useCallback((videoId: string) => {
+function useLoadYouTubeSource(): (videoId: string, mode?: AudioLoadMode) => Promise<void> {
+  return useCallback((videoId: string, mode: AudioLoadMode = "auto") => {
     const previous = useAudioStore.getState().source;
     const prevVideoId = previous?.type === "youtube" ? previous.videoId : null;
-    if (previous != null && prevVideoId !== videoId && hasLyricLines(useProjectStore.getState().lines)) {
-      return loadVideoInNewProject(videoId, previous);
+    const replacesDifferentSong = previous != null && prevVideoId !== videoId;
+    if (mode === "replace") {
+      if (!replacesDifferentSong) return Promise.resolve();
+      return swapVideoInPlace(videoId, previous).then(() => {
+        noteGuideSignal("import.audio");
+        noteGuideSignal("import.replaceAudio");
+      });
     }
-    return loadVideoInPlace(videoId, previous);
+    const load =
+      replacesDifferentSong && hasLyricLines(useProjectStore.getState().lines)
+        ? loadVideoInNewProject(videoId, previous)
+        : loadVideoInPlace(videoId, previous);
+    return load.then(() => noteGuideSignal("import.audio"));
   }, []);
+}
+
+function swapVideoInPlace(videoId: string, previous: AudioSource): Promise<void> {
+  const projectId = openProjectIdSnapshot();
+  adoptPrimingForNewAudio();
+  useAudioStore.getState().setYouTubeSource(videoId);
+  const target = useAudioStore.getState().source;
+  const swapped = beginSourceSwap(previous, target).then((before) => {
+    const live = useAudioStore.getState().source;
+    if (!isYouTubeSourceFor(live, videoId) || openProjectIdSnapshot() !== projectId) return null;
+    if (!settleSourceSwap(target)) return null;
+    const next = live?.type === "youtube" && live.details ? live.details : videoSourceMetadata(videoId);
+    const project = useProjectStore.getState();
+    const beforeSwap = project.metadata;
+    const patch = sourceSwapPatch(beforeSwap, project.importedMetadataKeys, before, next, videoId);
+    if (Object.keys(patch).length > 0) project.setMetadata(patch);
+    return { beforeSwap, patch };
+  });
+  return waitForYouTubeLoad(videoId).catch(async (error: unknown) => {
+    const swap = await swapped;
+    const stillThisProject = openProjectIdSnapshot() === projectId;
+    const fellBack = !isYouTubeSourceFor(useAudioStore.getState().source, videoId);
+    const abandoned = isYouTubeLoadFailure(error) || isYouTubeLoadCancelled(error);
+    if (swap && stillThisProject && fellBack && abandoned) {
+      const undo = undoSourceSwap(useProjectStore.getState().metadata, swap.beforeSwap, swap.patch);
+      if (Object.keys(undo).length > 0) useProjectStore.getState().setMetadata(undo);
+    }
+    throw error;
+  });
 }
 
 function loadVideoInPlace(videoId: string, previous: AudioSource): Promise<void> {
   const prevVideoId = previous?.type === "youtube" ? previous.videoId : null;
+  if (prevVideoId !== videoId) adoptPrimingForNewAudio();
   useAudioStore.getState().setYouTubeSource(videoId);
 
   const project = useProjectStore.getState();
@@ -162,6 +221,11 @@ function waitForYouTubeLoad(videoId: string): Promise<void> {
         reject(new YouTubeLoadFailedError(state.youtubeLoadError));
         return;
       }
+      if (state.youtubeLoadFailure === "cancelled") {
+        unsubscribe();
+        reject(new YouTubeLoadCancelledError());
+        return;
+      }
       if (!isYouTubeSourceFor(state.source, videoId)) {
         unsubscribe();
         reject(new YouTubeLoadSupersededError());
@@ -172,4 +236,11 @@ function waitForYouTubeLoad(videoId: string): Promise<void> {
 
 // -- Exports ------------------------------------------------------------------
 
-export { useLoadYouTubeSource, loadVideoWithRollback, isYouTubeLoadError, isYouTubeLoadFailure, waitForYouTubeLoad };
+export {
+  useLoadYouTubeSource,
+  loadVideoWithRollback,
+  isYouTubeLoadCancelled,
+  isYouTubeLoadError,
+  isYouTubeLoadFailure,
+  waitForYouTubeLoad,
+};

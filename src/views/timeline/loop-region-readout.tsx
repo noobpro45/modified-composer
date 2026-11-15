@@ -1,5 +1,6 @@
 import { loopRegionLengthLabel, loopRegionRangeLabel } from "@/views/timeline/loop-region-copy";
-import { shownLoopRegion, useTimelineStore } from "@/views/timeline/timeline-store";
+import { shownLoopRegion } from "@/views/timeline/shown-loop-region";
+import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { IconMagnet } from "@tabler/icons-react";
 import { createPortal } from "react-dom";
 
@@ -14,8 +15,8 @@ interface LoopRegionReadoutProps {
 const LoopRegionReadout: React.FC<LoopRegionReadoutProps> = ({ host }) => {
   const region = useTimelineStore(shownLoopRegion);
   const drag = useTimelineStore((s) => s.loopRegionDrag);
-  const zoom = useTimelineStore((s) => s.zoom);
-  const scrollLeft = useTimelineStore((s) => s.scrollLeft);
+  const zoom = useTimelineStore((s) => (s.loopRegionDrag && shownLoopRegion(s) ? s.zoom : 0));
+  const scrollLeft = useTimelineStore((s) => (s.loopRegionDrag && shownLoopRegion(s) ? s.scrollLeft : 0));
   if (!host || !region || !drag) return null;
   return createPortal(
     <span
@@ -28,7 +29,7 @@ const LoopRegionReadout: React.FC<LoopRegionReadoutProps> = ({ host }) => {
       {drag.snappedTo && (
         <span className="flex items-center gap-0.5 font-sans text-composer-accent-text">
           <IconMagnet aria-hidden="true" className="size-3" />
-          {drag.snappedTo}
+          {drag.snappedTo.label}
         </span>
       )}
     </span>,

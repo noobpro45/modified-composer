@@ -1,3 +1,4 @@
+import type { AlignmentReviewActions, AlignmentReviewState } from "@/stores/project/alignment-review-slice";
 import type { Agent } from "@/domain/agent/model";
 import type { RealignRefusal, SharingOutcome } from "@/domain/group/shared-placement";
 import type { LineTemplate, LinkGroup } from "@/domain/group/template";
@@ -5,11 +6,13 @@ import type { LineUpdate, LyricLine, RawLine } from "@/domain/line/model";
 import type { EditedLyrics } from "@/domain/project/edited-lyrics";
 import type { MetadataKey } from "@/domain/project/imported-metadata";
 import type { ProjectMetadata } from "@/domain/project/metadata";
-import type { TimingGranularity } from "@/domain/project/timing-granularity";
 import type { SyllableSplitDefaults } from "@/domain/project/syllable-split-defaults";
 import type { ProjectTab } from "@/domain/project/tab";
+import type { TimingGranularity } from "@/domain/project/timing-granularity";
 import type { SnapPoint } from "@/domain/snap-point/model";
+import type { BeatGrid } from "@/domain/tempo/beat-grid";
 import type { WordTiming } from "@/domain/word/timing";
+import type { UnisonLinkActions, UnisonLinkState } from "@/stores/project/unison-link-slice";
 
 // -- Store-local Types --------------------------------------------------------
 
@@ -22,6 +25,7 @@ interface HistoryEntry {
   groups: LinkGroup[];
   agents: Agent[];
   customSnapPoints: SnapPoint[];
+  beatGrid: BeatGrid | null;
   timestamp: number;
 }
 
@@ -62,6 +66,7 @@ interface UiState {
   activeTab: ProjectTab;
   syllableSplitDefaults: SyllableSplitDefaults;
   primingStripped: boolean;
+  primingCorrected: boolean;
 }
 
 interface DismissalsState {
@@ -72,6 +77,10 @@ interface DismissalsState {
 
 interface SnapPointsState {
   customSnapPoints: SnapPoint[];
+}
+
+interface BeatGridState {
+  beatGrid: BeatGrid | null;
 }
 
 interface HistoryState {
@@ -120,6 +129,7 @@ interface UiActions {
   setActiveTab: (tab: ProjectTab) => void;
   setSyllableSplitDefaults: (defaults: SyllableSplitDefaults) => void;
   setPrimingStripped: (value: boolean) => void;
+  setPrimingCorrected: (value: boolean) => void;
 }
 
 interface DismissalActions {
@@ -142,6 +152,13 @@ interface SnapPointActions {
   moveCustomSnapPoint: (id: string, time: number) => void;
   commitSnapPointDrag: (baseline: SnapPoint[]) => void;
   clearCustomSnapPoints: () => void;
+}
+
+interface BeatGridActions {
+  setBeatGrid: (grid: BeatGrid | null) => void;
+  applyBeatGridWithHistory: (grid: BeatGrid | null) => void;
+  nudgeBeatGridOffsetWithHistory: (grid: BeatGrid) => void;
+  clearBeatGrid: () => void;
 }
 
 interface HistoryActions {
@@ -231,6 +248,9 @@ type ProjectState = MetadataState &
   UiState &
   DismissalsState &
   SnapPointsState &
+  BeatGridState &
+  AlignmentReviewState &
+  UnisonLinkState &
   HistoryState;
 
 type ProjectActions = MetadataActions &
@@ -238,9 +258,12 @@ type ProjectActions = MetadataActions &
   UiActions &
   DismissalActions &
   SnapPointActions &
+  BeatGridActions &
   HistoryActions &
   LineActions &
-  GroupActions;
+  GroupActions &
+  AlignmentReviewActions &
+  UnisonLinkActions;
 
 type ProjectStore = ProjectState & ProjectActions;
 
@@ -257,6 +280,7 @@ export type {
   UiState,
   DismissalsState,
   SnapPointsState,
+  BeatGridState,
   HistoryEntry,
   HistoryState,
   MetadataActions,
@@ -264,6 +288,7 @@ export type {
   UiActions,
   DismissalActions,
   SnapPointActions,
+  BeatGridActions,
   HistoryActions,
   LineActions,
   GroupActions,

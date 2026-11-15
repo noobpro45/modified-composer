@@ -1,13 +1,19 @@
+import { noteGuideSignal } from "@/lib/guide-signals";
+import { agentDisplayName } from "@/domain/agent/display-name";
 import { AGENT_PRESETS, getAgentColor } from "@/domain/agent/colors";
+import { nextAgentId } from "@/domain/agent/next-agent-id";
 import type { Agent, AgentType } from "@/domain/agent/model";
 import { useProjectStore } from "@/stores/project";
 import { Button } from "@/ui/button";
 import { IconButton } from "@/ui/icon-button";
 import { INPUT_STYLES } from "@/ui/input-styles";
+import { focusFirstControlIfFocusLost } from "@/ui/focus-if-focus-lost";
 import { Popover } from "@/ui/popover";
 import { Select } from "@/ui/select";
 import { SingerTag } from "@/ui/singer-tag";
 import { cn } from "@/utils/cn";
+import { focusAndSelectOnMount } from "@/utils/focus-and-select-on-mount";
+import { focusOnMount } from "@/utils/focus-on-mount";
 import { pluralize } from "@/utils/pluralize";
 import { IconChevronDown, IconChevronLeft, IconMicrophone2, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useCallback, useState } from "react";
@@ -27,22 +33,6 @@ const AGENT_TYPE_OPTIONS = [
 ];
 
 const FIELD = cn(INPUT_STYLES, "h-8 py-0");
-
-// -- Helpers ------------------------------------------------------------------
-
-function generateAgentId(existingAgents: { id: string }[]): string {
-  const usedNumbers = new Set<number>();
-  for (const a of existingAgents) {
-    const m = a.id.match(/^v(\d+)$/);
-    if (m) usedNumbers.add(Number.parseInt(m[1], 10));
-  }
-
-  let next = 1;
-  while (usedNumbers.has(next)) {
-    next++;
-  }
-  return `v${next}`;
-}
 
 // -- Components ---------------------------------------------------------------
 
@@ -73,14 +63,22 @@ const EditAgentForm: React.FC<{
 
   const handleSave = useCallback(() => {
     updateAgent(agent.id, { name: name.trim() || undefined, type });
+    if (name.trim()) noteGuideSignal("edit.singer");
     onDone();
   }, [updateAgent, agent.id, name, type, onDone]);
 
   return (
-    <div className="flex flex-col gap-2 p-1.5">
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        handleSave();
+      }}
+      className="flex flex-col gap-2 p-1.5"
+    >
       <FormHeader title="Edit agent" id={agent.id} onBack={onBack} />
       <input
         type="text"
+        ref={focusAndSelectOnMount}
         aria-label="Agent name"
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -97,7 +95,7 @@ const EditAgentForm: React.FC<{
         className="w-full h-8 pl-2.5 pr-2 rounded-lg text-[13px]"
       />
       <div className="flex gap-2 mt-0.5">
-        <Button variant="primary" onClick={handleSave} className="flex-1 h-[30px]">
+        <Button type="submit" variant="primary" className="flex-1 h-[30px]">
           Save
         </Button>
         {removable && (
@@ -113,7 +111,7 @@ const EditAgentForm: React.FC<{
           />
         )}
       </div>
-    </div>
+    </form>
   );
 };
 
@@ -126,12 +124,19 @@ const AddAgentForm: React.FC<{ onDone: () => void; onBack: () => void }> = ({ on
 
   const handleAddCustom = () => {
     if (!customName.trim()) return;
-    addAgent({ id: generateAgentId(agents), type: customType, name: customName.trim() });
+    addAgent({ id: nextAgentId(agents), type: customType, name: customName.trim() });
+    noteGuideSignal("edit.singer");
     onDone();
   };
 
   return (
-    <div className="flex flex-col gap-2 p-1.5">
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        handleAddCustom();
+      }}
+      className="flex flex-col gap-2 p-1.5"
+    >
       <FormHeader title="Add agent" onBack={onBack} />
       {availablePresets.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -141,6 +146,7 @@ const AddAgentForm: React.FC<{ onDone: () => void; onBack: () => void }> = ({ on
               type="button"
               onClick={() => {
                 addAgent(preset);
+                noteGuideSignal("edit.singer");
                 onDone();
               }}
               className="cursor-pointer rounded-[7px] hover:brightness-125"
@@ -152,6 +158,7 @@ const AddAgentForm: React.FC<{ onDone: () => void; onBack: () => void }> = ({ on
       )}
       <input
         type="text"
+        ref={focusOnMount}
         aria-label="Custom agent name"
         value={customName}
         onChange={(e) => setCustomName(e.target.value)}
@@ -167,10 +174,10 @@ const AddAgentForm: React.FC<{ onDone: () => void; onBack: () => void }> = ({ on
         appearance="pick"
         className="w-full h-8 pl-2.5 pr-2 rounded-lg text-[13px]"
       />
-      <Button variant="primary" onClick={handleAddCustom} disabled={!customName.trim()} className="h-[30px] mt-0.5">
+      <Button type="submit" variant="primary" disabled={!customName.trim()} className="h-[30px] mt-0.5">
         Add Custom Agent
       </Button>
-    </div>
+    </form>
   );
 };
 
@@ -178,7 +185,7 @@ const AgentList: React.FC<{ onEdit: (agent: Agent) => void; onAdd: () => void }>
   const agents = useProjectStore((s) => s.agents);
   const lines = useProjectStore((s) => s.lines);
   return (
-    <div>
+    <div ref={focusFirstControlIfFocusLost}>
       <p className="px-2 pt-2 pb-1.5 text-[13.5px] font-bold text-composer-text">Agents</p>
       <div className="grid grid-cols-[minmax(0,max-content)_1fr_auto] max-h-74 overflow-x-hidden overflow-y-auto overscroll-none">
         {agents.map((agent) => {
@@ -192,7 +199,7 @@ const AgentList: React.FC<{ onEdit: (agent: Agent) => void; onAdd: () => void }>
               className="grid grid-cols-subgrid col-span-full items-center gap-x-2.5 h-9 pl-2 pr-2.5 rounded-lg text-left cursor-pointer hover:bg-(--layer-1)"
             >
               <SingerTag color={getAgentColor(agent.id)} className="justify-self-start">
-                {agent.name || agent.id}
+                {agentDisplayName(agent)}
               </SingerTag>
               <span className="font-mono text-[11px] text-composer-text-muted">{agent.id}</span>
               <span className="text-xs text-right tabular-nums text-(--muted)">{pluralize(lineCount, "line")}</span>

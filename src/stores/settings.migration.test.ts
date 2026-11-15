@@ -151,6 +151,28 @@ describe("lastPlaybackRate", () => {
   });
 });
 
+describe("seekStep", () => {
+  it("moves the first shipped default of 5 s to the finer default", async () => {
+    await rehydrateAt(9, legacyBlob({ seekStep: 5 }));
+    expect(useSettingsStore.getState().seekStep).toBe(0.5);
+  });
+
+  it("keeps a step the user chose", async () => {
+    await rehydrateAt(9, legacyBlob({ seekStep: 2 }));
+    expect(useSettingsStore.getState().seekStep).toBe(2);
+  });
+
+  it("brings a step past the new 5 s maximum back into range", async () => {
+    await rehydrateAt(9, legacyBlob({ seekStep: 8 }));
+    expect(useSettingsStore.getState().seekStep).toBe(5);
+  });
+
+  it("keeps 5 s chosen at the current version", async () => {
+    await rehydrateAt(10, legacyBlob({ seekStep: 5 }));
+    expect(useSettingsStore.getState().seekStep).toBe(5);
+  });
+});
+
 describe("selectionLeadIn migration", () => {
   it("defaults selectionLeadIn to 0.3", () => {
     const { selectionLeadIn: _drop, ...blob } = legacyBlob();
@@ -163,11 +185,80 @@ describe("selectionLeadIn migration", () => {
   });
 });
 
-describe("alignmentModelId migration", () => {
+describe("spectrum and pitch settings", () => {
+  it("fills defaults for blobs written before they existed", async () => {
+    const blob = Object.fromEntries(
+      Object.entries(legacyBlob()).filter(
+        ([key]) => !key.startsWith("spectrum") && key !== "showSpectrum" && key !== "pitchLine",
+      ),
+    );
+    await rehydrateAt(10, blob);
+    const state = useSettingsStore.getState();
+    expect(state.showSpectrum).toBe(false);
+    expect(state.spectrumBandHeight).toBe(168);
+    expect(state.pitchLine).toBe("off");
+  });
+
+  it("drops spectrum values it does not recognise", async () => {
+    await rehydrateAt(10, legacyBlob({ spectrumPalette: "rainbow", pitchLine: "sometimes", spectrumBandHeight: 9000 }));
+    const state = useSettingsStore.getState();
+    expect(state.spectrumPalette).toBe("heat");
+    expect(state.pitchLine).toBe("off");
+    expect(state.spectrumBandHeight).toBe(320);
+  });
+
+  it("clamps a saved loupe size into its range", async () => {
+    await rehydrateAt(15, legacyBlob({ loupeWidth: 9999, loupeHeight: 1 }));
+    const state = useSettingsStore.getState();
+    expect(state.loupeWidth).toBe(720);
+    expect(state.loupeHeight).toBe(96);
+  });
+
+  it("fills the default loupe size for blobs written before it existed", async () => {
+    await rehydrateAt(15, legacyBlob({ loupeWidth: undefined, loupeHeight: undefined }));
+    const state = useSettingsStore.getState();
+    expect(state.loupeWidth).toBe(428);
+    expect(state.loupeHeight).toBe(124);
+  });
+
+  it("turns off the pitch line saved by the old default, but keeps a picked mode", async () => {
+    await rehydrateAt(11, legacyBlob({ pitchLine: "always" }));
+    expect(useSettingsStore.getState().pitchLine).toBe("off");
+    await rehydrateAt(11, legacyBlob({ pitchLine: "focus" }));
+    expect(useSettingsStore.getState().pitchLine).toBe("focus");
+  });
+
   it("moves the alignment model saved by the old default to the recommended one, but keeps a picked model", async () => {
-    await rehydrateAt(9, legacyBlob({ alignmentModelId: "hubertfa-v007" }));
+    await rehydrateAt(12, legacyBlob({ alignmentModelId: "hubertfa-v007" }));
     expect(useSettingsStore.getState().alignmentModelId).toBe("recommended");
-    await rehydrateAt(9, legacyBlob({ alignmentModelId: "hubertfa-pt-run2-s3000" }));
+    await rehydrateAt(12, legacyBlob({ alignmentModelId: "hubertfa-pt-run2-s3000" }));
     expect(useSettingsStore.getState().alignmentModelId).toBe("hubertfa-pt-run2-s3000");
+  });
+});
+
+describe("timeline toggle renames", () => {
+  it("carries a saved defaultRollingEdit and defaultPreviewSidebar to the new keys", () => {
+    const migrated = migrateSettings(
+      legacyBlob({ defaultRollingEdit: true, defaultPreviewSidebar: true }),
+      12,
+    ) as Record<string, unknown>;
+    expect(migrated.rollingEdit).toBe(true);
+    expect(migrated.previewSidebar).toBe(true);
+    expect(migrated).not.toHaveProperty("defaultRollingEdit");
+    expect(migrated).not.toHaveProperty("defaultPreviewSidebar");
+  });
+
+  it("regression: carries the old keys for a profile already saved at version 13", async () => {
+    const {
+      rollingEdit: _rolling,
+      previewSidebar: _preview,
+      ...blob
+    } = legacyBlob({
+      defaultRollingEdit: true,
+      defaultPreviewSidebar: true,
+    });
+    await rehydrateAt(13, blob);
+    expect(useSettingsStore.getState().rollingEdit).toBe(true);
+    expect(useSettingsStore.getState().previewSidebar).toBe(true);
   });
 });

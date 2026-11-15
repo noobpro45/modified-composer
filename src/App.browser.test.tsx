@@ -7,7 +7,6 @@ import { allowConsole } from "@/test/console-guard";
 import { untilDialogFocused } from "@/test/dialog-focus";
 import { settleFrames } from "@/test/frame-steps";
 import { render } from "@/test/render";
-import { TOUR_SEEN_KEY } from "@/tour/use-tour";
 import { describe, expect, it } from "vitest";
 
 const bridgeSectionVisible = () => document.querySelector('[data-testid="bridge-section"]') !== null;
@@ -36,7 +35,6 @@ describe("App", () => {
   });
 
   it("switches the active tab when a tab button is clicked", async () => {
-    localStorage.setItem(TOUR_SEEN_KEY, "true");
     useProjectStore.setState({ activeTab: "import" });
     const screen = await render(<App />, { withRouter: { initialEntries: ["/editor"] } });
     const editButton = screen.container.querySelector('[data-tour="tab-edit"]') as HTMLButtonElement;
@@ -48,7 +46,6 @@ describe("App", () => {
   it("reopening settings picks up at the section it was closed on", async () => {
     allowConsole(/cannot be a descendant of/);
     allowConsole(/cannot contain a nested/);
-    localStorage.setItem(TOUR_SEEN_KEY, "true");
     await render(<App />, { withRouter: { initialEntries: ["/editor"] } });
 
     useUIStore.getState().openSettings({ target: { setting: "youtubeBridge" } });
@@ -66,7 +63,6 @@ describe("App", () => {
   it("reopening help picks up at the section it was closed on", async () => {
     allowConsole(/cannot be a descendant of/);
     allowConsole(/cannot contain a nested/);
-    localStorage.setItem(TOUR_SEEN_KEY, "true");
     await render(<App />, { withRouter: { initialEntries: ["/editor"] } });
 
     helpButton().click();
@@ -85,7 +81,6 @@ describe("App", () => {
   });
 
   it("wires the frame loop so a store write wakes it", async () => {
-    localStorage.setItem(TOUR_SEEN_KEY, "true");
     await render(<App />, { withRouter: { initialEntries: ["/editor"] } });
 
     let frames = 0;
@@ -105,7 +100,6 @@ describe("App", () => {
     allowConsole(/cannot be a descendant of/);
     allowConsole(/cannot contain a nested/);
     installStyleSheet(HELP_CONTENT_SCROLLER_CSS);
-    localStorage.setItem(TOUR_SEEN_KEY, "true");
     const screen = await render(<App />, { withRouter: { initialEntries: ["/editor"] } });
     const helpViewport = () =>
       document.querySelector("[data-help-content]")?.closest<HTMLElement>("[data-overlayscrollbars-viewport]") ?? null;
@@ -138,7 +132,6 @@ describe("App", () => {
     allowConsole(/cannot be a descendant of/);
     allowConsole(/cannot contain a nested/);
     installStyleSheet(HELP_CONTENT_SCROLLER_CSS);
-    localStorage.setItem(TOUR_SEEN_KEY, "true");
     const screen = await render(<App />, { withRouter: { initialEntries: ["/editor"] } });
     const helpScroller = () => {
       const content = document.querySelector("[data-help-content]");
@@ -172,18 +165,17 @@ describe("App", () => {
   it("returns to the same Help search after a setting link trip from a result", async () => {
     allowConsole(/cannot be a descendant of/);
     allowConsole(/cannot contain a nested/);
-    localStorage.setItem(TOUR_SEEN_KEY, "true");
     const screen = await render(<App />, { withRouter: { initialEntries: ["/editor"] } });
 
     useUIStore.getState().openHelp();
     await untilDialogFocused();
-    await screen.getByRole("textbox", { name: "Search help" }).fill("snap threshold");
-    await expect.element(screen.getByRole("textbox", { name: "Search help" })).toHaveValue("snap threshold");
-    await screen.getByRole("button", { name: /^Open setting Snap threshold/ }).click();
-    await expect.element(screen.getByRole("button", { name: 'Back to Help ・ "snap threshold"' })).toBeInTheDocument();
+    await screen.getByRole("textbox", { name: "Search help" }).fill("snap distance");
+    await expect.element(screen.getByRole("textbox", { name: "Search help" })).toHaveValue("snap distance");
+    await screen.getByRole("button", { name: /^Open setting Words and lines snap distance/ }).click();
+    await expect.element(screen.getByRole("button", { name: 'Back to Help ・ "snap distance"' })).toBeInTheDocument();
 
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    await expect.element(screen.getByRole("textbox", { name: "Search help" })).toHaveValue("snap threshold");
+    await expect.element(screen.getByRole("textbox", { name: "Search help" })).toHaveValue("snap distance");
     await expect.element(screen.getByRole("heading", { name: "Snap (magnet)", level: 4 })).toBeVisible();
   });
 });

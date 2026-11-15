@@ -1,6 +1,5 @@
-import { Popover } from "@/ui/popover";
-import { normalizeWheelDelta } from "@/views/timeline/timeline-wheel";
 import { useEffect, useId, useRef, useState } from "react";
+import { Popover } from "@/ui/popover";
 
 // -- Types --------------------------------------------------------------------
 
@@ -14,6 +13,7 @@ interface DeckKnobProps {
   onReset: () => void;
   // Snapshots the current value and returns how to put it back, so Escape can cancel a drag exactly.
   rememberValue: () => () => void;
+  guideSpot?: string;
   children: React.ReactNode;
 }
 
@@ -22,11 +22,20 @@ interface DeckKnobProps {
 const DRAG_PIXELS_FOR_FULL_TURN = 160;
 const DRAG_THRESHOLD = 3;
 const KEY_DIRECTIONS: Record<string, 1 | -1> = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 };
-const WHEEL_STEP_PX = 100;
-const WHEEL_IDLE_MS = 200;
+const WHEEL_PIXELS_FOR_FULL_TURN = 500;
+const WHEEL_GESTURE_GAP_MS = 200;
+const WHEEL_LINE_PIXELS = 16;
 const RADIUS = 17;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const ARC = CIRCUMFERENCE * 0.75;
+
+// -- Helpers ------------------------------------------------------------------
+
+function wheelPixelScale(deltaMode: number): number {
+  if (deltaMode === WheelEvent.DOM_DELTA_LINE) return WHEEL_LINE_PIXELS;
+  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) return window.innerHeight;
+  return 1;
+}
 
 // -- Components ---------------------------------------------------------------
 
@@ -90,64 +99,67 @@ const DeckKnob: React.FC<DeckKnobProps> = ({
   onStep,
   onReset,
   rememberValue,
+  guideSpot,
   children,
 }) => {
   const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const dragged = useRef(false);
   const endDrag = useRef<(() => void) | null>(null);
-  const wheelAccumulator = useRef(0);
-  const wheelTimer = useRef<number | null>(null);
   useEffect(() => () => endDrag.current?.(), []);
 
+  const wheelTarget = useRef<HTMLSpanElement>(null);
+  const wheelGesture = useRef({
+    startFraction: 0,
+    travel: 0,
+    lastTime: Number.NEGATIVE_INFINITY,
+    ownFraction: Number.NaN,
+    wrote: false,
+  });
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
+    const gesture = wheelGesture.current;
+    const adoptOwnWrite = () => {
+      if (!gesture.wrote) return;
+      gesture.ownFraction = fraction;
+      gesture.wrote = false;
+    };
+    adoptOwnWrite();
+    const target = wheelTarget.current;
+    if (!target) return;
     const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) return;
       event.preventDefault();
-      event.stopPropagation();
-
-      const rawDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? -event.deltaY : event.deltaX;
-      if (rawDelta === 0) return;
-
-      const normalized = normalizeWheelDelta(rawDelta, event.deltaMode);
-
-      if ((normalized > 0 && wheelAccumulator.current < 0) || (normalized < 0 && wheelAccumulator.current > 0)) {
-        wheelAccumulator.current = 0;
+      adoptOwnWrite();
+      const changedElsewhere = fraction !== gesture.ownFraction;
+      if (changedElsewhere || event.timeStamp - gesture.lastTime > WHEEL_GESTURE_GAP_MS) {
+        gesture.startFraction = fraction;
+        gesture.travel = 0;
       }
-      wheelAccumulator.current += normalized;
-
-      if (wheelTimer.current !== null) {
-        window.clearTimeout(wheelTimer.current);
-      }
-      wheelTimer.current = window.setTimeout(() => {
-        wheelAccumulator.current = 0;
-        wheelTimer.current = null;
-      }, WHEEL_IDLE_MS);
-
-      while (wheelAccumulator.current >= WHEEL_STEP_PX) {
-        onStep(1);
-        wheelAccumulator.current -= WHEEL_STEP_PX;
-      }
-      while (wheelAccumulator.current <= -WHEEL_STEP_PX) {
-        onStep(-1);
-        wheelAccumulator.current += WHEEL_STEP_PX;
-      }
+      gesture.lastTime = event.timeStamp;
+      gesture.travel += (event.deltaX - event.deltaY) * wheelPixelScale(event.deltaMode);
+      const next = Math.min(1, Math.max(0, gesture.startFraction + gesture.travel / WHEEL_PIXELS_FOR_FULL_TURN));
+      gesture.travel = (next - gesture.startFraction) * WHEEL_PIXELS_FOR_FULL_TURN;
+      gesture.wrote = true;
+      onFraction(next);
     };
+    target.addEventListener("wheel", handleWheel, { passive: false });
+    return () => target.removeEventListener("wheel", handleWheel);
+  }, [fraction, onFraction]);
 
-    el.addEventListener("wheel", handleWheel, { passive: false });
-    return () => {
-      el.removeEventListener("wheel", handleWheel);
-      if (wheelTimer.current !== null) {
-        window.clearTimeout(wheelTimer.current);
-        wheelTimer.current = null;
-      }
-    };
-  }, [onStep]);
+  const endWheelGesture = () => {
+    wheelGesture.current.ownFraction = Number.NaN;
+    wheelGesture.current.wrote = false;
+  };
+
+  const resetValue = () => {
+    endWheelGesture();
+    onReset();
+    setOpen(false);
+  };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button === 1) event.preventDefault();
     if (event.button !== 0) return;
+    endWheelGesture();
     const startX = event.clientX;
     const startY = event.clientY;
     const startFraction = fraction;
@@ -189,6 +201,7 @@ const DeckKnob: React.FC<DeckKnobProps> = ({
     if (direction === undefined) return;
     event.preventDefault();
     event.stopPropagation();
+    endWheelGesture();
     onStep(direction);
   };
 
@@ -202,36 +215,37 @@ const DeckKnob: React.FC<DeckKnobProps> = ({
   };
 
   return (
-    <div ref={containerRef} className="flex items-center">
-      <Popover
-        open={open}
-        onOpenChange={handleOpenChange}
-        placement="top"
-        aria-label={label}
-        trigger={
-          <button
-            type="button"
-            aria-label={`${label}, ${valueText}`}
-            title="Drag or scroll to adjust, double-click to reset"
-            onPointerDown={handlePointerDown}
-            onKeyDown={handleKeyDown}
-            onDoubleClick={() => {
-              onReset();
-              setOpen(false);
-            }}
-            className="flex items-center gap-2 -mx-1 px-1 rounded-lg cursor-grab active:cursor-grabbing select-none touch-none"
-          >
+    <Popover
+      open={open}
+      onOpenChange={handleOpenChange}
+      placement="top"
+      aria-label={label}
+      trigger={
+        <button
+          type="button"
+          aria-label={`${label}, ${valueText}`}
+          data-guide-spot={guideSpot}
+          title="Drag or scroll to adjust, double-click or middle-click to reset"
+          onPointerDown={handlePointerDown}
+          onKeyDown={handleKeyDown}
+          onDoubleClick={resetValue}
+          onAuxClick={(event) => {
+            if (event.button === 1) resetValue();
+          }}
+          className="flex items-center gap-2 -mx-1 px-1 rounded-lg cursor-grab active:cursor-grabbing select-none touch-none"
+        >
+          <span ref={wheelTarget} className="contents">
             <KnobFace fraction={fraction} />
             <span className="flex flex-col w-[52px] text-left leading-[1.15] max-[1279px]:hidden">
               <span className="text-[11.5px] text-(--muted)">{label}</span>
               <span className="font-mono text-[13px] tabular-nums text-composer-text">{valueText}</span>
             </span>
-          </button>
-        }
-      >
-        {children}
-      </Popover>
-    </div>
+          </span>
+        </button>
+      }
+    >
+      {children}
+    </Popover>
   );
 };
 

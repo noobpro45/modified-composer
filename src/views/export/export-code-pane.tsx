@@ -1,4 +1,5 @@
 import type { TimingGranularity } from "@/domain/project/timing-granularity";
+import { isCodeBlockSwap } from "@/ui/lyrics-code/code-block-mutation";
 import { LyricsCode } from "@/ui/lyrics-code/lyrics-code";
 import { Scroll } from "@/ui/scroll";
 import { TtmlConflictNotice } from "@/views/export/ttml-conflict-notice";
@@ -16,6 +17,7 @@ interface ExportCodePaneProps {
   onEditContent: (content: string) => void;
   onRegenerate: () => void;
   onKeepEdits: () => void;
+  notice?: React.ReactNode;
 }
 
 // -- Components ---------------------------------------------------------------
@@ -25,7 +27,7 @@ const FileHead: React.FC<{ fileName: string; content: string; exportTiming: Timi
   content,
   exportTiming,
 }) => (
-  <div className="flex h-7 min-w-0 items-center justify-between gap-3 flex-1 select-none">
+  <div className="flex h-7 min-w-0 items-center justify-between gap-3 flex-1 px-1 select-none">
     <span className="truncate text-[13px] font-medium text-(--label)">{fileName}</span>
     <span className="shrink-0 font-mono text-xs text-(--muted)">
       {content.split("\n").length} lines ・ {exportTiming === "line" ? "Line" : "Word"} timing
@@ -43,17 +45,22 @@ const ExportCodePane: React.FC<ExportCodePaneProps> = ({
   onEditContent,
   onRegenerate,
   onKeepEdits,
+  notice,
 }) => {
   const head = <FileHead fileName={fileName} content={content} exportTiming={exportTiming} />;
   return (
     <div className="flex flex-col gap-3.5 min-h-0 min-w-0 pt-3.5 px-4 pb-4">
       {hasConflict && <TtmlConflictNotice onRegenerate={onRegenerate} onKeepEdits={onKeepEdits} />}
+      {notice}
       {isEditing ? (
         <TtmlEditor value={content} generatedTtml={generatedTtml} onChange={onEditContent} head={head} />
       ) : (
         <>
           <div className="flex h-7 shrink-0">{head}</div>
-          <Scroll className="flex-1 min-h-0 rounded-xl bg-(--well) border border-(--edge)">
+          <Scroll
+            className="flex-1 min-h-0 rounded-xl bg-(--well) border border-(--edge)"
+            ignoreMutation={isCodeBlockSwap}
+          >
             <LyricsCode
               code={content}
               format="ttml"

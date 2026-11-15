@@ -1,16 +1,16 @@
 import type { WordTiming } from "@/domain/word/timing";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { useAlignmentStore } from "@/stores/alignment";
 import { useConfirm } from "@/stores/confirm-store";
 import { useProjectStore } from "@/stores/project";
 import { buildApplyToAllConfirmOptions } from "@/utils/apply-to-all-confirm-options";
-import { findIdenticalWords } from "@/utils/identical-word-matcher";
 import { splitWordIntoSyllables } from "@/utils/single-word-syllable-split";
 import {
   type PairedSplitPoints,
   togglePrimarySplitPoint,
   toggleTransliterationSplitPoint,
 } from "@/views/sync/paired-split-points";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 
 // -- Types --------------------------------------------------------------------
 
@@ -27,12 +27,11 @@ interface UseSyllableSplitterStateResult {
   transliterationSplitPoints: number[];
   applyToAll: boolean;
   caseInsensitive: boolean;
-  identicalCount: number;
   toggleSplit: (index: number) => void;
   toggleTransliterationSplit: (index: number) => void;
   setApplyToAll: (next: boolean) => void;
   setCaseInsensitive: (next: boolean) => void;
-  confirmSplit: (close: () => void) => Promise<void>;
+  confirmSplit: (close: () => void, identicalCount: number) => Promise<void>;
   cancelSplit: (close: () => void) => void;
 }
 
@@ -54,15 +53,7 @@ function useSyllableSplitterState({
   const [applyToAll, setApplyToAll] = useState(word.transliteration ? false : initialDefaults.applyToAll);
   const [caseInsensitive, setCaseInsensitive] = useState(initialDefaults.caseInsensitive);
 
-  const lines = useProjectStore((s) => s.lines);
   const confirm = useConfirm();
-
-  const identicalCount = useMemo(
-    () =>
-      findIdenticalWords(lines, { lineId, wordIndex, type }, { caseInsensitive, excludeSource: true, splitPoints })
-        .length,
-    [lines, lineId, wordIndex, type, caseInsensitive, splitPoints],
-  );
 
   const toggleSplit = useCallback(
     (index: number) => {
@@ -83,10 +74,11 @@ function useSyllableSplitterState({
       reuseGroupId: true,
     });
     onSplit(wordIndex, newWords);
+    noteGuideSignal("sync.split");
   }, [word, splitPoints, transliterationSplitPoints, wordIndex, onSplit]);
 
   const confirmSplit = useCallback(
-    async (close: () => void) => {
+    async (close: () => void, identicalCount: number) => {
       const store = useProjectStore.getState();
       store.setSyllableSplitDefaults({ applyToAll, caseInsensitive });
       // With the alignment model kept in memory, the new syllables are timed from the audio.
@@ -102,6 +94,7 @@ function useSyllableSplitterState({
           splitPoints,
           caseInsensitive,
         });
+        noteGuideSignal("sync.split");
         retime();
         setPairedSplitPoints({ splitPoints: [], transliterationSplitPoints: [] });
         close();
@@ -113,18 +106,7 @@ function useSyllableSplitterState({
       setPairedSplitPoints({ splitPoints: [], transliterationSplitPoints: [] });
       close();
     },
-    [
-      applyToAll,
-      caseInsensitive,
-      identicalCount,
-      word.text,
-      confirm,
-      lineId,
-      wordIndex,
-      type,
-      splitPoints,
-      splitSingleWord,
-    ],
+    [applyToAll, caseInsensitive, word.text, confirm, lineId, wordIndex, type, splitPoints, splitSingleWord],
   );
 
   const cancelSplit = useCallback((close: () => void) => {
@@ -137,7 +119,6 @@ function useSyllableSplitterState({
     transliterationSplitPoints,
     applyToAll,
     caseInsensitive,
-    identicalCount,
     toggleSplit,
     toggleTransliterationSplit,
     setApplyToAll,
@@ -149,4 +130,5 @@ function useSyllableSplitterState({
 
 // -- Exports ------------------------------------------------------------------
 
+export type { UseSyllableSplitterStateResult };
 export { useSyllableSplitterState };

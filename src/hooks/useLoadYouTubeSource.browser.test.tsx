@@ -39,6 +39,18 @@ describe("useLoadYouTubeSource", () => {
     await expect(pending).rejects.toThrow("youtube_load_superseded");
   });
 
+  it("a cancelled load puts the previous audio back and rejects as cancelled, not failed", async () => {
+    const previous = { type: "file" as const, file: createAudioFile("previous") };
+    useAudioStore.getState().setSource(previous);
+    const { result } = await renderHook(() => useLoadYouTubeSource());
+
+    const pending = result.current(VIDEO_ID, "replace");
+    useAudioStore.getState().cancelYouTubeLoad();
+
+    await expect(pending).rejects.toThrow("youtube_load_cancelled");
+    expect(useAudioStore.getState()).toMatchObject({ source: previous, youtubeLoadError: null });
+  });
+
   it("handles concurrent calls for different videoIds without cross-talk", async () => {
     const { result } = await renderHook(() => useLoadYouTubeSource());
     const loadYouTubeSource = result.current;
@@ -241,5 +253,14 @@ describe("useLoadYouTubeSource", () => {
       expect(useProjectStore.getState().metadata.artists).toEqual(["underscores"]);
       expect(useProjectStore.getState().metadata.isrc).toBe("USQE92600028");
     });
+  });
+
+  it("regression: a video loaded in place into an old project marks its times as matching this decode", async () => {
+    useProjectStore.setState({ primingStripped: true, primingCorrected: false });
+
+    const { result } = await renderHook(() => useLoadYouTubeSource());
+    result.current(VIDEO_ID).catch(() => {});
+
+    expect(useProjectStore.getState().primingCorrected).toBe(true);
   });
 });

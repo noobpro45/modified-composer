@@ -1,9 +1,11 @@
 import { displayTitle } from "@/domain/project/display-title";
 import type { ProjectIndexEntry } from "@/domain/project/index-entry";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { openProjectIdSnapshot } from "@/lib/open-project-session";
 import { schedulePendingDeletion } from "@/lib/pending-deletions";
 import { flushPendingSave, saveOpenProjectNow } from "@/lib/persistence-debounce";
 import { loadProjectAudio } from "@/lib/project-audio";
+import { copyProjectStems, loadProjectStems } from "@/lib/project-stems";
 import { downloadProjectFile, projectFileFrom } from "@/lib/project-file";
 import { createProjectId, saveProjectRecordWithAudio, updateProjectRecord } from "@/lib/project-repository";
 import { loadProjectRecord } from "@/lib/project-storage";
@@ -45,13 +47,15 @@ async function renameProject(id: string, title: string): Promise<void> {
 }
 
 async function duplicateProject(id: string): Promise<string> {
-  const [record, audio] = await Promise.all([latestRecord(id), loadProjectAudio(id)]);
+  const [record, audio, stems] = await Promise.all([latestRecord(id), loadProjectAudio(id), loadProjectStems(id)]);
+  const { unisonLyricId: _unisonLyricId, ...copy } = record;
   const copyId = createProjectId();
   await saveProjectRecordWithAudio(
     copyId,
-    { ...record, metadata: { ...record.metadata, title: copyTitle(record.metadata.title) }, savedAt: Date.now() },
+    { ...copy, metadata: { ...copy.metadata, title: copyTitle(copy.metadata.title) }, savedAt: Date.now() },
     audio,
   );
+  if (stems) await copyProjectStems(copyId, stems);
   return copyId;
 }
 
@@ -60,6 +64,7 @@ async function exportProjectFiles(ids: readonly string[]): Promise<void> {
   records.forEach((record, index) => {
     if (record.status === "fulfilled") downloadProjectFile(projectFileFrom(ids[index], record.value));
   });
+  if (records.some((record) => record.status === "fulfilled")) noteGuideSignal("export.backup");
   const failure = records.find((record) => record.status === "rejected");
   if (failure) throw failure.reason;
 }

@@ -1,15 +1,17 @@
 import { getAgentColor } from "@/domain/agent/colors";
 import { timeRangeResolver } from "@/domain/group/shared-timing";
 import type { ReadableLine } from "@/domain/line/effective-words";
-import { getEffectiveLines } from "@/domain/line/effective-words";
 import type { WordSelection } from "@/domain/selection/model";
 import type { BoundaryEdge } from "@/domain/word/boundary";
 import type { WordTiming } from "@/domain/word/timing";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { livePlaybackTime, useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
+import { getEffectiveKeysArray, useShortcutBindingsStore } from "@/stores/shortcut-bindings";
 import { Button } from "@/ui/button";
 import { SingerTag } from "@/ui/singer-tag";
+import { formatShortcut } from "@/utils/format-key";
 import { setBgWordBoundary } from "@/utils/timing/bg-word-timing";
 import { setWordBoundary } from "@/utils/timing/word-timing";
 import { BackgroundTextEditor } from "@/views/timeline/background-text-editor";
@@ -21,6 +23,7 @@ import {
   selectionCountLabel,
   selectionGroupHighlight,
 } from "@/views/timeline/selection-info";
+import { useTimelineEffectiveLines } from "@/views/timeline/timeline-effective-lines";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { formatTime } from "@/views/timeline/utils";
 import { IconBracketsContainEnd, IconBracketsContainStart, IconLink } from "@tabler/icons-react";
@@ -74,37 +77,41 @@ interface SingleWordInfoProps {
   onSetEnd: () => void;
 }
 
-const SingleWordInfo: React.FC<SingleWordInfoProps> = ({ selection, line, item, highlight, onSetBegin, onSetEnd }) => (
-  <div className="relative flex items-center gap-6 px-6 py-3 border-t border-(--divider) bg-(--pop)">
-    {highlight && <GroupBadge highlight={highlight} title="This word belongs to a linked group" />}
-    <SingerTag color={getAgentColor(line.agentId)}>
-      {selection.type === "bg" ? `Line ${selection.lineIndex + 1} ・ Background` : `Line ${selection.lineIndex + 1}`}
-    </SingerTag>
+const SingleWordInfo: React.FC<SingleWordInfoProps> = ({ selection, line, item, highlight, onSetBegin, onSetEnd }) => {
+  const beginKeys = useShortcutBindingsStore(() => formatShortcut(getEffectiveKeysArray("timeline.setWordBegin")));
+  const endKeys = useShortcutBindingsStore(() => formatShortcut(getEffectiveKeysArray("timeline.setWordEnd")));
+  return (
+    <div className="relative flex items-center gap-6 px-6 py-3 border-t border-(--divider) bg-(--pop)">
+      {highlight && <GroupBadge highlight={highlight} title="This word belongs to a linked group" />}
+      <SingerTag color={getAgentColor(line.agentId)}>
+        {selection.type === "bg" ? `Line ${selection.lineIndex + 1} ・ Background` : `Line ${selection.lineIndex + 1}`}
+      </SingerTag>
 
-    <div className="flex items-center gap-2">
-      <span className="text-sm font-medium text-composer-text">{item.text}</span>
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-composer-text">{item.text}</span>
+      </div>
+
+      <div className="flex items-center gap-4 text-sm">
+        <TimeField label="Begin:" value={formatTime(item.begin)} />
+        <TimeField label="End:" value={formatTime(item.end)} />
+        <TimeField label="Duration:" value={formatTime(item.end - item.begin)} />
+      </div>
+
+      <BackgroundTextEditor lineId={line.id} backgroundText={line.backgroundText} />
+
+      <div className="flex items-center gap-2 ml-auto">
+        <Button variant="secondary" size="sm" hasIcon onClick={onSetBegin} title={`Set begin to cursor (${beginKeys})`}>
+          <IconBracketsContainStart className="size-3.5" />
+          <span>Set Begin</span>
+        </Button>
+        <Button variant="secondary" size="sm" hasIcon onClick={onSetEnd} title={`Set end to cursor (${endKeys})`}>
+          <IconBracketsContainEnd className="size-3.5" />
+          <span>Set End</span>
+        </Button>
+      </div>
     </div>
-
-    <div className="flex items-center gap-4 text-sm">
-      <TimeField label="Begin:" value={formatTime(item.begin)} />
-      <TimeField label="End:" value={formatTime(item.end)} />
-      <TimeField label="Duration:" value={formatTime(item.end - item.begin)} />
-    </div>
-
-    <BackgroundTextEditor lineId={line.id} backgroundText={line.backgroundText} />
-
-    <div className="flex items-center gap-2 ml-auto">
-      <Button variant="secondary" size="sm" hasIcon onClick={onSetBegin} title="Set begin to cursor ([)">
-        <IconBracketsContainStart className="size-3.5" />
-        <span>Set Begin</span>
-      </Button>
-      <Button variant="secondary" size="sm" hasIcon onClick={onSetEnd} title="Set end to cursor (])">
-        <IconBracketsContainEnd className="size-3.5" />
-        <span>Set End</span>
-      </Button>
-    </div>
-  </div>
-);
+  );
+};
 
 const TimelineInfoPanel: React.FC = () => {
   const rawLines = useProjectStore((s) => s.lines);
@@ -114,7 +121,7 @@ const TimelineInfoPanel: React.FC = () => {
   const selectedWords = useTimelineStore((s) => s.selectedWords);
   const selectedWord = selectedWords[0] ?? null;
 
-  const lines = useMemo(() => getEffectiveLines(rawLines), [rawLines]);
+  const lines = useTimelineEffectiveLines(rawLines);
   const highlight = useMemo(
     () => selectionGroupHighlight(selectedWords, rawLines, groups),
     [selectedWords, rawLines, groups],
@@ -138,10 +145,11 @@ const TimelineInfoPanel: React.FC = () => {
         time: currentTime,
         minDuration: useSettingsStore.getState().minWordDuration,
         range: timeRangeResolver(rawLines, groups, duration)(lines[selectedWord.lineIndex]),
-        rolling: useTimelineStore.getState().rollingEditMode,
+        rolling: useSettingsStore.getState().rollingEdit,
         syllablesFollowRolling: useSettingsStore.getState().syllablesFollowRolling,
         updateLineWithHistory,
       });
+      noteGuideSignal("timeline.resize");
     },
     [selectedWord, lines, rawLines, groups, duration, updateLineWithHistory],
   );

@@ -99,10 +99,25 @@ file to its allowlist without the maintainer's approval.
   membership) are derived only by the modules in `src/domain/`. Call them, do not re-derive inline.
 - `domain-isolation`: `src/domain/` never imports from stores, views, hooks, pages, ui or audio.
 - `store-history-single-path`, `store-pending-snapshot`: undo history has one write path. A store
-  write that skips history must mark the pending snapshot.
+  write that skips history must mark the pending snapshot. History entries are built only in
+  `snapshotEntry` and frozen with `deepFreeze` in every build, with no environment switch.
 - `frame-loop-ownership`, `frame-loop-wiring-complete`: animation frames go through
   `src/lib/frame-loop.ts`, never raw `requestAnimationFrame`. A new store must be wired into the
   frame loop.
+- `timeline-scroll-ownership`: the Timeline scroll position is read and written only through
+  `views/timeline/view-scroll.ts`.
+- `performance-ownership`: per-edit and per-frame work goes through its owner. History never
+  deep-copies state, effective lines and the grouping scan are derived only by their owners,
+  every Timeline frame callback that writes a style is declared, `::selection` and `::highlight()`
+  live only in `src/index.css`, and nothing inherits a non-inherited property explicitly.
+- `per-frame-work`: Timeline frame callbacks never query every word block; they read boxes through
+  `views/timeline/word-block-boxes.ts`. The preview container glow colour stays above 0 and below
+  0.5/255 alpha.
+- `stored-media`: a module that opens an IndexedDB object store never reads a file into an
+  `ArrayBuffer`.
+- `timeline-subscriptions`: Timeline rows and per-row hooks never subscribe to the whole selection
+  or the whole store, and only listed files subscribe to `zoom` or the scroll position.
+- `tab-visibility-ownership`: tab panels read visibility only through `useIsActiveTab`.
 - `file-size-budget`: source files stay under 300 lines. Split the file instead of growing it.
 - `one-concept-one-regex`: a regex literal is declared in one file only.
 - `button-primitives`, `download-owner`, `pluralize-owner`, `no-raw-settings-references`: use the
@@ -123,6 +138,91 @@ before writing a new one.
 - Never set `innerHTML`.
 - No em dashes in code, copy or commit messages.
 - Commit messages are one line: `type: brief description` (for example `fix: timing offset`).
+- Media in IndexedDB is stored as a `File` or `Blob`, never an `ArrayBuffer`: Chromium caps one
+  value at 127 MiB. Read its size with `storedDataBytes` (`domain/storage/stored-data.ts`).
+
+## Settings
+
+A setting is a cost: one more decision for every user and one more state to test. Ship a good
+default first.
+
+- Add a setting only when people with real, different workflows need different behaviour and no
+  single default serves both. Prefer, in order: a default that fits most people; a control where the
+  feature lives (a header latch, a popover row), persisted from day one; a Settings row.
+- A control that lives on the feature does not also need a Settings row, unless the row sets the
+  default for new projects or sessions, or the control hides the feature and the row is the only way
+  to bring it back.
+- Never add a setting to avoid a design decision, or to keep a behaviour nobody asked to keep.
+- Every setting is a catalog entry in `src/stores/settings-catalog-entries-<section>.ts`. Labels,
+  descriptions, sections and groups are read from the catalog everywhere (`SettingLink`, search,
+  Changed). Never hand-write a setting label in copy. Labels describe the on state.
+- Sections, in sidebar order: App (General, Theme, Shortcuts, Confirmations, Unison), Editing (Lyrics,
+  Playback, Sync & Timing, Timeline, Snap, Spectrum), System (Save & Storage, Models, Advanced). Put
+  a setting in the section named after the feature it changes. Anything about a downloaded model
+  goes in Models.
+- Keep a section under 15 rows. Past that, split it by feature instead of adding more groups.
+- Every "Don't ask again" choice must be reversible from Confirmations.
+- Changed is derived (`changedSettingIds`), never stored. Model files are listed and removed only
+  through `src/lib/model-files.ts`.
+
+## Performance
+
+The Timeline renders hundreds of word blocks, several canvases and a playhead that moves every
+frame. Small mistakes there show up as lag on slower machines, so these rules hold for every change
+that touches it:
+
+- Subscribe to a store value only when the render output uses it. Fast values (`zoom`, playback
+  time, scroll position) are read with `getState()` inside handlers and frame callbacks.
+- Pass stable callbacks into memoized rows and blocks. An inline closure per row turns one zoom step
+  into a re-render of every row.
+- Never measure text or read layout during render.
+- Frame callbacks (`lib/frame-loop.ts`) do every layout read in the `read` phase and every write in
+  the `write` phase. Query the DOM once per frame, write a style only when its value changed, and
+  never force a reflow (`void el.offsetWidth`).
+- A new style written every frame inside the Timeline is listed in
+  `views/timeline/playback-style-mutation.ts`, or OverlayScrollbars re-measures layout every frame.
+- `patches/overlayscrollbars@2.17.0.patch` drops OverlayScrollbars' `noContent > *` rule. Chrome
+  restyles every Timeline row on each OverlayScrollbars update while that rule exists. Carry the
+  patch forward on every OverlayScrollbars upgrade.
+- WaveSurfer must never redraw the whole song. `views/timeline/waveform-window.ts` owns its width
+  and scroll; change zoom with `ws.setOptions`, never by rebuilding the instance.
+- Heavy tab panels mount on their first visit. Do not pre-render long lists or code views in a
+  hidden `<Activity>`.
+- Work per edit must not grow faster than linear in line count. A derivation over every line is
+  cached by line identity (`utils/memo-by-identity.ts`), never recomputed per edit.
+- A selection, step or cursor change re-renders only the rows it touches. A row or a per-row hook
+  subscribes with a selector that returns its own primitive, never the whole selection.
+- A hidden tab panel renders nothing new. Gate on `hooks/use-is-active-tab.ts`.
+- Long lists and code views are windowed. A windowed list stays mounted while its tab is hidden:
+  take its scroll parent from `hooks/use-scroll-parent.ts`, which never clears it.
+- Undo history shares unchanged objects between steps, and entries are frozen in every build. Never
+  write to an object that came from the project store. Build a new one.
+- Keep `::selection` and `::highlight()` rules in `src/index.css`, scoped away from animated parts.
+  In Chromium, an animated element that matches a global highlight rule restyles its whole subtree
+  on every animation tick. The `::selection` rule excludes words, rows and Braccato's animated parts.
+- Never inherit a non-inherited property explicitly (`rounded-[inherit]`, `border-radius: inherit`)
+  on anything whose parent restyles often. The child restyles with its parent; on Timeline words
+  that was every zoom step. Share a custom property instead (`--word-radius`).
+- Word block boxes for the playhead mask, lights and label pins come from
+  `views/timeline/word-block-boxes.ts`, in content coordinates, re-read after a DOM mutation under
+  the scroll container or when a sentinel block moves. Never query or measure every block in a frame
+  callback.
+- `views/timeline/waveform-data-cache.ts` keeps the decoded waveform across tab returns. WaveSurfer
+  rescales peaks above 1 in place; the cache works around it with a power-of-two scale and
+  `barHeight`. Its unit test runs WaveSurfer's own drawing code, so run `waveform-data-cache.test.ts`
+  and `timeline-waveform.cache.browser.test.tsx` on every WaveSurfer upgrade.
+- Data kept for hidden tabs (spectrum analysis, waveform peaks) is released when the editor closes,
+  through `views/timeline/release-timeline-caches.ts`. A new cache that outlives a tab joins it.
+- The preview theme keeps the container glow colour near invisible (alpha above 0, below 0.5/255),
+  so Braccato skips glow work on short words. At 0 the glow on long words stops animating.
+- Removing layout reads from frame callbacks does not cut forced style; find what dirties style
+  (main-thread transitions).
+- Measure against a master build with interleaved runs, at the display size you ship for. Main
+  thread frame times do not show GPU drops: check presented frames for anything that draws.
+
+To show a Timeline change is not slower, profile it at 4x CPU throttling: zoom with the buttons and
+with a fast Ctrl+wheel burst in both directions, scroll, and play. Compare against a master build.
+Profiling scripts and perf tooling stay local and are never committed.
 
 ## Documentation and metadata sync
 

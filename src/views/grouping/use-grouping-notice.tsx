@@ -1,5 +1,7 @@
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
+import { useSettingsStore } from "@/stores/settings";
 import { type NoticeKind, hiddenByDismissal } from "@/ui/notices/notice-model";
 import {
   replacedOwnTimingNote,
@@ -8,18 +10,25 @@ import {
   showReplacedOwnTimingToast,
 } from "@/utils/group-toast";
 import { pluralize } from "@/utils/pluralize";
-import { type RepeatingSection, findRepeatingStandaloneSections } from "@/views/grouping/repeating-sections";
+import { groupingSuggestions } from "@/views/grouping/grouping-suggestions";
+import type { RepeatingSection } from "@/views/grouping/repeating-sections";
 import { IconBulb, IconLink } from "@tabler/icons-react";
 import { useMemo } from "react";
 
 const MODAL_LINE_MAX = 80;
 const MODAL_LINE_LIMIT = 6;
+const NO_SUGGESTIONS: RepeatingSection[] = [];
 
 function useGroupingNotice(enabled = true): NoticeKind | null {
   const lines = useProjectStore((s) => s.lines);
   const dismissed = useProjectStore((s) => s.dismissedSuggestions);
 
-  const suggestions = useMemo(() => (enabled ? findRepeatingStandaloneSections(lines) : []), [enabled, lines]);
+  const splitChar = useSettingsStore((s) => s.splitCharacter);
+
+  const suggestions = useMemo(
+    () => (enabled ? groupingSuggestions(lines, splitChar) : NO_SUGGESTIONS),
+    [enabled, lines, splitChar],
+  );
   const { visible, dismissedFingerprints } = useMemo(
     () => hiddenByDismissal(suggestions, dismissed),
     [suggestions, dismissed],
@@ -38,7 +47,7 @@ function useGroupingNotice(enabled = true): NoticeKind | null {
       key: suggestionKey(section),
       fingerprints: [section.fingerprint],
       title: `${section.starts.length} runs · ${pluralize(section.length, "line")} each`,
-      detail: `At lines ${section.starts.map((start) => `${start + 1} to ${start + section.length}`).join(", ")}`,
+      detail: sectionDetail(section),
       preview: <BlockPreview lines={section.previewLines} />,
       accept: { label: "Group", icon: IconLink, run: () => acceptOne(section) },
       dismissedLabel: `${section.starts.length} runs of ${pluralize(section.length, "line")}`,
@@ -51,6 +60,12 @@ function useGroupingNotice(enabled = true): NoticeKind | null {
   };
 }
 
+function sectionDetail(section: RepeatingSection): string {
+  const at = `At lines ${section.starts.map((start) => `${start + 1} to ${start + section.length}`).join(", ")}`;
+  if (section.evenedSplitLines === 0) return at;
+  return `${at} · Evens out syllable splits in ${pluralize(section.evenedSplitLines, "line")}`;
+}
+
 function dismissFingerprints(fingerprints: readonly string[]): void {
   const { dismissSuggestion } = useProjectStore.getState();
   for (const fingerprint of fingerprints) dismissSuggestion(fingerprint);
@@ -60,6 +75,7 @@ function groupSections(sections: readonly RepeatingSection[]): number {
   const { duration } = useAudioStore.getState();
   const { groupRepeatingSections } = useProjectStore.getState();
   const outcomes = sections.map((section) => groupRepeatingSections(section.starts, section.length, { duration }));
+  noteGuideSignal("edit.group");
   showKeptOwnTimingToast(
     outcomes.flatMap((outcome) => outcome.keptOwnTiming),
     "edit",
@@ -77,7 +93,6 @@ const BlockPreview: React.FC<{ lines: string[] }> = ({ lines }) => {
   return (
     <div className="rounded-md border border-composer-border bg-composer-bg-elevated/60 px-3 py-2 text-xs text-composer-text-secondary whitespace-pre-wrap break-words">
       {display.map((entry, idx) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: stable order from collapseLines
         <div key={idx} className={entry.kind === "ellipsis" ? "text-composer-text-muted" : undefined}>
           {entry.kind === "line" ? truncate(entry.text.trim() || "(empty line)", MODAL_LINE_MAX) : "…"}
         </div>

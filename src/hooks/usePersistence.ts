@@ -11,13 +11,16 @@ import {
 import { markPersistenceSettled } from "@/lib/persistence-settled";
 import { setProjectLastTab } from "@/lib/project-repository";
 import { isRestoringProject } from "@/lib/project-restore";
+import { watchRememberedVolume } from "@/lib/remembered-volume";
+import { watchProjectTextVariant } from "@/lib/project-text-variant";
 import { watchResumePosition } from "@/lib/resume-position";
-import { buildSaveInput, hadStoredAudio, storedAudioFile } from "@/lib/project-snapshot";
-import { getSaveStatus, trackSave } from "@/lib/save-status";
+import { buildSaveInput, hadStoredAudio, openProjectView, storedAudioFile } from "@/lib/project-snapshot";
+import { getSaveStatus, onSaveRefusedAsNewer, trackSave } from "@/lib/save-status";
+import { NewerProjectError } from "@/lib/saved-project";
 import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { useSeparationStore } from "@/stores/separation";
-import { useSettingsStore } from "@/stores/settings";
+import { showNewerProjectToast, showNewerSaveRefusedToast } from "@/utils/project-toast";
 import { useEffect } from "react";
 
 // -- Constants ----------------------------------------------------------------
@@ -36,7 +39,7 @@ function commitProjectSaveNow(): void {
   const input = buildSaveInput();
   if (!input) return;
   cancelPendingSave();
-  trackSave("stem", saveCurrentProject(input, useProjectStore.getState().activeTab)).catch((err) =>
+  trackSave("stem", saveCurrentProject(input, openProjectView())).catch((err) =>
     console.error(LOG_PREFIX, "Immediate save failed:", err),
   );
 }
@@ -58,6 +61,7 @@ function usePersistence(): void {
     restoreOpenProject()
       .catch((err) => {
         console.error(`${LOG_PREFIX} initial load failed:`, err);
+        if (err instanceof NewerProjectError) showNewerProjectToast();
       })
       .finally(() => {
         if (import.meta.env.DEV) {
@@ -71,6 +75,7 @@ function usePersistence(): void {
   }, []);
 
   useEffect(() => watchResumePosition(), []);
+  useEffect(() => watchProjectTextVariant(), []);
 
   useEffect(
     () =>
@@ -114,20 +119,15 @@ function usePersistence(): void {
     });
   }, []);
 
+  useEffect(() => watchRememberedVolume(), []);
+
   useEffect(() => {
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const unsubscribe = useAudioStore.subscribe((state, prev) => {
-      if (state.volume === prev.volume) return;
-      if (!useSettingsStore.getState().rememberVolume) return;
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        useSettingsStore.getState().set("lastVolume", state.volume);
-      }, 500);
+    const warned = new Set<string>();
+    return onSaveRefusedAsNewer((projectId) => {
+      if (warned.has(projectId)) return;
+      warned.add(projectId);
+      showNewerSaveRefusedToast(projectId);
     });
-    return () => {
-      unsubscribe();
-      if (debounceTimer) clearTimeout(debounceTimer);
-    };
   }, []);
 
   useEffect(() => {

@@ -21,8 +21,16 @@ describe("storageUsage", () => {
       youtubeAudioBytes: 200,
       stemBytes: 75,
       lyricsBytes: 60,
+      modelBytes: 0,
       totalBytes: 735,
+      cleanableBytes: 735,
     });
+  });
+
+  it("counts a project's own stems as local audio, never as clearable stems", () => {
+    const withStems = [indexEntry("stems", { audioKind: "youtube", storedAudioBytes: 100, storedStemBytes: 40 })];
+    expect(storageUsage(withStems, [])).toMatchObject({ localAudioBytes: 40, youtubeAudioBytes: 100, stemBytes: 0 });
+    expect(storedAudioBytesTotal(withStems)).toBe(140);
   });
 
   it("counts audio with no index entry as local audio", () => {
@@ -36,7 +44,9 @@ describe("storageUsage", () => {
         youtubeAudioBytes: 0,
         stemBytes: 0,
         lyricsBytes: 0,
+        modelBytes: 0,
         totalBytes: 0,
+        cleanableBytes: 0,
       });
     });
 
@@ -50,6 +60,12 @@ describe("storageUsage", () => {
   });
 
   describe("invariants", () => {
+    it("counts downloaded models as used space but never as space cleanup can free", () => {
+      const usage = storageUsage(ENTRIES, STEMS, 0, 500);
+      expect(usage.totalBytes).toBe(1235);
+      expect(usage.cleanableBytes).toBe(735);
+    });
+
     it("local plus YouTube audio is the stored audio total the library footer shows", () => {
       const usage = storageUsage(ENTRIES, STEMS);
       expect(usage.localAudioBytes + usage.youtubeAudioBytes).toBe(storedAudioBytesTotal(ENTRIES));

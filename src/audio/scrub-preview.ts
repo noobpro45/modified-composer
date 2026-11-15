@@ -1,5 +1,4 @@
-import { getClassicActiveSnippet, playClassic, setClassicBuffer, stopClassic } from "@/audio/scrub-classic";
-import { SCRUB_HOLD_S, scrubTo, silenceStretch, useStretchBuffer } from "@/audio/scrub-stretch";
+import { SCRUB_HOLD_S, type ScrubBuffer, scrubTo, silenceStretch, useStretchBuffer } from "@/audio/scrub-stretch";
 import { sharedAudioContext } from "@/audio/shared-audio-context";
 import { useAudioStore } from "@/stores/audio";
 import { useSettingsStore } from "@/stores/settings";
@@ -7,7 +6,7 @@ import { useSettingsStore } from "@/stores/settings";
 // -- Types --------------------------------------------------------------------
 
 type ActiveSnippet = { time: number; rate: number };
-type BufferLoader = () => Promise<AudioBuffer>;
+type BufferLoader = () => Promise<ScrubBuffer>;
 
 // -- Constants ----------------------------------------------------------------
 
@@ -17,7 +16,7 @@ const LOG_PREFIX = "[ScrubPreview]";
 
 // -- State --------------------------------------------------------------------
 
-let buffer: AudioBuffer | null = null;
+let buffer: ScrubBuffer | null = null;
 let loadBuffer: BufferLoader | null = null;
 let bufferToken = 0;
 let loadingToken: number | null = null;
@@ -39,7 +38,7 @@ function targetVolume(): number {
 
 // -- Buffer -------------------------------------------------------------------
 
-function useBuffer(next: AudioBuffer | null): void {
+function useBuffer(next: ScrubBuffer | null): void {
   stop();
   bufferToken += 1;
   loadBuffer = null;
@@ -50,7 +49,6 @@ function useBuffer(next: AudioBuffer | null): void {
   } else {
     buffer = next;
   }
-  setClassicBuffer(buffer);
   useStretchBuffer(buffer);
 }
 
@@ -93,14 +91,7 @@ function play(time: number, velocity: number): void {
     return;
   }
 
-  const { scrubStyle } = useSettingsStore.getState();
-  if (scrubStyle === "classic") {
-    playClassic(time, velocity);
-    return;
-  }
-
-  const maxStartTime = Math.max(0, buffer.duration - SCRUB_HOLD_S);
-  const clampedTime = Math.max(0, Math.min(time, maxStartTime));
+  const clampedTime = Math.max(0, Math.min(time, buffer.duration));
   activeSnippet = { time: clampedTime, rate: velocity };
   lastEventMs = performance.now();
   resumeContext();
@@ -110,15 +101,10 @@ function play(time: number, velocity: number): void {
 function stop(): void {
   pendingSnippet = null;
   activeSnippet = null;
-  stopClassic();
   silenceStretch();
 }
 
 function getActiveSnippet(): ActiveSnippet | null {
-  const { scrubStyle } = useSettingsStore.getState();
-  if (scrubStyle === "classic") {
-    return getClassicActiveSnippet();
-  }
   return performance.now() - lastEventMs > SCRUB_HOLD_S * 1000 ? null : activeSnippet;
 }
 

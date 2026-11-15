@@ -1,5 +1,7 @@
 import { hasLatinLetter } from "@/domain/language/script-detection";
-import { bindingsEqual, getEffectiveBinding } from "@/stores/shortcut-bindings";
+import { isShortcutDisabled } from "@/lib/disabled-shortcuts";
+import { bindingsEqual } from "@/stores/shortcut-binding-compare";
+import { getEffectiveBinding } from "@/stores/shortcut-bindings";
 import { type ShortcutBinding, type ShortcutScope, getShortcutsByScope } from "@/stores/shortcut-registry";
 import { isMac } from "@/utils/platform";
 import { US_PUNCTUATION_BY_CODE } from "@/utils/us-punctuation";
@@ -24,9 +26,10 @@ function getEventKey(event: KeyboardEvent): string {
     if (event.code.startsWith("Key") && event.code.length === 4) return event.code.slice(3).toLowerCase();
     if (event.code.startsWith("Digit") && event.code.length === 6) return event.code.slice(5);
   }
+  const punctuation = US_PUNCTUATION_BY_CODE[event.code];
+  if (event.altKey && punctuation) return punctuation[event.shiftKey ? 1 : 0];
   if (isNonLatinLetter(event.key)) return physicalKey(event) ?? event.key;
   // Chrome and Safari on macOS can drop Shift from event.key while Cmd is held (Cmd+Shift+, reads ",").
-  const punctuation = US_PUNCTUATION_BY_CODE[event.code];
   if (event.shiftKey && punctuation && event.key === punctuation[0]) return punctuation[1];
   return event.key.length === 1 ? event.key.toLowerCase() : event.key;
 }
@@ -112,7 +115,8 @@ function findMatchingShortcut(event: KeyboardEvent, scope: ShortcutScope): strin
   const shortcuts = getShortcutsByScope(scope);
   for (const shortcut of shortcuts) {
     const binding = getEffectiveBinding(shortcut.id);
-    if (matchesBinding(event, binding)) return event.repeat && !shortcut.repeatable ? null : shortcut.id;
+    if (matchesBinding(event, binding))
+      return isShortcutDisabled(shortcut.id) || (event.repeat && !shortcut.repeatable) ? null : shortcut.id;
   }
   return null;
 }
@@ -185,10 +189,10 @@ function isReservedBrowserShortcut(binding: ShortcutBinding): boolean {
 // -- Exports ------------------------------------------------------------------
 
 export {
-  reportedBinding,
   bindingFromKeyboardEvent,
   findMatchingShortcut,
   isCommandBinding,
   isReservedBrowserShortcut,
   matchesShortcutBinding,
+  reportedBinding,
 };

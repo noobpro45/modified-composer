@@ -48,7 +48,7 @@ const STORAGE_CATALOG_ENTRIES = {
   storageLimit: {
     section: "storage",
     label: "Storage limit",
-    description: "Cleanup starts above this size.",
+    description: "Cleanup starts when your projects and stems pass this size. Downloaded models don't count.",
     keywords: ["limit", "quota"],
     settingKey: "storageLimit",
     group: "Audio",
@@ -86,4 +86,4 @@ const STORAGE_CATALOG_ENTRIES = {
 
 // -- Exports ------------------------------------------------------------------
 
-export { STORAGE_CATALOG_ENTRIES, keepYouTubeAudioDescription };
+export { keepYouTubeAudioDescription, STORAGE_CATALOG_ENTRIES };

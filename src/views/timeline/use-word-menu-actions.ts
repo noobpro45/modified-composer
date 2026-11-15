@@ -1,64 +1,56 @@
+import { useCallback } from "react";
 import { manualBackgroundWordEdit } from "@/domain/line/background";
 import { trackWords } from "@/domain/line/tracks";
 import { mergeWordsIntoTrack } from "@/domain/word/merge-track";
 import type { WordTiming } from "@/domain/word/timing";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { useAudioStore } from "@/stores/audio";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { createTrackWordsFromTextAt } from "@/utils/sync-helpers";
-import { mergeWordText, mergeWordTransliteration } from "@/utils/word-merge";
 import { findInsertionSlot } from "@/utils/word-spaces";
 import { deleteSelectedWords } from "@/views/timeline/delete-selected-words";
 import { storedLineTimeRange } from "@/views/timeline/stored-line-range";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import type { ContextMenuTargets } from "@/views/timeline/use-context-menu-targets";
-import { useCallback } from "react";
+import { runExplicitToggle, runSyllableMerge, runWordMerge } from "@/views/timeline/word-commands";
 
 // -- Hook ---------------------------------------------------------------------
 
 function useWordMenuActions(targets: ContextMenuTargets, clearContextMenu: () => void) {
-  const { lines, explicitToggleContext, mergeInfo, groupedWordInfo, clickedSelectionCount } = targets;
+  const { lines, explicitToggle, wordCommandTargets, mergeInfo, groupedWordInfo, clickedSelectionCount } = targets;
   const contextMenu = useTimelineStore((s) => s.contextMenu);
   const updateLineWithHistory = useProjectStore((s) => s.updateLineWithHistory);
-  const toggleWordExplicit = useProjectStore((s) => s.toggleWordExplicit);
   const duration = useAudioStore((s) => s.duration);
 
   const handleEditWord = useCallback(() => {
-    if (!contextMenu || contextMenu.target.kind !== "word") return;
-    const { lineId, wordIndex, type } = contextMenu.target;
-    useTimelineStore.getState().setEditingWord({ lineId, wordIndex, type });
+    const editable = wordCommandTargets?.editable;
+    if (!editable) return;
+    useTimelineStore
+      .getState()
+      .setEditingWord({ lineId: editable.lineId, wordIndex: editable.wordIndex, type: editable.type });
+    noteGuideSignal("timeline.menuEditText");
     clearContextMenu();
-  }, [contextMenu, clearContextMenu]);
+  }, [wordCommandTargets, clearContextMenu]);
 
-  const handleSplitSyllables = useCallback(() => {
-    if (!contextMenu || contextMenu.target.kind !== "word") return;
-    const { lineId, wordIndex, type } = contextMenu.target;
-    useTimelineStore.getState().setEditingWord(null);
-    // Store target info and open syllable splitter via editingWord with a flag
-    // For now, use the keyboard shortcut approach - set selection and close menu
-    const lineIndex = contextMenu.target.lineIndex;
-    useTimelineStore.getState().setSelectedWords([{ lineId, lineIndex, wordIndex, type }]);
-    clearContextMenu();
-    // Dispatch a custom event so the syllable splitter can pick it up
-    window.dispatchEvent(new CustomEvent("timeline:split-syllable"));
-  }, [contextMenu, clearContextMenu]);
-
-  const handleSplitWord = useCallback(() => {
-    if (!contextMenu || contextMenu.target.kind !== "word") return;
-    const { lineId, wordIndex, type } = contextMenu.target;
-    useTimelineStore.getState().setEditingWord(null);
-    const lineIndex = contextMenu.target.lineIndex;
-    useTimelineStore.getState().setSelectedWords([{ lineId, lineIndex, wordIndex, type }]);
-    clearContextMenu();
-    window.dispatchEvent(new CustomEvent("timeline:split-word"));
-  }, [contextMenu, clearContextMenu]);
+  // The splitter picks the word up from the selection when the menu event arrives.
+  const splitFromMenu = useCallback(
+    (eventName: "timeline:split-syllable" | "timeline:split-word") => {
+      if (!wordCommandTargets?.editable) return;
+      useTimelineStore.getState().setEditingWord(null);
+      clearContextMenu();
+      window.dispatchEvent(new CustomEvent(eventName));
+    },
+    [wordCommandTargets, clearContextMenu],
+  );
+  const handleSplitSyllables = useCallback(() => splitFromMenu("timeline:split-syllable"), [splitFromMenu]);
+  const handleSplitWord = useCallback(() => splitFromMenu("timeline:split-word"), [splitFromMenu]);
 
   const handleToggleExplicit = useCallback(() => {
-    if (!explicitToggleContext) return;
-    const { lineId, field, indices } = explicitToggleContext;
-    toggleWordExplicit(lineId, field, indices);
+    if (!explicitToggle) return;
+    runExplicitToggle(explicitToggle);
     clearContextMenu();
-  }, [explicitToggleContext, toggleWordExplicit, clearContextMenu]);
+  }, [explicitToggle, clearContextMenu]);
 
   const handleDeleteWord = useCallback(() => {
     if (!contextMenu || contextMenu.target.kind !== "word") return;
@@ -67,6 +59,7 @@ function useWordMenuActions(targets: ContextMenuTargets, clearContextMenu: () =>
       useTimelineStore.getState().setSelectedWords([{ lineId, lineIndex, wordIndex, type }]);
     }
     deleteSelectedWords();
+    noteGuideSignal("timeline.menuDelete");
     clearContextMenu();
   }, [contextMenu, clickedSelectionCount, clearContextMenu]);
 
@@ -108,12 +101,11 @@ function useWordMenuActions(targets: ContextMenuTargets, clearContextMenu: () =>
   }, [contextMenu, lines, duration, updateLineWithHistory, clearContextMenu]);
 
   const handleMergeSyllables = useCallback(() => {
-    if (!groupedWordInfo) return;
-    useProjectStore
-      .getState()
-      .mergeSyllableGroupIntoWord(groupedWordInfo.lineId, groupedWordInfo.field, [groupedWordInfo.wordIndex]);
+    const syllableMerge = wordCommandTargets?.syllableMerge;
+    if (!syllableMerge) return;
+    runSyllableMerge(syllableMerge);
     clearContextMenu();
-  }, [groupedWordInfo, clearContextMenu]);
+  }, [wordCommandTargets, clearContextMenu]);
 
   const handleSnapSyllables = useCallback(() => {
     if (!groupedWordInfo) return;
@@ -123,40 +115,9 @@ function useWordMenuActions(targets: ContextMenuTargets, clearContextMenu: () =>
 
   const handleMergeWords = useCallback(() => {
     if (!mergeInfo) return;
-    const { indices, lineId, type } = mergeInfo;
-    const line = lines.find((l) => l.id === lineId);
-    if (!line) return;
-
-    const wordsArray = trackWords(line, type);
-    if (!wordsArray) return;
-
-    const firstIdx = indices[0];
-    const lastIdx = indices[indices.length - 1];
-    const wordsToMerge = indices.map((idx) => wordsArray[idx]);
-    const mergedText = mergeWordText(wordsToMerge.map((w) => w.text));
-    const mergedTrans = mergeWordTransliteration(wordsToMerge);
-    const merged: WordTiming = {
-      text: mergedText,
-      begin: wordsArray[firstIdx].begin,
-      end: wordsArray[lastIdx].end,
-      ...mergedTrans,
-    };
-
-    const updatedWords = [...wordsArray.slice(0, firstIdx), merged, ...wordsArray.slice(lastIdx + 1)];
-    const extraUpdates = line.transliteration
-      ? { transliteration: { ...line.transliteration, origin: "manual" as const } }
-      : {};
-
-    updateLineWithHistory(
-      lineId,
-      type === "word"
-        ? { words: updatedWords, ...extraUpdates }
-        : { ...manualBackgroundWordEdit(updatedWords), ...extraUpdates },
-    );
-
-    useTimelineStore.getState().clearSelection();
+    runWordMerge(mergeInfo);
     clearContextMenu();
-  }, [mergeInfo, lines, updateLineWithHistory, clearContextMenu]);
+  }, [mergeInfo, clearContextMenu]);
 
   return {
     handleEditWord,

@@ -1,4 +1,6 @@
+import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
+import type { SnapSettings } from "@/stores/settings-snap";
 import { holdsSnapBypass } from "@/views/timeline/snap-bypass-key";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { useEffect, useRef } from "react";
@@ -23,6 +25,15 @@ interface UseGestureInputReplayArgs {
 
 // -- Constants -----------------------------------------------------------------
 const NO_MODIFIERS: HeldModifiers = { altKey: false, shiftKey: false, metaKey: false, ctrlKey: false };
+const SNAP_SOURCE_SETTINGS: readonly (keyof SnapSettings)[] = [
+  "timelineSnap",
+  "vocalOnsetSnap",
+  "beatSnap",
+  "beatGridVisible",
+  "beatGridLines",
+  "snapWordsAndLines",
+  "snapMarkers",
+];
 
 // -- Hook ----------------------------------------------------------------------
 function useGestureInputReplay({ active, getLastPointer }: UseGestureInputReplayArgs) {
@@ -87,16 +98,15 @@ function useGestureInputReplay({ active, getLastPointer }: UseGestureInputReplay
     };
 
     const unsubscribeSettings = useSettingsStore.subscribe((state, prev) => {
-      if (state.timelineSnap !== prev.timelineSnap || state.vocalOnsetSnap !== prev.vocalOnsetSnap) {
+      if (state.rollingEdit !== prev.rollingEdit || SNAP_SOURCE_SETTINGS.some((key) => state[key] !== prev[key])) {
         replayLastPointer();
       }
     });
+    const unsubscribeProject = useProjectStore.subscribe((state, prev) => {
+      if (state.beatGrid !== prev.beatGrid) replayLastPointer();
+    });
     const unsubscribeTimeline = useTimelineStore.subscribe((state, prev) => {
-      if (
-        state.rollingEditMode !== prev.rollingEditMode ||
-        state.vocalOnsetSnapPoints !== prev.vocalOnsetSnapPoints ||
-        state.scrollLeft !== prev.scrollLeft
-      ) {
+      if (state.vocalOnsetSnapPoints !== prev.vocalOnsetSnapPoints || state.scrollLeft !== prev.scrollLeft) {
         replayLastPointer();
       } else if (state.zoom !== prev.zoom) {
         replayAfterZoom();
@@ -112,6 +122,7 @@ function useGestureInputReplay({ active, getLastPointer }: UseGestureInputReplay
       window.removeEventListener("keydown", handleKey);
       window.removeEventListener("keyup", handleKey);
       unsubscribeSettings();
+      unsubscribeProject();
       unsubscribeTimeline();
     };
   }, [active, getLastPointer]);

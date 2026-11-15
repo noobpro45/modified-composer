@@ -4,8 +4,8 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import "vite-react-ssg";
 import ortPkg from "./node_modules/onnxruntime-web/package.json";
-import { writeSeoAssets } from "./scripts/build-seo-assets";
 import pkg from "./package.json";
+import { writeSeoAssets } from "./scripts/build-seo-assets";
 
 const SITE_ORIGIN = "https://composer.betterlyrics.org";
 
@@ -21,7 +21,9 @@ export default defineConfig({
     },
     conditions: ["onnxruntime-web-use-extern-wasm", "import", "module", "browser", "default"],
   },
+  // Listening on IPv4 serves both localhost and 127.0.0.1, which the local preview frame needs.
   server: {
+    host: "127.0.0.1",
     proxy: {
       "/audio": "http://localhost:7777",
       "/thumb": "http://localhost:7777",
@@ -43,6 +45,15 @@ export default defineConfig({
           Origin: "https://composer.betterlyrics.org",
           Referer: "https://composer.betterlyrics.org/",
         },
+      },
+    },
+  },
+  preview: { host: "127.0.0.1" },
+  build: {
+    rollupOptions: {
+      input: {
+        app: resolve(__dirname, "index.html"),
+        "preview-frame": resolve(__dirname, "preview-frame.html"),
       },
     },
   },

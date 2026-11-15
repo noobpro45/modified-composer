@@ -6,12 +6,8 @@ import { BridgeUrlField } from "@/ui/settings/bridge-url-field";
 import { Switch } from "@/ui/switch";
 import { hasBridgeEverBeenDetected, markBridgeDetected } from "@/utils/bridge-detection";
 import { isDesktop } from "@/utils/platform";
-import {
-  type BridgeHealth,
-  DEFAULT_BRIDGE_URL,
-  HEALTH_QUERY_KEY,
-  checkBridgeHealth,
-} from "@/utils/composer-bridge-api";
+import { DEFAULT_BRIDGE_URL } from "@/utils/composer-bridge-url";
+import { BRIDGE_REPO_URL, type BridgeHealth, HEALTH_QUERY_KEY, checkBridgeHealth } from "@/utils/composer-bridge-api";
 import { IconCheck, IconExclamationCircle, IconLoader2 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
@@ -25,8 +21,7 @@ const HEALTH_REFETCH_INTERVAL = 8000;
 const StatusBadge: React.FC<{
   state: "checking" | "ok" | "error";
   data: BridgeHealth | undefined;
-  errorMessage: string | undefined;
-}> = ({ state, data, errorMessage }) => {
+}> = ({ state, data }) => {
   if (state === "checking") {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs text-composer-text-muted">
@@ -44,10 +39,7 @@ const StatusBadge: React.FC<{
     );
   }
   return (
-    <span
-      className="inline-flex items-center gap-1.5 text-xs text-rose-500"
-      title={errorMessage ?? "bridge unreachable"}
-    >
+    <span className="inline-flex items-center gap-1.5 text-xs text-rose-500">
       <IconExclamationCircle size={12} />
       Not running
     </span>
@@ -109,8 +101,7 @@ const BridgeSection: React.FC = () => {
     if (health.data) markBridgeDetected();
   }, [health.data]);
 
-  const state: "checking" | "ok" | "error" =
-    health.isFetching && !health.data ? "checking" : health.data ? "ok" : "error";
+  const state: "checking" | "ok" | "error" = health.isPending ? "checking" : health.isError ? "error" : "ok";
   const errorMessage = health.error instanceof Error ? health.error.message : undefined;
 
   if (isDesktopApp) {
@@ -133,7 +124,7 @@ const BridgeSection: React.FC = () => {
             Route YouTube imports through a small local binary running on your machine instead of Cobalt. Uses your
             residential IP, so YouTube doesn't block it. Requires running{" "}
             <a
-              href="https://github.com/better-lyrics/composer-bridge"
+              href={BRIDGE_REPO_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="underline underline-offset-2 transition-colors hover:text-composer-text"
@@ -150,7 +141,7 @@ const BridgeSection: React.FC = () => {
         <div className="flex flex-col gap-2 px-3 py-3 rounded-md bg-(--well) border border-(--edge)">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-composer-text">Bridge status</span>
-            <StatusBadge state={state} data={health.data} errorMessage={errorMessage} />
+            <StatusBadge state={state} data={health.data} />
           </div>
 
           <BridgeUrlField
@@ -160,6 +151,9 @@ const BridgeSection: React.FC = () => {
             onReset={() => setSetting("composerBridgeUrl", DEFAULT_BRIDGE_URL)}
           />
 
+          {state === "error" && errorMessage && (
+            <p className="text-xs text-rose-500 select-text break-words">{errorMessage}</p>
+          )}
           {state === "error" &&
             (everDetectedAtMount ? <BridgeStoppedHint /> : <BridgeInstallGuide onCheckNow={() => health.refetch()} />)}
         </div>

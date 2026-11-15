@@ -1,15 +1,16 @@
-import { pickAlignmentModel } from "@/audio/alignment/hubertfa/model-manifest";
 import { VOCAL_MODEL_APPROX_BYTES } from "@/audio/separation/model-registry";
 import { coversLanguage } from "@/domain/alignment/language";
 import { hasMainLyrics, isLineSynced, isWordSynced } from "@/domain/line/predicates";
 import { languageName } from "@/domain/project/language";
-import { useAlignmentModels } from "@/hooks/useAlignmentModels";
+import { useSelectedAlignmentModel } from "@/hooks/useAlignmentModels";
 import { useSongLanguage } from "@/hooks/useSongLanguage";
+import { noteGuideSignal } from "@/lib/guide-signals";
 import { useAlignmentStore } from "@/stores/alignment";
 import { countAlignableLines } from "@/stores/alignment-plan";
 import { useProjectStore } from "@/stores/project";
 import { useSeparationStore } from "@/stores/separation";
 import { useSettingsStore } from "@/stores/settings";
+import { ModelTermsInfo } from "@/ui/model-terms-info";
 import { useUIStore } from "@/stores/ui";
 import { PopActions, PopButton, PopGroup, PopHead, PopRow, PopText } from "@/ui/pop-layout";
 import { StatusChip } from "@/ui/status-chip";
@@ -34,6 +35,13 @@ interface LineCounts {
   untimed: number;
 }
 
+// -- Helpers -------------------------------------------------------------------
+
+const switchToLineMode = () => {
+  useProjectStore.getState().setGranularity("line");
+  noteGuideSignal("sync.granularity");
+};
+
 // -- Components ----------------------------------------------------------------
 
 const LineTimingRow: React.FC<{ counts: LineCounts }> = ({ counts }) => {
@@ -43,9 +51,7 @@ const LineTimingRow: React.FC<{ counts: LineCounts }> = ({ counts }) => {
   if (timed === 0) {
     return (
       <PopRow label="Line timing" icon={IconTimelineEventText} hint="Tap each line's start and end. Rough is fine.">
-        {granularity === "word" && (
-          <PopButton onClick={() => useProjectStore.getState().setGranularity("line")}>Line mode</PopButton>
-        )}
+        {granularity === "word" && <PopButton onClick={switchToLineMode}>Line mode</PopButton>}
       </PopRow>
     );
   }
@@ -86,9 +92,7 @@ const VocalsRow: React.FC = () => {
 
 const ModelLanguageRow: React.FC = () => {
   const song = useSongLanguage();
-  const modelId = useSettingsStore((s) => s.alignmentModelId);
-  const models = useAlignmentModels();
-  const model = models ? pickAlignmentModel(models, modelId) : null;
+  const model = useSelectedAlignmentModel();
   if (!song || !model || coversLanguage(model.languages, song)) return null;
   const language = languageName(song);
   return (
@@ -126,10 +130,11 @@ const AutoAlignSetup: React.FC<{ run: (realign: boolean) => void }> = ({ run }) 
     return { lineTimed, wordTimed, untimed };
   }, [lines]);
   const timed = counts.lineTimed + counts.wordTimed;
+  const terms = useSelectedAlignmentModel()?.terms;
 
   return (
     <>
-      <PopHead title="Auto-align words" />
+      <PopHead title="Auto-align words" action={terms && <ModelTermsInfo terms={terms} />} />
       <SetupIntro />
       <PopGroup label="Needs">
         <LineTimingRow counts={counts} />

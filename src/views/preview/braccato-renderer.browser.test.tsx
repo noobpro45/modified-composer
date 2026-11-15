@@ -1,3 +1,4 @@
+import { holdFrames } from "@/lib/frame-loop";
 import { wireFrameLoop } from "@/lib/frame-loop-wiring";
 import { useAudioStore } from "@/stores/audio";
 import { POSITION_UTILITIES_CSS, installStyleSheet } from "@/test/browser-css";
@@ -12,9 +13,11 @@ import {
   buildSyncedTtml,
 } from "@/test/ttml-fixtures";
 import { BraccatoRenderer } from "@/views/preview/braccato-renderer";
+import type { RendererPlayback } from "@/views/preview/renderer-playback";
 import type { BraccatoLyricsElement } from "@braccato/core/element";
 import braccatoLyricsCss from "@braccato/core/styles/lyrics.css?raw";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import braccatoVariablesCss from "@braccato/core/styles/variables.css?raw";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 
 // -- Constants -----------------------------------------------------------------
 
@@ -62,6 +65,10 @@ function activeLineText(el: BraccatoLyricsElement): string {
   return el.querySelector(".blyrics--line.blyrics--active")?.textContent ?? "";
 }
 
+function sungWordText(el: BraccatoLyricsElement): string {
+  return el.querySelector('.blyrics--word[data-word-state="active"]:not(.blyrics-word-highlight)')?.textContent ?? "";
+}
+
 function lineTexts(el: BraccatoLyricsElement): string[] {
   return [...el.querySelectorAll(".blyrics--line")].map((line) => line.textContent ?? "");
 }
@@ -100,6 +107,25 @@ describe("BraccatoRenderer", () => {
     await waitForLyrics(el);
 
     await expect.poll(() => activeLineText(el)).toContain("second line");
+  });
+
+  it("regression: sweeps a word at its own time, with no lead ahead of the playhead", async () => {
+    const variables = installStyleSheet(braccatoVariablesCss);
+    onTestFinished(() => variables.remove());
+    const audio = new Audio();
+    audio.currentTime = 11.9;
+    useAudioStore.setState({ audioElement: audio, isPlaying: false });
+
+    const screen = await render(<BraccatoRenderer ttmlString={buildSyncedTtml()} />);
+    const el = getBraccatoElement(screen.container);
+    await waitForLyrics(el);
+    await expect.poll(() => el.currentTime).toBe(11.9);
+    await stepFrames(5);
+
+    expect(sungWordText(el)).not.toContain("second");
+
+    useAudioStore.getState().seekTo(12.01);
+    await expect.poll(() => sungWordText(el)).toContain("second");
   });
 
   it("moves the highlight as the audio time advances", async () => {
@@ -170,6 +196,52 @@ describe("BraccatoRenderer", () => {
     await waitForLyrics(el);
 
     await expect.poll(() => el.playing).toBe(false);
+  });
+
+  it("regression: sets the sweep from each frame's time until the clock follows the audio after a play", async () => {
+    const sample = { currentTime: 11.9, paused: false, followsAudio: false, playbackRate: 1 };
+    const playback: RendererPlayback = { sample: () => sample, seekTo: () => {}, play: () => {} };
+    onTestFinished(holdFrames("playing"));
+
+    const screen = await render(<BraccatoRenderer ttmlString={buildSyncedTtml()} playback={playback} />);
+    const el = getBraccatoElement(screen.container);
+    await waitForLyrics(el);
+    await expect.poll(() => el.currentTime).toBe(11.9);
+
+    sample.currentTime = 11.92;
+    await stepFrames(2);
+    expect(el.currentTime).toBe(11.92);
+    expect(el.playing).toBe(false);
+
+    sample.followsAudio = true;
+    await stepFrames(2);
+    expect(el.playing).toBe(true);
+  });
+
+  it("regression: a seek while the playhead is dragged leaves no lyrics animation running", async () => {
+    const sample = { currentTime: 4, paused: true, followsAudio: false, playbackRate: 1, scrubbing: false };
+    const playback: RendererPlayback = { sample: () => sample, seekTo: () => {}, play: () => {} };
+    onTestFinished(holdFrames("seeking"));
+    const runningAnimations = (el: BraccatoLyricsElement) =>
+      [...el.getAnimations({ subtree: true }), ...(el.shadowRoot?.getAnimations() ?? [])].filter(
+        (animation) => animation.playState === "running",
+      ).length;
+
+    const screen = await render(<BraccatoRenderer ttmlString={buildSyncedTtml()} playback={playback} />);
+    const el = getBraccatoElement(screen.container);
+    await waitForLyrics(el);
+    await expect.poll(() => el.currentTime).toBe(4);
+
+    sample.currentTime = 5;
+    await stepFrames(2);
+    sample.currentTime = 6.5;
+    await stepFrames(2);
+    expect(runningAnimations(el)).toBeGreaterThan(0);
+
+    sample.scrubbing = true;
+    sample.currentTime = 25;
+    await stepFrames(2);
+    expect(runningAnimations(el)).toBe(0);
   });
 
   it("hands the playback rate over so word sweeps follow the song rather than the wall clock", async () => {
@@ -322,7 +394,7 @@ describe("BraccatoRenderer", () => {
     await expect.element(screen.getByRole("button", { name: "Resume autoscroll" })).not.toBeInTheDocument();
   });
 
-  it("regression: an edit rebuilds the view following the song again, so the way back goes away", async () => {
+  it("regression: an edit swaps into the lines on screen, leaving a reader who scrolled away where they are", async () => {
     const audio = new Audio();
     audio.currentTime = 14;
     useAudioStore.setState({ audioElement: audio, isPlaying: true });
@@ -333,11 +405,14 @@ describe("BraccatoRenderer", () => {
     for (let i = 0; i < 5; i++) el.dispatchEvent(new Event("scroll"));
     await expect.element(screen.getByRole("button", { name: "Resume autoscroll" })).toBeInTheDocument();
     const rendererBefore = el.renderer;
+    const firstLineBefore = el.renderer?.lines[0]?.lyricElement;
 
     await screen.rerender(<BraccatoRenderer ttmlString={buildSyncedTtml(120)} />);
 
-    expect(el.renderer).not.toBe(rendererBefore);
-    await expect.element(screen.getByRole("button", { name: "Resume autoscroll" })).not.toBeInTheDocument();
+    await expect.poll(() => el.lyrics?.at(-1)?.isInstrumental).toBe(true);
+    expect(el.renderer).toBe(rendererBefore);
+    expect(el.renderer?.lines[0]?.lyricElement).toBe(firstLineBefore);
+    await expect.element(screen.getByRole("button", { name: "Resume autoscroll" })).toBeInTheDocument();
   });
 });
 

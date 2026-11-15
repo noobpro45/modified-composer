@@ -2,11 +2,14 @@
 // users run locally to extract YouTube audio through their residential IP.
 // See `experiments/composer-bridge/README.md` for what the binary is.
 
+import { settingEntry } from "@/stores/settings-catalog";
 import { composeAbortSignals } from "@/utils/abort-signals";
+import { blobToDataUrl } from "@/utils/blob-data-url";
 import { isDesktop } from "@/utils/platform";
+import { type BodyProgress, readBodyWithProgress } from "@/utils/read-response-body";
 import { stripTrailingSlashes } from "@/utils/url";
 
-const DEFAULT_BRIDGE_URL = "http://localhost:7777";
+const BRIDGE_REPO_URL = "https://github.com/better-lyrics/composer-bridge";
 const HEALTH_QUERY_KEY = "composer-bridge-health";
 const HEALTH_TIMEOUT_MS = 1500;
 const AUDIO_TIMEOUT_MS = 5 * 60 * 1000;
@@ -87,7 +90,12 @@ async function checkBridgeHealth(baseUrl: string, signal?: AbortSignal): Promise
   }
 }
 
-async function getAudioFromBridge(baseUrl: string, videoId: string, signal?: AbortSignal): Promise<BridgeAudio> {
+async function getAudioFromBridge(
+  baseUrl: string,
+  videoId: string,
+  signal?: AbortSignal,
+  onProgress: (progress: BodyProgress) => void = () => {},
+): Promise<BridgeAudio> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), AUDIO_TIMEOUT_MS);
   const composed = composeAbortSignals(signal, controller.signal);
@@ -111,7 +119,7 @@ async function getAudioFromBridge(baseUrl: string, videoId: string, signal?: Abo
       }
     }
     if (!res.ok) throw new BridgeError("http", `bridge audio: ${res.status}`, res.status);
-    const buffer = await res.arrayBuffer();
+    const buffer = await readBodyWithProgress(res, onProgress);
     if (buffer.byteLength === 0) throw new BridgeError("empty", "bridge returned empty audio");
     return {
       buffer,
@@ -158,13 +166,7 @@ async function getThumbFromBridge(baseUrl: string, videoId: string, signal?: Abo
       }
     }
     if (!res.ok) return undefined;
-    const blob = await res.blob();
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-      reader.onerror = () => reject(reader.error ?? new Error("FileReader failed"));
-      reader.readAsDataURL(blob);
-    });
+    return await blobToDataUrl(await res.blob());
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") return undefined;
     return undefined;
@@ -195,7 +197,7 @@ function formatBridgeErrorForToast(err: unknown): string {
   if (err instanceof BridgeError) {
     switch (err.code) {
       case "unreachable":
-        return "Composer Bridge is not running. Start the bridge or disable the YouTube Bridge setting.";
+        return `Composer Bridge is not running. Start the bridge or turn off ${settingEntry("youtubeBridge").label}.`;
       case "timeout":
         return "Composer Bridge timed out. Check that the bridge process is healthy.";
       case "empty":
@@ -207,18 +209,18 @@ function formatBridgeErrorForToast(err: unknown): string {
   return "Composer Bridge failed for an unknown reason.";
 }
 
+export type { BridgeHealth };
 export {
-  DEFAULT_BRIDGE_URL,
-  HEALTH_QUERY_KEY,
+  BRIDGE_REPO_URL,
   BridgeError,
+  buildBridgeAudioFile,
   checkBridgeHealth,
-  getAudioFromBridge,
-  getThumbFromBridge,
-  formatBridgeErrorForToast,
-  isBridgeUnreachable,
-  normalizeBaseUrl,
   decodeHeader,
   extensionForBridgeMime,
-  buildBridgeAudioFile,
+  formatBridgeErrorForToast,
+  getAudioFromBridge,
+  getThumbFromBridge,
+  HEALTH_QUERY_KEY,
+  isBridgeUnreachable,
+  normalizeBaseUrl,
 };
-export type { BridgeHealth };

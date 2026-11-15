@@ -1,8 +1,8 @@
+import { IconCommand } from "@tabler/icons-react";
 import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
 import { KEYCAP_CLASS } from "@/ui/inline-key-badge";
 import { formatKey } from "@/utils/format-key";
 import { isMac } from "@/utils/platform";
-import { IconCommand } from "@tabler/icons-react";
 
 // -- Types --------------------------------------------------------------------
 
@@ -23,7 +23,7 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
   {
     title: "General",
     shortcuts: [
-      { keys: ["Shift", "?"], description: "Show keyboard shortcuts", shortcutId: "global.help" },
+      { keys: ["Shift", "?"], description: "Show help", shortcutId: "global.help" },
       { keys: ["Enter"], description: "Play / Pause audio", shortcutId: "global.playPause" },
       {
         keys: ["Mod", "Enter"],
@@ -41,6 +41,18 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
         keys: ["Mod", "Shift", ">"],
         description: "Seek forward, even while typing",
         shortcutId: "global.seekForwardWhileTyping",
+      },
+      { keys: ["Alt", "Shift", "<"], description: "Fine seek back", shortcutId: "global.seekBackwardFine" },
+      { keys: ["Alt", "Shift", ">"], description: "Fine seek forward", shortcutId: "global.seekForwardFine" },
+      {
+        keys: ["Mod", "Alt", "Shift", "<"],
+        description: "Fine seek back, even while typing",
+        shortcutId: "global.seekBackwardFineWhileTyping",
+      },
+      {
+        keys: ["Mod", "Alt", "Shift", ">"],
+        description: "Fine seek forward, even while typing",
+        shortcutId: "global.seekForwardFineWhileTyping",
       },
       {
         keys: ["Shift", "R"],
@@ -69,12 +81,13 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
   {
     title: "Navigation",
     shortcuts: [
-      { keys: ["Mod", "1"], description: "Go to Import tab" },
-      { keys: ["Mod", "2"], description: "Go to Edit tab" },
-      { keys: ["Mod", "3"], description: "Go to Sync tab" },
-      { keys: ["Mod", "4"], description: "Go to Timeline tab" },
-      { keys: ["Mod", "5"], description: "Go to Preview tab" },
-      { keys: ["Mod", "6"], description: "Go to Export tab" },
+      { keys: ["Mod", "1"], description: "Go to Import tab", shortcutId: "global.goToImport" },
+      { keys: ["Mod", "2"], description: "Go to Edit tab", shortcutId: "global.goToEdit" },
+      { keys: ["Mod", "3"], description: "Go to Languages tab", shortcutId: "global.goToLanguages" },
+      { keys: ["Mod", "4"], description: "Go to Sync tab", shortcutId: "global.goToSync" },
+      { keys: ["Mod", "5"], description: "Go to Timeline tab", shortcutId: "global.goToTimeline" },
+      { keys: ["Mod", "6"], description: "Go to Preview tab", shortcutId: "global.goToPreview" },
+      { keys: ["Mod", "7"], description: "Go to Export tab", shortcutId: "global.goToExport" },
     ],
   },
   {
@@ -95,14 +108,19 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
       { keys: ["P"], description: "Toggle preview sidebar", shortcutId: "timeline.togglePreview" },
       { keys: ["R"], description: "Toggle rolling edit", shortcutId: "timeline.toggleRollingEdit" },
       { keys: ["T"], description: "Toggle snap (magnet)", shortcutId: "timeline.toggleSnap" },
+      { keys: ["B"], description: "Show or hide the beat grid", shortcutId: "timeline.toggleBeatGrid" },
+      { keys: ["V"], description: "Show spectrum", shortcutId: "timeline.toggleSpectrum" },
+      { keys: ["Shift", "A"], description: "Align the selected line", shortcutId: "timeline.autoAlign" },
+      { keys: ["K"], description: "Pitch line", shortcutId: "timeline.togglePitchLine" },
       { keys: ["N"], description: "Insert line below selected word", shortcutId: "timeline.insertLineBelow" },
       { keys: ["Shift", "N"], description: "Insert line above selected word", shortcutId: "timeline.insertLineAbove" },
-      { keys: ["Shift", "A"], description: "Auto-align the selected line", shortcutId: "timeline.autoAlign" },
-      { keys: ["X"], description: "Expand all lines", shortcutId: "timeline.expandAll" },
+      { keys: ["X"], description: "Split all lines into words", shortcutId: "timeline.expandAll" },
       { keys: ["Space"], description: "Jump viewport to playhead", shortcutId: "timeline.jumpToPlayhead" },
       { keys: ["Escape"], description: "Deselect / cancel paste" },
       { keys: ["["], description: "Set word begin to playhead", shortcutId: "timeline.setWordBegin" },
       { keys: ["]"], description: "Set word end to playhead", shortcutId: "timeline.setWordEnd" },
+      { keys: ["\\"], description: "Step timing: end the word and start the next", shortcutId: "timeline.stepWord" },
+      { keys: ["G"], description: "Turn step timing on or off", shortcutId: "timeline.stepTimingOff" },
       { keys: ["Mod", "Z"], description: "Undo", shortcutId: "global.undo" },
       { keys: ["Mod", "Shift", "Z"], description: "Redo", shortcutId: "global.redo" },
       { keys: ["Mod", "Shift", "V"], description: "Import lyrics", shortcutId: "timeline.importLyrics" },
@@ -129,7 +147,7 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
       { keys: ["E"], description: "Edit selected word text", shortcutId: "timeline.editWord" },
       { keys: ["F2"], description: "Edit selected word text" },
       { keys: ["S"], description: "Split selected word into syllables", shortcutId: "timeline.splitSyllable" },
-      { keys: ["Shift", "S"], description: "Split word into words", shortcutId: "timeline.splitWord" },
+      { keys: ["Shift", "S"], description: "Split into separate words", shortcutId: "timeline.splitWord" },
       { keys: ["M"], description: "Merge adjacent selected words", shortcutId: "timeline.mergeWords" },
       { keys: ["Y"], description: "Merge syllables into one word", shortcutId: "timeline.mergeSyllablesIntoWord" },
       { keys: ["W"], description: "Split line into words", shortcutId: "timeline.splitIntoWords" },
@@ -145,7 +163,7 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
       { keys: ["Mod", "G"], description: "Group selected lines", shortcutId: "timeline.createGroup" },
       { keys: ["Mod", "D"], description: "Duplicate as linked instance", shortcutId: "timeline.duplicateAsLinked" },
       { keys: ["C"], description: "Collapse / expand current instance", shortcutId: "timeline.toggleCollapseInstance" },
-      { keys: ["Shift", "C"], description: "Collapse / expand all", shortcutId: "timeline.toggleAllCollapsed" },
+      { keys: ["Shift", "C"], description: "Collapse / expand all groups", shortcutId: "timeline.toggleAllCollapsed" },
       { keys: ["Mod", "J"], description: "Jump to previous instance", shortcutId: "timeline.jumpPrevInstance" },
       { keys: ["Mod", "K"], description: "Jump to next instance", shortcutId: "timeline.jumpNextInstance" },
       { keys: ["H"], description: "Ping sibling instances", shortcutId: "timeline.pingSiblings" },
@@ -162,9 +180,11 @@ const SHORTCUT_SECTIONS: ShortcutSectionProps[] = [
       { keys: ["Shift", "Enter"], description: "Open the selected group", shortcutId: "timeline.openGroup" },
       { keys: ["Escape"], description: "Close the open group", shortcutId: "timeline.closeGroup" },
       { keys: ["Alt", "Enter"], description: "Play the selection", shortcutId: "timeline.playSelection" },
+      { keys: ["Shift", "D"], description: "Play from the cue", shortcutId: "timeline.playFromCue" },
+      { keys: ["D"], description: "Toggle return to cue", shortcutId: "timeline.toggleReturnToCue" },
       { keys: ["Shift", "L"], description: "Loop the playback range", shortcutId: "global.toggleLoop" },
-      { keys: ["ArrowLeft"], description: "Nudge selected words / instance earlier" },
-      { keys: ["ArrowRight"], description: "Nudge selected words / instance later" },
+      { keys: ["ArrowLeft"], description: "Nudge selected words / instance earlier", shortcutId: "timeline.nudgeLeft" },
+      { keys: ["ArrowRight"], description: "Nudge selected words / instance later", shortcutId: "timeline.nudgeRight" },
       { keys: ["Mod", "Shift", "D"], description: "Detach current instance", shortcutId: "timeline.detachInstance" },
       { keys: ["Mod", "Shift", "G"], description: "Delete current group", shortcutId: "timeline.deleteGroup" },
     ],
@@ -214,4 +234,4 @@ const ShortcutSection: React.FC<ShortcutSectionProps> = ({ title, shortcuts }) =
 
 // -- Exports ------------------------------------------------------------------
 
-export { KeyBadge, ShortcutSection, SHORTCUT_SECTIONS };
+export { KeyBadge, SHORTCUT_SECTIONS, ShortcutSection };

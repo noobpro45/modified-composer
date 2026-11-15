@@ -12,7 +12,7 @@ interface HeaderActionProps {
   shortcut: string;
   showHint: boolean;
   description?: string;
-  title?: string;
+  guideSpot?: string;
   children: React.ReactNode;
 }
 
@@ -24,19 +24,17 @@ const HeaderAction: React.FC<HeaderActionProps> = ({
   shortcut,
   showHint,
   description,
-  title,
+  guideSpot,
   children,
 }) => (
-  <Tooltip
-    content={<ShortcutTip label={label} shortcut={shortcut} description={description ?? title} />}
-    placement="bottom"
-  >
+  <Tooltip content={<ShortcutTip label={label} shortcut={shortcut} description={description} />} placement="bottom">
     <Button
       variant="ghost"
       size="lg"
       hasIcon
       onClick={onClick}
       aria-label={label}
+      data-guide-spot={guideSpot}
       className="shrink-0 min-w-9 gap-1 px-2 [&>svg]:size-4 [&>[data-inline-key-badge]]:ml-0"
     >
       {children}

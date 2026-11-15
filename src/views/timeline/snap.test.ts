@@ -2,8 +2,26 @@
  * @vitest-environment node
  */
 import type { LyricLine } from "@/domain/line/model";
+import { detectedGrid } from "@/domain/tempo/beat-grid";
+import { gridPoints } from "@/domain/tempo/grid-points";
 import { describe, expect, it } from "vitest";
-import { type SnapAnchor, activeSnapAnchors, collectSnapAnchors, findSnapShift, selfKey } from "./snap";
+import {
+  type SnapAnchor,
+  activeSnapAnchors,
+  beatAnchors,
+  collectSnapAnchors,
+  findSnapShift,
+  selfKey,
+} from "@/views/timeline/snap";
+
+const ALL_SOURCES = {
+  timelineSnap: true,
+  vocalOnsetSnap: true,
+  beatSnap: true,
+  snapWordsAndLines: true,
+  snapMarkers: true,
+  snapToPlayhead: true,
+};
 
 // -- Fixtures ------------------------------------------------------------------
 
@@ -117,10 +135,10 @@ describe("collectSnapAnchors", () => {
     expect(onsets.every((a) => a.label === "vocal onset")).toBe(true);
   });
 
-  it("can keep vocal onset snap points without timeline anchors", () => {
-    const anchors = activeSnapAnchors(collectSnapAnchors([wordTimedLine()], new Set(), 0.42, [0.12, 0.72]), {
-      timelineSnap: false,
-      vocalOnsetSnap: true,
+  it("can keep vocal onset snap points without word anchors", () => {
+    const anchors = activeSnapAnchors(collectSnapAnchors([wordTimedLine()], new Set(), null, [0.12, 0.72]), {
+      ...ALL_SOURCES,
+      snapWordsAndLines: false,
     });
     expect(anchors.map((a) => a.kind)).toEqual(["vocal-onset", "vocal-onset"]);
     expect(anchors.map((a) => a.t)).toEqual([0.12, 0.72]);
@@ -158,10 +176,10 @@ describe("collectSnapAnchors", () => {
     expect(customs.map((a) => a.t)).toEqual([0.9]);
   });
 
-  it("can keep custom snap points without timeline anchors", () => {
-    const anchors = activeSnapAnchors(collectSnapAnchors([wordTimedLine()], new Set(), 0.42, [], [0.3, 0.7]), {
-      timelineSnap: false,
-      vocalOnsetSnap: true,
+  it("can keep custom snap points without word anchors", () => {
+    const anchors = activeSnapAnchors(collectSnapAnchors([wordTimedLine()], new Set(), null, [], [0.3, 0.7]), {
+      ...ALL_SOURCES,
+      snapWordsAndLines: false,
     });
     expect(anchors.map((a) => a.kind)).toEqual(["custom", "custom"]);
     expect(anchors.map((a) => a.t)).toEqual([0.3, 0.7]);
@@ -198,19 +216,67 @@ describe("collectSnapAnchors", () => {
 // -- activeSnapAnchors ---------------------------------------------------------
 
 describe("activeSnapAnchors", () => {
-  const all = collectSnapAnchors([wordTimedLine()], new Set(), 0.42, [0.12], [0.9]);
-  const kinds = (sources: { timelineSnap: boolean; vocalOnsetSnap: boolean }) =>
-    new Set(activeSnapAnchors(all, sources).map((a) => a.kind));
+  const all = collectSnapAnchors([wordTimedLine(), lineSyncedLine()], new Set(), 0.42, [0.12], [0.9]).concat(
+    beatAnchors([{ t: 1.5, kind: "bar", bar: 1, division: 1 }]),
+  );
+  const kinds = (overrides: Partial<typeof ALL_SOURCES>) =>
+    new Set(activeSnapAnchors(all, { ...ALL_SOURCES, ...overrides }).map((a) => a.kind));
 
-  it("keeps only the sources whose setting is on, and custom markers always", () => {
-    expect(kinds({ timelineSnap: false, vocalOnsetSnap: false })).toEqual(new Set(["custom"]));
-    expect(kinds({ timelineSnap: false, vocalOnsetSnap: true })).toEqual(new Set(["custom", "vocal-onset"]));
-    expect(kinds({ timelineSnap: true, vocalOnsetSnap: false })).toEqual(
-      new Set(["custom", "word-begin", "word-end", "playhead"]),
+  it("keeps every kind when every source is on", () => {
+    expect(kinds({})).toEqual(
+      new Set(["word-begin", "word-end", "line-begin", "line-end", "playhead", "vocal-onset", "custom", "beat"]),
     );
-    expect(kinds({ timelineSnap: true, vocalOnsetSnap: true })).toEqual(
-      new Set(["custom", "vocal-onset", "word-begin", "word-end", "playhead"]),
+  });
+
+  // Intentional change: the Snap latch is the master switch, so custom markers no longer snap while it is off.
+  it("returns no anchor of any kind when the master switch is off", () => {
+    expect(activeSnapAnchors(all, { ...ALL_SOURCES, timelineSnap: false })).toEqual([]);
+  });
+
+  it("removes exactly the kinds of each source switch", () => {
+    const every = kinds({});
+    const without = (...removed: string[]) => new Set([...every].filter((kind) => !removed.includes(kind)));
+    expect(kinds({ snapMarkers: false })).toEqual(without("custom"));
+    expect(kinds({ vocalOnsetSnap: false })).toEqual(without("vocal-onset"));
+    expect(kinds({ beatSnap: false })).toEqual(without("beat"));
+    expect(kinds({ snapWordsAndLines: false })).toEqual(without("word-begin", "word-end", "line-begin", "line-end"));
+    expect(kinds({ snapToPlayhead: false })).toEqual(without("playhead"));
+  });
+});
+
+// -- beatAnchors ---------------------------------------------------------------
+
+describe("beatAnchors", () => {
+  const beats = Array.from({ length: 17 }, (_, i) => i * 0.5);
+  const grid120 = detectedGrid({ beats, downbeats: beats.filter((_, i) => i % 4 === 0) });
+
+  it("labels each grid point as its line", () => {
+    const anchors = beatAnchors(gridPoints(grid120, 0, 1, 200, "2"));
+    expect(anchors.map((a) => [a.t, a.kind, a.label])).toEqual([
+      [0, "beat", "Bar 1"],
+      [0.25, "beat", "1/2"],
+      [0.5, "beat", "Beat"],
+      [0.75, "beat", "1/2"],
+      [1, "beat", "Beat"],
+      [1.25, "beat", "1/2"],
+    ]);
+  });
+
+  it("makes no anchor for a thinned subdivision", () => {
+    const anchors = beatAnchors(gridPoints(grid120, 0, 8, 40, "2"));
+    expect(anchors.length).toBeGreaterThan(0);
+    expect(anchors.some((a) => a.label === "1/2")).toBe(false);
+  });
+
+  it("lets the closest anchor win between a beat and a word edge", () => {
+    const word: SnapAnchor = { t: 1.05, kind: "word-begin", label: "word" };
+    const nearBeat: SnapAnchor = { t: 0.97, kind: "beat", label: "Beat" };
+    const farBeat: SnapAnchor = { t: 0.94, kind: "beat", label: "Beat" };
+    const zoom = 100;
+    expect(findSnapShift({ edges: [1.0], anchors: [word, nearBeat], zoom, thresholdPx: () => 8 }).anchor).toBe(
+      nearBeat,
     );
+    expect(findSnapShift({ edges: [1.0], anchors: [word, farBeat], zoom, thresholdPx: () => 8 }).anchor).toBe(word);
   });
 });
 
@@ -218,19 +284,19 @@ describe("activeSnapAnchors", () => {
 
 describe("findSnapShift", () => {
   it("returns no shift when anchors is empty", () => {
-    const result = findSnapShift({ edges: [1.0], anchors: [], zoom: 100, threshold: 8 });
+    const result = findSnapShift({ edges: [1.0], anchors: [], zoom: 100, thresholdPx: () => 8 });
     expect(result).toEqual({ shift: 0, anchor: null });
   });
 
   it("returns no shift when the nearest anchor is beyond threshold", () => {
     const anchors: SnapAnchor[] = [{ t: 0.0, kind: "word-begin", label: "w" }];
-    const result = findSnapShift({ edges: [1.0], anchors, zoom: 100, threshold: 8 });
+    const result = findSnapShift({ edges: [1.0], anchors, zoom: 100, thresholdPx: () => 8 });
     expect(result).toEqual({ shift: 0, anchor: null });
   });
 
   it("snaps to the nearest in-range anchor and returns shift + anchor reference", () => {
     const anchor: SnapAnchor = { t: 1.05, kind: "word-begin", label: "love" };
-    const result = findSnapShift({ edges: [1.0], anchors: [anchor], zoom: 100, threshold: 8 });
+    const result = findSnapShift({ edges: [1.0], anchors: [anchor], zoom: 100, thresholdPx: () => 8 });
     expect(result.anchor).toBe(anchor);
     expect(result.shift).toBeCloseTo(0.05, 6);
   });
@@ -238,7 +304,7 @@ describe("findSnapShift", () => {
   it("picks the nearest among multiple in-range anchors", () => {
     const near: SnapAnchor = { t: 1.02, kind: "word-end", label: "near" };
     const far: SnapAnchor = { t: 1.06, kind: "word-begin", label: "far" };
-    const result = findSnapShift({ edges: [1.0], anchors: [far, near], zoom: 100, threshold: 8 });
+    const result = findSnapShift({ edges: [1.0], anchors: [far, near], zoom: 100, thresholdPx: () => 8 });
     expect(result.anchor).toBe(near);
     expect(result.shift).toBeCloseTo(0.02, 6);
   });
@@ -246,14 +312,14 @@ describe("findSnapShift", () => {
   it("prefers playhead on a tie at equal pixel distance", () => {
     const word: SnapAnchor = { t: 1.05, kind: "word-begin", label: "word" };
     const playhead: SnapAnchor = { t: 1.05, kind: "playhead", label: "playhead" };
-    const result = findSnapShift({ edges: [1.0], anchors: [word, playhead], zoom: 100, threshold: 8 });
+    const result = findSnapShift({ edges: [1.0], anchors: [word, playhead], zoom: 100, thresholdPx: () => 8 });
     expect(result.anchor).toBe(playhead);
   });
 
   it("considers all candidate edges and picks the smallest pixel shift across them", () => {
     const a1: SnapAnchor = { t: 0.95, kind: "word-end", label: "left" };
     const a2: SnapAnchor = { t: 2.01, kind: "word-begin", label: "right" };
-    const result = findSnapShift({ edges: [1.0, 2.0], anchors: [a1, a2], zoom: 100, threshold: 8 });
+    const result = findSnapShift({ edges: [1.0, 2.0], anchors: [a1, a2], zoom: 100, thresholdPx: () => 8 });
     expect(result.anchor).toBe(a2);
     expect(result.shift).toBeCloseTo(0.01, 6);
   });
@@ -265,7 +331,7 @@ describe("findSnapShift", () => {
       edges: [1.0],
       anchors: [bad, good],
       zoom: 100,
-      threshold: 8,
+      thresholdPx: () => 8,
       overlapCheck: (shift) => Math.abs(shift - 0.06) < 1e-6,
     });
     expect(result.anchor).toBe(good);
@@ -279,7 +345,7 @@ describe("findSnapShift", () => {
       edges: [1.0],
       anchors: [a1, a2],
       zoom: 100,
-      threshold: 8,
+      thresholdPx: () => 8,
       overlapCheck: () => false,
     });
     expect(result).toEqual({ shift: 0, anchor: null });
@@ -292,10 +358,18 @@ describe("findSnapShift", () => {
       edges: [1.0],
       anchors: [bad, good],
       zoom: 100,
-      threshold: 8,
+      thresholdPx: () => 8,
       invertCheck: (shift) => Math.abs(shift - 0.06) < 1e-6,
     });
     expect(result.anchor).toBe(good);
     expect(result.shift).toBeCloseTo(0.06, 6);
+  });
+
+  it("reaches each anchor only within its own source's distance", () => {
+    const word: SnapAnchor = { t: 1.06, kind: "word-begin", label: "word" };
+    const beat: SnapAnchor = { t: 1.09, kind: "beat", label: "Beat" };
+    const thresholdPx = (anchor: SnapAnchor) => (anchor.kind === "beat" ? 12 : 4);
+    const result = findSnapShift({ edges: [1.0], anchors: [word, beat], zoom: 100, thresholdPx });
+    expect(result.anchor).toBe(beat);
   });
 });

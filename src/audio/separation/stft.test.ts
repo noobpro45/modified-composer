@@ -18,6 +18,26 @@ function diffRms(a: Float32Array, b: Float32Array): number {
 }
 
 describe("stft", () => {
+  it("round-trips at the Mel-Band RoFormer's unnormalised 2048/441 framing", () => {
+    const framing = { fftSize: 2048, hop: 441 };
+    const length = 352800;
+    expect(stftFrameCount(length, true, framing)).toBe(801);
+    const signal = Float32Array.from({ length }, (_, i) => Math.sin((2 * Math.PI * 523 * i) / 44100) * 0.5);
+    const real = new Float32Array(801 * 1025);
+    const imag = new Float32Array(801 * 1025);
+    forEachStftFrame(
+      signal,
+      (f, frameReal, frameImag) => {
+        real.set(frameReal.subarray(0, 1025), f * 1025);
+        imag.set(frameImag.subarray(0, 1025), f * 1025);
+      },
+      true,
+      framing,
+    );
+    const back = istft({ real, imag, numFrames: 801, numBins: 1025 }, length, {}, framing);
+    expect(diffRms(signal, back) / rms(signal)).toBeLessThan(1e-5);
+  });
+
   it("round-trips a sine wave with low RMS error", () => {
     const sr = 44100;
     const length = 32768;
@@ -93,5 +113,61 @@ describe("forEachStftFrame", () => {
         expect(stftFrameCount(length)).toBe(stft(seededNoise(length, length)).numFrames);
       }
     });
+  });
+});
+
+describe("configurable frames", () => {
+  it("counts frames for a custom size and hop", () => {
+    expect(stftFrameCount(44100, true, { fftSize: 2048, hop: 512 })).toBe(1 + Math.floor(44100 / 512));
+  });
+
+  it("visits only the requested frame range", () => {
+    const visited: number[] = [];
+    forEachStftFrame(new Float32Array(44100), (frame) => visited.push(frame), true, {
+      fftSize: 1024,
+      hop: 256,
+      firstFrame: 10,
+      frameCount: 3,
+    });
+    expect(visited).toEqual([10, 11, 12]);
+  });
+
+  it("finds a 1 kHz sine in the right bin at 2048", () => {
+    const sampleRate = 44100;
+    const signal = Float32Array.from({ length: 8192 }, (_, i) => Math.sin((2 * Math.PI * 1000 * i) / sampleRate));
+    let peakBin = -1;
+    forEachStftFrame(
+      signal,
+      (frame, real, imag) => {
+        if (frame !== 4) return;
+        let best = 0;
+        for (let bin = 0; bin <= 1024; bin++) {
+          const magnitude = Math.hypot(real[bin], imag[bin]);
+          if (magnitude > best) {
+            best = magnitude;
+            peakBin = bin;
+          }
+        }
+      },
+      true,
+      { fftSize: 2048, hop: 512 },
+    );
+    expect(peakBin).toBe(Math.round((1000 * 2048) / sampleRate));
+  });
+
+  it("gives a frame range the same coefficients as a full pass, edges included", () => {
+    const signal = Float32Array.from({ length: 6000 }, (_, i) => Math.sin(i * 0.37) + 0.3 * Math.cos(i * 1.91));
+    const framing = { fftSize: 1024, hop: 256 };
+    const full = new Map<number, Float32Array>();
+    forEachStftFrame(signal, (frame, real) => full.set(frame, real.slice()), true, framing);
+    const last = full.size - 1;
+    for (const firstFrame of [0, 5, last - 1]) {
+      forEachStftFrame(
+        signal,
+        (frame, real) => expect(Array.from(real)).toEqual(Array.from(full.get(frame) ?? [])),
+        true,
+        { ...framing, firstFrame, frameCount: 2 },
+      );
+    }
   });
 });

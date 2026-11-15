@@ -1,6 +1,7 @@
 import type { LyricsSearchResult } from "@/domain/lyrics-search/result";
 import { useLyricsSearch } from "@/hooks/useLyricsSearch";
-import { useImportModalStore } from "@/stores/import-modal-store";
+import { openProjectIdSnapshot } from "@/lib/open-project-session";
+import type { SearchInputs } from "@/stores/import-modal-store";
 import { Button } from "@/ui/button";
 import { normalizeIsrc } from "@/utils/isrc";
 import type { LyricsSearchQuery } from "@/utils/lyrics-search/types";
@@ -8,6 +9,7 @@ import { pluralize } from "@/utils/pluralize";
 import { formatDuration, parseDurationInput } from "@/views/lyrics-import-modal/duration-input-utils";
 import { IsrcLookupButton } from "@/views/lyrics-import-modal/isrc-lookup-button";
 import { SearchField } from "@/views/lyrics-import-modal/search-field";
+import { EMPTY_SEARCH_INPUTS, initialSearchInputs, saveSearchDraft } from "@/views/lyrics-import-modal/search-inputs";
 import { SearchResults } from "@/views/lyrics-import-modal/search-results";
 import {
   IconAlbum,
@@ -31,30 +33,10 @@ interface SearchSectionProps {
   onSwitchToUpload: () => void;
 }
 
-interface InputState {
-  track: string;
-  artist: string;
-  album: string;
-  duration: string;
-  videoId: string;
-  isrc: string;
-}
-
 // -- Helpers ------------------------------------------------------------------
 
-function buildInitialInputState(prefill: LyricsSearchQuery | null): InputState {
-  return {
-    track: prefill?.track ?? "",
-    artist: prefill?.artist ?? "",
-    album: prefill?.album ?? "",
-    duration: typeof prefill?.durationSec === "number" ? formatDuration(prefill.durationSec) : "",
-    videoId: prefill?.videoId ?? "",
-    isrc: prefill?.isrc ?? "",
-  };
-}
-
-function buildQuery(inputs: InputState): LyricsSearchQuery {
-  const isrcTrimmed = inputs.isrc.trim();
+function buildQuery(inputs: SearchInputs): LyricsSearchQuery {
+  const isrcTrimmed = inputs.isrc?.trim();
   const normalized = isrcTrimmed ? normalizeIsrc(isrcTrimmed) : undefined;
   return {
     track: inputs.track.trim() || undefined,
@@ -75,7 +57,8 @@ const SearchSection: React.FC<SearchSectionProps> = ({
   onSwitchToPaste,
   onSwitchToUpload,
 }) => {
-  const [inputs, setInputs] = useState<InputState>(() => buildInitialInputState(initialPrefill));
+  const [projectId] = useState(openProjectIdSnapshot);
+  const [inputs, setInputs] = useState<SearchInputs>(() => initialSearchInputs(initialPrefill));
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [hoveredIndex, setHoveredIndex] = useState(-1);
   const [selectingId, setSelectingId] = useState<string | null>(null);
@@ -88,28 +71,36 @@ const SearchSection: React.FC<SearchSectionProps> = ({
     expectedDurationSec: effectiveExpectedDuration,
   });
 
+  const updateInputs = useCallback(
+    (next: SearchInputs) => {
+      setInputs(next);
+      saveSearchDraft(projectId, next);
+    },
+    [projectId],
+  );
+
   const handleDurationBlur = useCallback(() => {
     const parsed = parseDurationInput(inputs.duration);
     if (parsed === undefined) return;
     const formatted = formatDuration(parsed);
-    if (formatted !== inputs.duration) {
-      setInputs((prev) => ({ ...prev, duration: formatted }));
-    }
-  }, [inputs.duration]);
+    if (formatted !== inputs.duration) updateInputs({ ...inputs, duration: formatted });
+  }, [inputs, updateInputs]);
 
-  const handleInputChange = useCallback(<K extends keyof InputState>(key: K) => {
-    return (value: string) => {
-      setInputs((prev) => ({ ...prev, [key]: value }));
-      setFocusedIndex(-1);
-    };
-  }, []);
+  const handleInputChange = useCallback(
+    (key: keyof SearchInputs) => {
+      return (value: string) => {
+        updateInputs({ ...inputs, [key]: value });
+        setFocusedIndex(-1);
+      };
+    },
+    [inputs, updateInputs],
+  );
 
   const handleClearAll = useCallback(() => {
-    setInputs({ track: "", artist: "", album: "", duration: "", videoId: "", isrc: "" });
+    updateInputs(EMPTY_SEARCH_INPUTS);
     setFocusedIndex(-1);
-    useImportModalStore.getState().clearDefaultPrefill();
     trackInputRef.current?.focus();
-  }, []);
+  }, [updateInputs]);
 
   const hasAnyInput = Boolean(
     inputs.track || inputs.artist || inputs.album || inputs.duration || inputs.videoId || inputs.isrc,
@@ -118,7 +109,7 @@ const SearchSection: React.FC<SearchSectionProps> = ({
   const handleSelectResult = useCallback(
     (result: LyricsSearchResult) => {
       setSelectingId(result.id);
-      const isrcTrimmed = inputs.isrc.trim();
+      const isrcTrimmed = inputs.isrc?.trim();
       const normalized = isrcTrimmed ? normalizeIsrc(isrcTrimmed) : undefined;
       onSelect(result, normalized ?? (isrcTrimmed || undefined));
     },
@@ -215,7 +206,7 @@ const SearchSection: React.FC<SearchSectionProps> = ({
             optional
             mono
             icon={<IconBarcode size={14} stroke={1.75} />}
-            value={inputs.isrc}
+            value={inputs.isrc ?? ""}
             placeholder="GBUM71029604"
             onChange={handleInputChange("isrc")}
             onKeyDown={handleKeyDown}

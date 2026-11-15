@@ -2,6 +2,7 @@ import { LYRICS_FORMATS_PROSE } from "@/domain/lyrics-file/supported-formats";
 import { Button } from "@/ui/button";
 import { LyricsCodeEditor } from "@/ui/lyrics-code/lyrics-code-editor";
 import { cn } from "@/utils/cn";
+import { focusOnMount } from "@/utils/focus-on-mount";
 import { pluralize } from "@/utils/pluralize";
 import { PROJECT_FILE_PROSE } from "@/views/lyrics-import-modal/accepted-files";
 import { IconArrowLeft, IconUpload } from "@tabler/icons-react";
@@ -16,10 +17,6 @@ interface PasteSectionProps {
 }
 
 // -- Helpers ------------------------------------------------------------------
-
-const focusOnMount: React.RefCallback<HTMLTextAreaElement> = (el) => {
-  el?.focus();
-};
 
 function countNonEmptyLines(text: string): number {
   if (text === "") return 0;
@@ -60,7 +57,9 @@ const PasteSection: React.FC<PasteSectionProps> = ({ value, onChange, onSwitchTo
         aria-label="Lyrics text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key !== "Escape") e.stopPropagation();
+        }}
         placeholder={PASTE_PLACEHOLDER}
         spellCheck={false}
         frameClassName="h-32"

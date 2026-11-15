@@ -1,0 +1,248 @@
+import { primingDecodeTag, withDecodedSource } from "@/audio/decoded-source-audio";
+import { mixToMono } from "@/audio/onset-detection";
+import { stftFrameCount } from "@/audio/separation/stft";
+import {
+  type CachedSpectrumChunk,
+  type SpectrumChunkWriter,
+  createSpectrumChunkWriter,
+  readSpectrumChunks,
+} from "@/audio/spectrum/spectrum-cache";
+import { type SpectrumAnalysis, startSpectrumAnalysis } from "@/audio/spectrum/spectrum-worker-host";
+import type { ResolvedAnalysis } from "@/domain/spectrum/analysis-window";
+import { CHUNK_FRAMES, chunkCount } from "@/domain/spectrum/chunk-order";
+import { holdFrames, wake } from "@/lib/frame-loop";
+import {
+  beginSpectrumSession,
+  setSpectrumStatus,
+  spectrumSession,
+  storeSpectrumChunk,
+  storeWorkerChunk,
+} from "@/views/timeline/spectrum/spectrum-session";
+
+// -- Types --------------------------------------------------------------------
+
+interface SpectrumTarget extends ResolvedAnalysis {
+  sourceKey: string;
+  audio: Blob | (() => Promise<Blob>);
+  jobKey: string | null;
+}
+
+interface MonoAudio {
+  pcm: Float32Array;
+  sampleRate: number;
+  decodeTag: string;
+}
+
+interface SpectrumRun {
+  setFocusTime(seconds: number): void;
+  requestRawPhase(chunks: readonly number[]): void;
+  setShown(shown: boolean): void;
+  cancel(): void;
+}
+
+// -- Constants ----------------------------------------------------------------
+
+const LOG_PREFIX = "[Spectrum]";
+const MONO_CACHE_SIZE = 1;
+
+// -- State --------------------------------------------------------------------
+
+const monoCache = new Map<string, Promise<MonoAudio>>();
+
+// -- Functions ----------------------------------------------------------------
+
+// Mono audio is kept per source, so hiding and showing the spectrum never decodes again.
+function decodeMono(target: SpectrumTarget): Promise<MonoAudio> {
+  const cached = monoCache.get(target.sourceKey);
+  if (cached) return cached;
+  const decoding = (async () => {
+    const blob = typeof target.audio === "function" ? await target.audio() : target.audio;
+    const [mono, decodeTag] = await Promise.all([
+      withDecodedSource(blob, ({ channels, sampleRate }) => ({ pcm: mixToMono(channels), sampleRate })),
+      primingDecodeTag(blob),
+    ]);
+    return { ...mono, decodeTag };
+  })();
+  decoding.catch(() => {
+    if (monoCache.get(target.sourceKey) === decoding) monoCache.delete(target.sourceKey);
+  });
+  monoCache.set(target.sourceKey, decoding);
+  for (const key of monoCache.keys()) {
+    if (monoCache.size <= MONO_CACHE_SIZE) break;
+    monoCache.delete(key);
+  }
+  return decoding;
+}
+
+async function readCachedChunks(
+  target: SpectrumTarget,
+  audio: MonoAudio,
+  total: number,
+): Promise<Map<number, CachedSpectrumChunk>> {
+  if (!target.jobKey) return new Map();
+  try {
+    return await readSpectrumChunks(
+      target.jobKey,
+      target.source,
+      audio.decodeTag,
+      audio.sampleRate,
+      target.fftSize,
+      total,
+    );
+  } catch (error) {
+    console.warn(LOG_PREFIX, "could not read the cached spectrum; analysing again", error);
+    return new Map();
+  }
+}
+
+function startSpectrumRun(target: SpectrumTarget, focusTime: number): SpectrumRun {
+  let cancelled = false;
+  let analysis: SpectrumAnalysis | null = null;
+  let mono: MonoAudio | null = null;
+  let writer: SpectrumChunkWriter | null = null;
+  let focusChunk = 0;
+  let sentFocusChunk = 0;
+  let cacheRead = false;
+  const rawQueue = new Set<number>();
+  const rawSent = new Set<number>();
+  let shown = true;
+  let working = true;
+  let release: (() => void) | null = null;
+  const syncHold = () => {
+    if (shown && working) release ??= holdFrames("spectrum analysis");
+    else {
+      release?.();
+      release = null;
+    }
+  };
+  syncHold();
+  const finish = () => {
+    working = false;
+    syncHold();
+  };
+  const chunkAt = (seconds: number) =>
+    mono ? Math.max(0, Math.floor((seconds * mono.sampleRate) / target.hop / CHUNK_FRAMES)) : 0;
+  const readyChunkList = () => {
+    const ready = spectrumSession.chunkReady;
+    return ready ? Array.from({ length: ready.length }, (_, chunk) => chunk).filter((chunk) => ready[chunk] === 1) : [];
+  };
+  const sendRawPhase = (worker: SpectrumAnalysis, chunks: readonly number[]) => {
+    worker.requestRawPhase(chunks);
+    for (const chunk of chunks) rawSent.add(chunk);
+  };
+  const fail = (error: unknown) => {
+    if (cancelled) return;
+    console.error(LOG_PREFIX, "analysis failed", error);
+    setSpectrumStatus("error", error instanceof Error ? error.message : String(error));
+    finish();
+  };
+
+  // A worker starts for missing chunks, or later on demand when raw phase is wanted for cached ones.
+  const startAnalysis = (audio: MonoAudio, skipChunks: readonly number[]) => {
+    working = true;
+    syncHold();
+    sentFocusChunk = focusChunk;
+    analysis = startSpectrumAnalysis({
+      pcm: audio.pcm.slice(),
+      sampleRate: audio.sampleRate,
+      fftSize: target.fftSize,
+      hop: target.hop,
+      focusChunk,
+      skipChunks,
+      onChunk: (result) => {
+        storeWorkerChunk(result);
+        if (result.rawPhase) rawSent.delete(result.chunk);
+        if (shown) wake();
+        writer?.add(result.chunk, result.magnitude, result.phaseChange);
+      },
+      onDone: () => {
+        void writer?.flush();
+        finish();
+      },
+      onError: fail,
+    });
+    if (rawQueue.size > 0) sendRawPhase(analysis, [...rawQueue]);
+    rawQueue.clear();
+  };
+
+  // Hidden, no worker runs; ready chunks stay, and a return analyses only the missing ones.
+  const pause = () => {
+    analysis?.dispose();
+    analysis = null;
+    for (const chunk of rawSent) rawQueue.add(chunk);
+    rawSent.clear();
+    void writer?.flush();
+    finish();
+  };
+  const resume = () => {
+    const ready = spectrumSession.chunkReady;
+    if (cancelled || analysis || !cacheRead || !mono || !ready) return;
+    if (spectrumSession.readyChunks === ready.length && rawQueue.size === 0) return;
+    startAnalysis(mono, readyChunkList());
+  };
+
+  setSpectrumStatus("decoding");
+  void (async () => {
+    const audio = await decodeMono(target);
+    if (cancelled) return;
+    mono = audio;
+    focusChunk = chunkAt(focusTime);
+    const frames = stftFrameCount(audio.pcm.length, true, { fftSize: target.fftSize, hop: target.hop });
+    beginSpectrumSession({
+      source: target.source,
+      fftSize: target.fftSize,
+      hop: target.hop,
+      sampleRate: audio.sampleRate,
+      frames,
+    });
+    const total = chunkCount(frames);
+    const cached = await readCachedChunks(target, audio, total);
+    if (cancelled) return;
+    for (const [chunk, stored] of cached) storeSpectrumChunk(chunk, stored.magnitude, stored.phaseChange);
+    writer = target.jobKey
+      ? createSpectrumChunkWriter(target.jobKey, target.source, audio.decodeTag, audio.sampleRate, target.fftSize)
+      : null;
+    cacheRead = true;
+    if ((cached.size === total && rawQueue.size === 0) || !shown) return finish();
+    startAnalysis(
+      audio,
+      Array.from({ length: total }, (_, chunk) => chunk).filter((chunk) => cached.has(chunk)),
+    );
+  })().catch(fail);
+
+  return {
+    setFocusTime: (seconds) => {
+      focusChunk = chunkAt(seconds);
+      if (!analysis || focusChunk === sentFocusChunk) return;
+      sentFocusChunk = focusChunk;
+      analysis.setFocus(focusChunk);
+    },
+    requestRawPhase: (chunks) => {
+      if (cancelled) return;
+      if (analysis) sendRawPhase(analysis, chunks);
+      else {
+        for (const chunk of chunks) rawQueue.add(chunk);
+        if (shown && cacheRead && mono && spectrumSession.chunkReady) startAnalysis(mono, readyChunkList());
+      }
+    },
+    setShown: (next) => {
+      shown = next;
+      if (shown) resume();
+      else pause();
+    },
+    cancel: () => {
+      cancelled = true;
+      analysis?.dispose();
+      finish();
+    },
+  };
+}
+
+function forgetSpectrumAudio(): void {
+  monoCache.clear();
+}
+
+// -- Exports ------------------------------------------------------------------
+
+export { forgetSpectrumAudio, startSpectrumRun };
+export type { SpectrumRun, SpectrumTarget };

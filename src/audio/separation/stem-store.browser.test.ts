@@ -10,9 +10,14 @@ import {
   putStem,
   putStemJobOnsets,
   removeStemJobs,
+  stemCacheHash,
   stemJobKey,
 } from "@/audio/separation/stem-store";
+import { projectStemJobKey } from "@/audio/separation/stem-job-liveness";
+import { saveProjectStem } from "@/lib/project-stems";
 import { type StorageSignal, subscribeStorageSignals } from "@/lib/storage-signals";
+import { createAudioFile, createMp3File } from "@/test/audio-fixtures";
+import { seedStoredProject } from "@/test/projects";
 import { describe, expect, it, vi } from "vitest";
 
 // -- Helpers ------------------------------------------------------------------
@@ -182,6 +187,35 @@ describe("stem job onsets", () => {
   });
 });
 
+describe("project stem job onsets", () => {
+  async function importVocals(id: string): Promise<void> {
+    await saveProjectStem(id, "song", {
+      slot: "vocals",
+      file: createAudioFile("acapella.wav"),
+      origin: "imported",
+      durationSeconds: 60,
+    });
+  }
+
+  it("round-trips the onsets of a project's current stems", async () => {
+    await seedStoredProject("onsets-live");
+    await importVocals("onsets-live");
+    const job = projectStemJobKey("onsets-live", 1);
+    expect(await putStemJobOnsets(job, [0.5, 2])).toBe(true);
+    expect(await getStemJobOnsets(job)).toEqual([0.5, 2]);
+  });
+
+  describe("invariants", () => {
+    it("never writes onsets for an older revision of a project's stems", async () => {
+      await seedStoredProject("onsets-stale");
+      await importVocals("onsets-stale");
+      await importVocals("onsets-stale");
+      expect(await putStemJobOnsets(projectStemJobKey("onsets-stale", 1), [1])).toBe(false);
+      expect(await putStemJobOnsets(projectStemJobKey("onsets-stale", 2), [1])).toBe(true);
+    });
+  });
+});
+
 describe("stem job in use", () => {
   it("is false before anything marks it loading", () => {
     expect(isStemJobLoading("h1|fp32|v2")).toBe(false);
@@ -203,5 +237,20 @@ describe("stem job in use", () => {
       endLoadingStemJob("h1|fp32|v2");
       expect(isStemJobLoading("h1|fp32|v2")).toBe(false);
     });
+  });
+});
+
+describe("stemCacheHash", () => {
+  it("keys a LAME mp3 the browser trims apart from its old double-cropped stems", async () => {
+    const hash = await stemCacheHash(createMp3File(), "abc");
+    expect(hash).toBe("abc-lt1");
+    expect(stemJobKey(hash, "fp16")).not.toBe(stemJobKey("abc", "fp16"));
+  });
+
+  it("keeps the hash of every other source", async () => {
+    expect(await stemCacheHash(createAudioFile(), "abc")).toBe("abc");
+    expect(await stemCacheHash(new File([new Uint8Array([0, 1, 2, 3])], "x.mp3", { type: "audio/mpeg" }), "abc")).toBe(
+      "abc",
+    );
   });
 });

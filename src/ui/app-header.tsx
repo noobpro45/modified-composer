@@ -1,11 +1,15 @@
+import { useUnisonFeatures } from "@/hooks/unison/useUnisonFeatures";
+import { HEADER_ICON_STYLES } from "@/ui/header-icon-styles";
 import { IconButton } from "@/ui/icon-button";
 import { ProjectBreadcrumb } from "@/ui/projects/project-breadcrumb";
 import { TabBar } from "@/ui/tab-bar";
+import { TabStrip } from "@/ui/tab-strip";
 import { ThemeMenu } from "@/ui/theme-menu";
-import { type AppScreen, LIBRARY_PATH } from "@/utils/app-routes";
+import { HeaderAccount } from "@/ui/unison/account-menu";
+import { type AppScreen, LIBRARY_PATH, UNISON_PATH } from "@/utils/app-routes";
 import { isDesktop } from "@/utils/platform";
 import { IconHelp, IconMinus, IconRoute, IconSettings, IconSquare, IconX } from "@tabler/icons-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 // -- Types --------------------------------------------------------------------
 
@@ -18,6 +22,19 @@ interface AppHeaderActions {
 interface AppHeaderProps extends AppHeaderActions {
   screen: AppScreen;
 }
+
+type BrowseScreen = Exclude<AppScreen, "editor">;
+
+// -- Constants ----------------------------------------------------------------
+
+const BROWSE_TABS = [
+  { id: "library", label: "Projects" },
+  { id: "unison", label: "Unison" },
+] as const satisfies readonly { id: BrowseScreen; label: string }[];
+
+const BROWSE_PATHS: Record<BrowseScreen, string> = { library: LIBRARY_PATH, unison: UNISON_PATH };
+
+const BROWSE_NAV_ATTRIBUTES = { "aria-label": "Projects and Unison" };
 
 // -- Sub-components -------------------------------------------------------------
 
@@ -42,12 +59,25 @@ const LibraryBrand: React.FC = () => (
   </Link>
 );
 
-// -- Component ----------------------------------------------------------------
+const BrowseSwitcher: React.FC<{ screen: BrowseScreen }> = ({ screen }) => {
+  const navigate = useNavigate();
+  return (
+    <TabStrip
+      tabs={BROWSE_TABS}
+      active={screen}
+      onSelect={(next) => {
+        if (next !== screen) navigate(BROWSE_PATHS[next]);
+      }}
+      navAttributes={BROWSE_NAV_ATTRIBUTES}
+    />
+  );
+};
 
-const HEADER_ICON_STYLES = "size-9 rounded-[10px] text-(--muted) hover:text-composer-text hover:bg-(--layer-2)";
+// -- Component ----------------------------------------------------------------
 
 const AppHeader: React.FC<AppHeaderProps> = ({ screen, onSettingsOpen, onHelpOpen, onTourStart }) => {
   const isWails = isDesktop();
+  const unison = useUnisonFeatures().enabled;
 
   return (
     <header
@@ -64,7 +94,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ screen, onSettingsOpen, onHelpOpe
         className="shrink-0"
         style={isWails ? ({ "--wails-draggable": "no-drag" } as React.CSSProperties) : undefined}
       >
-        {screen === "editor" ? <TabBar /> : <span />}
+        {screen === "editor" ? <TabBar /> : unison ? <BrowseSwitcher screen={screen} /> : <span />}
       </div>
       <div
         className="flex items-center justify-end gap-1 shrink-0 ml-auto"
@@ -92,6 +122,12 @@ const AppHeader: React.FC<AppHeaderProps> = ({ screen, onSettingsOpen, onHelpOpe
           onClick={onHelpOpen}
           className={`${HEADER_ICON_STYLES} max-[1100px]:hidden`}
         />
+        {unison && (
+          <>
+            <span aria-hidden="true" className="w-px h-5 mx-1.5 bg-(--divider)" />
+            <HeaderAccount />
+          </>
+        )}
         {isWails && (
           <div className="relative layer-window-controls flex items-center gap-0.5 shrink-0 ml-1">
             <div className="w-px h-5 bg-composer-border mx-1 shrink-0" />

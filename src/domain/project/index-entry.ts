@@ -1,9 +1,11 @@
+import type { LanguageTextVariant } from "@/domain/language/display";
 import type { LyricLine } from "@/domain/line/model";
 import { hasAnyTiming, hasMainLyrics, isWordSynced } from "@/domain/line/predicates";
 import type { SavedAudioSource } from "@/domain/project/audio-source";
 import { normalizeLoadedMetadata } from "@/domain/project/normalize-metadata";
 import type { ResumePosition } from "@/domain/project/resume-position";
 import type { ProjectTab } from "@/domain/project/tab";
+import { readUnisonLyricId } from "@/domain/unison/lyric-id";
 
 // -- Types --------------------------------------------------------------------
 
@@ -22,11 +24,14 @@ interface ProjectIndexEntry {
   hasWordTiming: boolean;
   audioKind: ProjectAudioKind;
   storedAudioBytes: number;
+  storedStemBytes?: number;
   recordBytes?: number;
   updatedAt: number;
   openedAt?: number;
   lastTab?: ProjectTab;
   resumePosition?: ResumePosition;
+  textVariant?: LanguageTextVariant;
+  unisonLyricId?: string;
 }
 
 interface IndexEntryInput {
@@ -35,11 +40,14 @@ interface IndexEntryInput {
   lines: unknown;
   audioSource: SavedAudioSource | undefined;
   storedAudioBytes: number;
+  storedStemBytes?: number;
   recordBytes?: number;
   updatedAt: number;
   openedAt?: number;
   lastTab?: ProjectTab;
   resumePosition?: ResumePosition;
+  textVariant?: LanguageTextVariant;
+  unisonLyricId?: unknown;
 }
 
 // -- Derivation ---------------------------------------------------------------
@@ -60,6 +68,7 @@ function normalizeStoredLines(lines: unknown): LyricLine[] {
 function buildIndexEntry(input: IndexEntryInput): ProjectIndexEntry {
   const metadata = normalizeLoadedMetadata(input.metadata);
   const lyricLines = normalizeStoredLines(input.lines);
+  const unisonLyricId = readUnisonLyricId(input.unisonLyricId);
   return {
     id: input.id,
     title: metadata.title,
@@ -73,11 +82,14 @@ function buildIndexEntry(input: IndexEntryInput): ProjectIndexEntry {
     hasWordTiming: lyricLines.some(isWordSynced),
     audioKind: input.audioSource?.kind ?? "none",
     storedAudioBytes: input.storedAudioBytes,
+    ...(input.storedStemBytes ? { storedStemBytes: input.storedStemBytes } : {}),
     ...(input.recordBytes !== undefined ? { recordBytes: input.recordBytes } : {}),
     updatedAt: input.updatedAt,
     ...(input.openedAt !== undefined ? { openedAt: input.openedAt } : {}),
     ...(input.lastTab ? { lastTab: input.lastTab } : {}),
     ...(input.resumePosition ? { resumePosition: input.resumePosition } : {}),
+    ...(input.textVariant ? { textVariant: input.textVariant } : {}),
+    ...(unisonLyricId ? { unisonLyricId } : {}),
   };
 }
 

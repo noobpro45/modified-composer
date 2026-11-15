@@ -1,3 +1,4 @@
+import { disableShortcut, isShortcutDisabled } from "@/lib/disabled-shortcuts";
 import { assignBinding, useShortcutBindingsStore } from "@/stores/shortcut-bindings";
 import { SHORTCUT_DEFINITIONS } from "@/stores/shortcut-definitions";
 import { isMac } from "@/utils/platform";
@@ -63,6 +64,25 @@ describe("findMatchingShortcut", () => {
   describe("edge cases", () => {
     it("returns null for a key with no binding in the scope", () => {
       expect(findMatchingShortcut(keydown({ key: "F13" }), "timeline")).toBeNull();
+    });
+  });
+
+  describe("disabled shortcuts", () => {
+    it("regression: a disabled button's shortcut does not match", () => {
+      const release = disableShortcut("timeline.toggleTextVariant");
+      expect(findMatchingShortcut(keydown({ key: "l" }), "timeline")).toBeNull();
+      release();
+      expect(findMatchingShortcut(keydown({ key: "l" }), "timeline")).toBe("timeline.toggleTextVariant");
+    });
+
+    it("stays disabled until every holder releases", () => {
+      const first = disableShortcut("timeline.toggleTextVariant");
+      const second = disableShortcut("timeline.toggleTextVariant");
+      first();
+      first();
+      expect(isShortcutDisabled("timeline.toggleTextVariant")).toBe(true);
+      second();
+      expect(isShortcutDisabled("timeline.toggleTextVariant")).toBe(false);
     });
   });
 
@@ -172,6 +192,17 @@ describe("bindingFromKeyboardEvent", () => {
         key: "e",
         alt: true,
       });
+    });
+
+    it("regression: macOS Alt+Shift+, records and matches the physical key, not the glyph", () => {
+      const event = keydown({ key: "\u00af", code: "Comma", altKey: true, shiftKey: true });
+      expect(bindingFromKeyboardEvent(event)).toEqual({ key: "<", shift: true, alt: true });
+      expect(findMatchingShortcut(event, "global")).toBe("global.seekBackwardFine");
+    });
+
+    it("regression: macOS Cmd+Alt+Shift+. matches the fine typing seek", () => {
+      const event = keydown({ key: "\u02d8", code: "Period", altKey: true, shiftKey: true, ...MOD });
+      expect(findMatchingShortcut(event, "global")).toBe("global.seekForwardFineWhileTyping");
     });
 
     it("regression: a recorded macOS Alt binding matches the same key press", () => {

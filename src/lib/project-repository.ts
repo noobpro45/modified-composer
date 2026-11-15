@@ -1,14 +1,16 @@
-import { type ProjectIndexEntry, buildIndexEntry } from "@/domain/project/index-entry";
-import { estimateRecordBytes } from "@/domain/project/record-bytes";
+import type { LanguageTextVariant } from "@/domain/language/display";
+import type { ProjectIndexEntry } from "@/domain/project/index-entry";
 import type { ResumePosition } from "@/domain/project/resume-position";
 import type { ProjectTab } from "@/domain/project/tab";
 import { protectStorageForFirstProject } from "@/lib/browser-storage";
+import { type IndexPatch, type IndexViewFields, patchIndexEntry, writeIndexEntry } from "@/lib/project-index-write";
 import {
   APP_STATE_STORE_NAME,
   type AbortTransaction,
   PROJECT_AUDIO_STORE_NAME,
   PROJECT_INDEX_STORE_NAME,
   PROJECT_RECORD_STORE_NAME,
+  PROJECT_STEMS_STORE_NAME,
   deleteFromStore,
   getAllFromStore,
   getFromStore,
@@ -18,27 +20,12 @@ import { announceProjectsDeleted } from "@/lib/project-channel";
 import { notifyProjectIndexChanged } from "@/lib/project-index-changes";
 import { OPEN_PROJECT_KEY, PROJECT_DATA_STORES } from "@/lib/project-storage";
 import { clearTombstone, whenProjectWritable, writeTombstone } from "@/lib/project-tombstones";
-import type { SavedAudioFile, SavedProject } from "@/lib/saved-project";
+import { NewerProjectError, type SavedAudioFile, type SavedProject, isFromNewerComposer } from "@/lib/saved-project";
 import { notifyStorageSignal } from "@/lib/storage-signals";
 import { nanoid } from "nanoid";
 
 // -- Types --------------------------------------------------------------------
 
-interface IndexCarriedFields {
-  storedAudioBytes: number;
-  openedAt?: number;
-  lastTab?: ProjectTab;
-  resumePosition?: ResumePosition;
-}
-
-interface IndexEntryWrite {
-  id: string;
-  project: SavedProject;
-  lastTab?: ProjectTab;
-  onFirstEntry?: () => void;
-}
-
-type IndexPatch = Partial<IndexCarriedFields>;
 type ProjectUpdate = (project: SavedProject) => SavedProject;
 
 // -- Constants ----------------------------------------------------------------
@@ -47,6 +34,7 @@ const RECORD_WRITE_STORES = [
   PROJECT_RECORD_STORE_NAME,
   PROJECT_INDEX_STORE_NAME,
   PROJECT_AUDIO_STORE_NAME,
+  PROJECT_STEMS_STORE_NAME,
   APP_STATE_STORE_NAME,
 ];
 
@@ -54,27 +42,6 @@ const RECORD_WRITE_STORES = [
 
 function createProjectId(): string {
   return nanoid();
-}
-
-function indexEntryForProject(id: string, project: SavedProject, carried: IndexCarriedFields): ProjectIndexEntry {
-  return buildIndexEntry({
-    id,
-    metadata: project.metadata,
-    lines: project.lines,
-    audioSource: project.audioSource,
-    updatedAt: project.savedAt,
-    recordBytes: estimateRecordBytes(project),
-    ...carried,
-  });
-}
-
-function carriedIndexFields(entry: ProjectIndexEntry): IndexCarriedFields {
-  return {
-    storedAudioBytes: entry.storedAudioBytes,
-    openedAt: entry.openedAt,
-    lastTab: entry.lastTab,
-    resumePosition: entry.resumePosition,
-  };
 }
 
 // -- Open project pointer -----------------------------------------------------
@@ -91,34 +58,28 @@ function clearOpenProjectId(): Promise<void> {
 
 // -- Records ------------------------------------------------------------------
 
-function writeIndexEntry(tx: IDBTransaction, { id, project, lastTab, onFirstEntry }: IndexEntryWrite): void {
-  const index = tx.objectStore(PROJECT_INDEX_STORE_NAME);
-  const previous = index.get(id);
-  previous.onsuccess = () => {
-    const entry = previous.result as ProjectIndexEntry | undefined;
-    if (entry) {
-      const carried = carriedIndexFields(entry);
-      index.put(indexEntryForProject(id, project, { ...carried, lastTab: lastTab ?? carried.lastTab }), id);
-      return;
-    }
-    const count = index.count();
-    count.onsuccess = () => {
-      const audio = tx.objectStore(PROJECT_AUDIO_STORE_NAME).get(id);
-      audio.onsuccess = () => {
-        const saved = audio.result as SavedAudioFile | undefined;
-        const carried = { storedAudioBytes: saved?.data.byteLength ?? 0, openedAt: project.savedAt, lastTab };
-        index.put(indexEntryForProject(id, project, carried), id);
-        if (count.result === 0) onFirstEntry?.();
-      };
+function whenRecordWritable(tx: IDBTransaction, abort: AbortTransaction, id: string, write: () => void): void {
+  whenProjectWritable(tx, abort, id, () => {
+    const current = tx.objectStore(PROJECT_RECORD_STORE_NAME).get(id);
+    current.onsuccess = () => {
+      if (isFromNewerComposer(current.result as SavedProject | undefined)) {
+        abort(new NewerProjectError(id));
+        return;
+      }
+      try {
+        write();
+      } catch (error) {
+        abort(error);
+      }
     };
-  };
+  });
 }
 
 function writeProjectRecord(
   prepare: (tx: IDBTransaction, abort: AbortTransaction, write: () => void) => void,
   id: string,
   project: SavedProject,
-  lastTab?: ProjectTab,
+  view?: IndexViewFields,
 ): Promise<void> {
   let createdFirstEntry = false;
   return runTransaction(RECORD_WRITE_STORES, "readwrite", (tx, abort) => {
@@ -127,7 +88,7 @@ function writeProjectRecord(
       writeIndexEntry(tx, {
         id,
         project,
-        lastTab,
+        view,
         onFirstEntry: () => {
           createdFirstEntry = true;
         },
@@ -139,8 +100,8 @@ function writeProjectRecord(
   });
 }
 
-function saveProjectRecord(id: string, project: SavedProject, lastTab?: ProjectTab): Promise<void> {
-  return writeProjectRecord((tx, abort, write) => whenProjectWritable(tx, abort, id, write), id, project, lastTab);
+function saveProjectRecord(id: string, project: SavedProject, view?: IndexViewFields): Promise<void> {
+  return writeProjectRecord((tx, abort, write) => whenRecordWritable(tx, abort, id, write), id, project, view);
 }
 
 function restoreDeletedProjectRecord(id: string, project: SavedProject): Promise<void> {
@@ -155,12 +116,10 @@ function restoreDeletedProjectRecord(id: string, project: SavedProject): Promise
 }
 
 async function saveProjectRecordWithAudio(id: string, project: SavedProject, audio: File | undefined): Promise<void> {
-  const saved: SavedAudioFile | undefined = audio
-    ? { name: audio.name, type: audio.type, data: await audio.arrayBuffer() }
-    : undefined;
+  const saved: SavedAudioFile | undefined = audio ? { name: audio.name, type: audio.type, data: audio } : undefined;
   let createdFirstEntry = false;
   await runTransaction(RECORD_WRITE_STORES, "readwrite", (tx, abort) => {
-    whenProjectWritable(tx, abort, id, () => {
+    whenRecordWritable(tx, abort, id, () => {
       if (saved) tx.objectStore(PROJECT_AUDIO_STORE_NAME).put(saved, id);
       tx.objectStore(PROJECT_RECORD_STORE_NAME).put(project, id);
       writeIndexEntry(tx, {
@@ -186,6 +145,10 @@ function updateProjectRecord(id: string, update: ProjectUpdate): Promise<void> {
         const project = current.result as SavedProject | undefined;
         if (!project) {
           abort(new Error(`Project ${id} is not stored in this browser`));
+          return;
+        }
+        if (isFromNewerComposer(project)) {
+          abort(new NewerProjectError(id));
           return;
         }
         let next: SavedProject;
@@ -217,18 +180,6 @@ async function findProjectByVideoId(videoId: string): Promise<ProjectIndexEntry 
   return matches.toSorted((a, b) => b.updatedAt - a.updatedAt)[0];
 }
 
-function patchIndexEntry(tx: IDBTransaction, id: string, patch: IndexPatch, onWritten?: () => void): void {
-  const index = tx.objectStore(PROJECT_INDEX_STORE_NAME);
-  const request = index.get(id);
-  request.onsuccess = () => {
-    const entry = request.result as ProjectIndexEntry | undefined;
-    if (entry) {
-      index.put({ ...entry, ...patch }, id);
-      onWritten?.();
-    }
-  };
-}
-
 function patchProjectIndex(id: string, patch: IndexPatch): Promise<void> {
   let wrote = false;
   return runTransaction([PROJECT_INDEX_STORE_NAME], "readwrite", (tx) =>
@@ -252,6 +203,10 @@ function setProjectResumePosition(id: string, resumePosition: ResumePosition): P
   return patchProjectIndex(id, { resumePosition });
 }
 
+function setProjectTextVariant(id: string, textVariant: LanguageTextVariant): Promise<void> {
+  return patchProjectIndex(id, { textVariant });
+}
+
 // -- Removal ------------------------------------------------------------------
 
 function removeProjectData(id: string): Promise<void> {
@@ -273,7 +228,6 @@ function removeProjectData(id: string): Promise<void> {
 
 export {
   createProjectId,
-  indexEntryForProject,
   setOpenProjectId,
   clearOpenProjectId,
   saveProjectRecord,
@@ -286,6 +240,6 @@ export {
   markProjectOpened,
   setProjectLastTab,
   setProjectResumePosition,
-  patchIndexEntry,
+  setProjectTextVariant,
   removeProjectData,
 };
