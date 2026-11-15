@@ -1,3 +1,6 @@
+import { DndContext } from "@dnd-kit/core";
+import { IconMusic } from "@tabler/icons-react";
+import { useOverlayScrollbars } from "overlayscrollbars-react";
 import { FileDropZone } from "@/audio/file-drop-zone";
 import { getAgentColor } from "@/domain/agent/colors";
 import { AUDIO_FORMATS_PROSE } from "@/domain/audio-file/supported-formats";
@@ -9,6 +12,7 @@ import { useImportModal } from "@/stores/import-modal-store";
 import { useProjectStore } from "@/stores/project";
 import { useSettingsStore } from "@/stores/settings";
 import { BeatGridCorner } from "@/views/timeline/beat-grid/beat-grid-corner";
+import { BoundaryModeChip } from "@/views/timeline/boundary-mode-chip";
 import { HoverSizedDragGhost, TimelineDragOverlay } from "@/views/timeline/drag-ghost";
 import { dragGhostCells } from "@/views/timeline/drag-ghost-cells";
 import { makeDragOverlapCheck } from "@/views/timeline/drag-overlap-check";
@@ -16,12 +20,15 @@ import { trackSnapModifier } from "@/views/timeline/drag-track-snap";
 import { EmptyTimelineImport } from "@/views/timeline/empty-timeline-import";
 import { GroupFocusBar } from "@/views/timeline/group-focus-bar";
 import { forgetPointer, rememberPointer } from "@/views/timeline/last-pointer";
+import { useLineRevealRequest } from "@/views/timeline/line-reveal-request";
 import { LoopRegionBar } from "@/views/timeline/loop-region-bar";
 import { LoopRegionGuides } from "@/views/timeline/loop-region-guides";
 import { LoopRegionReadout } from "@/views/timeline/loop-region-readout";
 import { EditLoupe } from "@/views/timeline/loupe/edit-loupe";
 import { MarqueeSelection } from "@/views/timeline/marquee-selection";
 import { PastePreview } from "@/views/timeline/paste-preview";
+import { followRulerScroll } from "@/views/timeline/ruler-scroll";
+import { keepsTimelineScrollSize } from "@/views/timeline/scroll-size-mutation";
 import { SelectionPlaybackBar } from "@/views/timeline/selection-playback-bar";
 import { selfKey } from "@/views/timeline/snap";
 import { SnapGuideline } from "@/views/timeline/snap-guideline";
@@ -31,19 +38,13 @@ import { TimelineContextMenu } from "@/views/timeline/timeline-context-menu";
 import { useTimelineEffectiveLines } from "@/views/timeline/timeline-effective-lines";
 import { TimelineHeader } from "@/views/timeline/timeline-header";
 import { TimelineInfoPanel } from "@/views/timeline/timeline-info-panel";
-import { BoundaryModeChip } from "@/views/timeline/boundary-mode-chip";
 import { TimelinePlayhead } from "@/views/timeline/timeline-playhead";
 import { TimelinePreviewSidebar } from "@/views/timeline/timeline-preview-sidebar";
 import { TimelineRows } from "@/views/timeline/timeline-rows";
-import { keepsTimelineScrollSize } from "@/views/timeline/scroll-size-mutation";
-import { followRulerScroll } from "@/views/timeline/ruler-scroll";
 import { TimelineRuler } from "@/views/timeline/timeline-ruler";
-import { syncViewScroll, viewScrollLeft } from "@/views/timeline/view-scroll";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
 import { TimelineSyllableSplitter } from "@/views/timeline/timeline-syllable-splitter";
 import { TimelineWaveform } from "@/views/timeline/timeline-waveform";
-import { TimelineVisualizationCorner } from "@/views/timeline/timeline-visualization-corner";
-import { useLineRevealRequest } from "@/views/timeline/line-reveal-request";
 import { useGestureInputReplay } from "@/views/timeline/use-gesture-input-replay";
 import { useGroupFocusScroll } from "@/views/timeline/use-group-focus-scroll";
 import { useGroupFocusShortcuts } from "@/views/timeline/use-group-focus-shortcuts";
@@ -57,10 +58,8 @@ import { useTimelineKeyboard } from "@/views/timeline/use-timeline-keyboard";
 import { useTimelinePan } from "@/views/timeline/use-timeline-pan";
 import { useTimelineSnap } from "@/views/timeline/use-timeline-snap";
 import { useTimelineWheel } from "@/views/timeline/use-timeline-wheel";
+import { syncViewScroll, viewScrollLeft } from "@/views/timeline/view-scroll";
 import { WordEditOverlay } from "@/views/timeline/word-edit-overlay";
-import { DndContext } from "@dnd-kit/core";
-import { IconMusic } from "@tabler/icons-react";
-import { useOverlayScrollbars } from "overlayscrollbars-react";
 import "overlayscrollbars/overlayscrollbars.css";
 import { Activity, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -71,7 +70,6 @@ const TimelinePanel: React.FC = () => {
   const duration = useAudioStore((s) => s.duration);
   const lines = useProjectStore((s) => s.lines);
   const previewSidebar = useSettingsStore((s) => s.previewSidebar);
-  const timelineVisualization = useSettingsStore((s) => s.timelineVisualization);
   const pasteMode = useTimelineStore((s) => s.pasteMode);
   const editingWord = useTimelineStore((s) => s.editingWord);
   const ghostSnapped = useTimelineStore((s) => s.snappedBlockId !== null);
@@ -296,7 +294,7 @@ const TimelinePanel: React.FC = () => {
                     if (fromOwnContent && (e.key === " " || e.key === "Enter")) e.preventDefault();
                   }}
                 >
-                  {timelineVisualization === "spectrogram" ? <TimelineVisualizationCorner /> : <BeatGridCorner />}
+                  <BeatGridCorner />
                   <TimelineWaveform />
 
                   <StepViewPublisher lines={effectiveLines} />

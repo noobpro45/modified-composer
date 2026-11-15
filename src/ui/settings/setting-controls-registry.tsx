@@ -4,6 +4,7 @@ import type { SettingId } from "@/stores/settings-catalog";
 import { SNAP_DISTANCE_RANGE_PX } from "@/stores/settings-snap";
 import { BEAT_GRID_LINE_OPTIONS } from "@/ui/beat-grid-line-options";
 import { LAUNCH_SCREEN_OPTIONS, LIBRARY_SORT_OPTIONS } from "@/ui/projects/library-options";
+import type { SelectOption } from "@/ui/select";
 import { AlignmentModelSetting } from "@/ui/settings/alignment-model-setting";
 import { BridgeSection } from "@/ui/settings/bridge-section";
 import { CobaltInstancesSetting } from "@/ui/settings/cobalt-instances-setting";
@@ -16,7 +17,6 @@ import {
   VocalModelFilesSetting,
 } from "@/ui/settings/models/model-file-list";
 import { ResetAllSettingsSetting, ResetGuideSetting, UnmuteGuideHintsSetting } from "@/ui/settings/reset-settings";
-import type { SelectOption } from "@/ui/select";
 import type { SliderAction } from "@/ui/settings/setting-controls";
 import { ShortcutPresetGallery } from "@/ui/settings/shortcuts/shortcut-preset-gallery";
 import { SplitCharacterSetting } from "@/ui/settings/split-character-setting";
@@ -26,8 +26,8 @@ import { KEEP_YOUTUBE_AUDIO_OPTIONS, STORAGE_LIMIT_OPTIONS } from "@/ui/settings
 import { StorageProtectionSetting } from "@/ui/settings/storage/storage-protection-setting";
 import { StorageUsageSetting } from "@/ui/settings/storage/storage-usage-setting";
 import { ThemeSettings } from "@/ui/settings/theme/theme-settings";
-import { VocalModelSetting } from "@/ui/settings/vocal-model-setting";
 import { UnisonAccountSetting } from "@/ui/settings/unison-account-setting";
+import { VocalModelSetting } from "@/ui/settings/vocal-model-setting";
 import {
   ANALYSIS_WINDOW_OPTIONS,
   FREQUENCY_SCALE_OPTIONS,
@@ -37,7 +37,7 @@ import {
   SPECTRUM_SOURCE_OPTIONS,
   SPECTRUM_TOP_OPTIONS,
 } from "@/ui/spectrum-options";
-import { MAX_ZOOM, MIN_ZOOM, ZOOM_STEP, useTimelineStore } from "@/views/timeline/timeline-store";
+import { MAX_ZOOM, MIN_ZOOM, useTimelineStore, ZOOM_STEP } from "@/views/timeline/timeline-store";
 
 // -- Types ---------------------------------------------------------------------
 
@@ -59,12 +59,6 @@ type SettingControl =
 const TOGGLE: SettingControl = { kind: "toggle" };
 const SNAP_DISTANCE: SettingControl = { kind: "slider", ...SNAP_DISTANCE_RANGE_PX, step: 1, format: (v) => `${v}px` };
 const asMilliseconds = (seconds: number) => `${(seconds * 1000).toFixed(0)}ms`;
-
-const TIMELINE_VISUALIZATION_OPTIONS: SelectOption[] = [
-  { value: "waveform", label: "Waveform (Default)" },
-  { value: "spectrum", label: "Spectrum (Tile-cached)" },
-  { value: "spectrogram", label: "Spectrogram (144fps)" },
-];
 
 // -- Registry ------------------------------------------------------------------
 
@@ -170,10 +164,6 @@ const SETTING_CONTROLS: Record<SettingId, SettingControl> = {
         useSettingsStore.getState().set("defaultRowHeight", resizedHeight ?? defaultRowHeight);
       },
     },
-  },
-  timelineVisualization: {
-    kind: "select",
-    options: TIMELINE_VISUALIZATION_OPTIONS,
   },
   timelineSnap: TOGGLE,
   vocalOnsetSnap: TOGGLE,

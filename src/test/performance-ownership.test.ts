@@ -26,7 +26,6 @@ const DECLARES_PLAYBACK_STYLE = new Map<string, string>([
   ["views/timeline/overview/band-viewport.tsx", "views/timeline/overview/band-viewport.tsx"],
   ["views/timeline/beat-grid/beat-grid-canvas.tsx", "views/timeline/beat-grid/beat-grid-canvas.tsx"],
   ["views/timeline/pitch/pitch-lane.tsx", "views/timeline/pitch/pitch-lane.tsx"],
-  ["views/timeline/spectrogram-unplayed-overlay.tsx", "views/timeline/spectrogram-unplayed-overlay.tsx"],
 ]);
 const OUTSIDE_SCROLL_VIEWPORT = new Map<string, string>([
   ["views/timeline/cue-flash.tsx", "rendered by the playhead, a sibling of the scroll container"],

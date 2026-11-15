@@ -31,7 +31,7 @@
 
 You don't need to know TTML to use Composer. Import a song, paste the lyrics and sync them, by tapping along or by dragging words on the Timeline. Use the step-by-step tabs or the Timeline, whichever suits you. They edit the same project.
 
-The heavy tools are there when a song asks for them. Composer can separate the vocals (via Mel-Band RoFormer or HTDemucs) and align each word to the voice (HubertFA CTC alignment), leaving you fixing what it missed instead of timing every syllable manually. A pitch line, a tile-cached spectrum / 144fps spectrogram, a beat grid, and choruses that share timing are all built in.
+The heavy tools are there when a song asks for them. Composer can separate the vocals (via Mel-Band RoFormer or HTDemucs) and align each word to the voice (HubertFA CTC alignment), leaving you fixing what it missed instead of timing every syllable manually. A pitch line, a tile-cached spectrum, a beat grid, and choruses that share timing are all built in.
 
 ### 💻 Native Desktop Enhancements
 
@@ -72,7 +72,7 @@ Your work saves automatically as you go. Audio files you load stay on your machi
 - **Vocal Separation**: Mel-Band RoFormer (high-quality) and HTDemucs v4, running in-browser/desktop via ONNX Runtime Web with WebGPU acceleration and automatic CPU fallback.
 - **Pitch Tracking**: Swift-F0 neural pitch estimation displayed alongside your waveform.
 - **Beat & Tempo Detection**: Beat-This neural beat grid alignment.
-- **Spectrum & Spectrogram**: Switch between native tile-cached Spectrum, classic waveform, or high-frame-rate Spectrogram.
+- **Spectrum & Pitch Guide**: Switch between native tile-cached Spectrum and classic waveform, inspect vocal harmonics, or track pitch contours directly on the timeline.
 - **Smooth Audio Scrubbing**: Time-stretched scrubbing powered by Signalsmith Stretch with classic playback option.
 
 ### Lyrics & Import / Export

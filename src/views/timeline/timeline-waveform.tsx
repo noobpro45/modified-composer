@@ -1,3 +1,6 @@
+import WavesurferPlayer from "@wavesurfer/react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type WaveSurfer from "wavesurfer.js";
 import { useFrameLoop } from "@/hooks/use-frame-loop";
 import { notePlacement } from "@/lib/replay-cue";
 import { livePlaybackTime, useAudioStore } from "@/stores/audio";
@@ -8,23 +11,18 @@ import { readToken } from "@/utils/theme/read-token";
 import { BeatGridCanvas } from "@/views/timeline/beat-grid/beat-grid-canvas";
 import { startLoopRegionDrag } from "@/views/timeline/loop-region-drag";
 import { LoopRegionEdges } from "@/views/timeline/loop-region-edges";
-import { useOverviewBandHeight } from "@/views/timeline/overview-band-height";
 import { OverviewBand } from "@/views/timeline/overview/overview-band";
+import { useOverviewBandHeight } from "@/views/timeline/overview-band-height";
 import { placeSnapPoint } from "@/views/timeline/place-snap-point";
 import { snapPlayheadTime } from "@/views/timeline/playhead-snap";
-import { holdsSnapBypass } from "@/views/timeline/snap-bypass-key";
 import { noteReplaySpot } from "@/views/timeline/replay-spot-signal";
 import { clearLoopRegion } from "@/views/timeline/selection-playback";
-import { SpectrogramUnplayedOverlay } from "@/views/timeline/spectrogram-unplayed-overlay";
+import { holdsSnapBypass } from "@/views/timeline/snap-bypass-key";
 import { useTimelineStore } from "@/views/timeline/timeline-store";
-import { useTimelineSpectrogram } from "@/views/timeline/use-timeline-spectrogram";
-import { WaveformFocusShade } from "@/views/timeline/waveform-focus-shade";
 import { keepWaveformData, mediaSource, readWaveformData } from "@/views/timeline/waveform-data-cache";
+import { WaveformFocusShade } from "@/views/timeline/waveform-focus-shade";
 import { WaveformBackground, WaveformSkeleton } from "@/views/timeline/waveform-loading-layers";
-import { WAVEFORM_WINDOW_WIDTH, useWaveformWindow } from "@/views/timeline/waveform-window";
-import WavesurferPlayer from "@wavesurfer/react";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import type WaveSurfer from "wavesurfer.js";
+import { useWaveformWindow, WAVEFORM_WINDOW_WIDTH } from "@/views/timeline/waveform-window";
 
 // -- Interfaces ----------------------------------------------------------------
 
@@ -38,8 +36,6 @@ interface WaveformBarsProps {
   hostRef: React.RefObject<HTMLDivElement | null>;
   onDestroy: () => void;
   onReady: (wavesurfer: WaveSurfer) => void;
-  isSpectrogram?: boolean;
-  trackHeight?: number;
 }
 
 // -- Constants -----------------------------------------------------------------
@@ -60,8 +56,6 @@ const WaveformBars: React.FC<WaveformBarsProps> = ({
   hostRef,
   onDestroy,
   onReady,
-  isSpectrogram,
-  trackHeight,
 }) => {
   // Read again only when the instance is destroyed (a hidden tab), so the options never change while it lives.
   const [decoded, setDecoded] = useState(() => readWaveformData(source));
@@ -76,18 +70,18 @@ const WaveformBars: React.FC<WaveformBarsProps> = ({
   return (
     <div
       data-waveform-fade
-      className={cn(isSpectrogram ? "pt-0" : "pt-[13px]", "overflow-clip transition-opacity duration-150 ease-in")}
+      className="pt-[13px] overflow-clip transition-opacity duration-150 ease-in"
       style={{ width, opacity: shown ? 1 : 0 }}
     >
       <div ref={hostRef} className="[&_div::part(scroll)]:overflow-x-hidden!" style={{ width: WAVEFORM_WINDOW_WIDTH }}>
         <WavesurferPlayer
-          height={trackHeight ?? WAVEFORM_BARS_HEIGHT}
-          waveColor={isSpectrogram ? "transparent" : colors.wave}
-          progressColor={isSpectrogram ? "transparent" : colors.progress}
+          height={WAVEFORM_BARS_HEIGHT}
+          waveColor={colors.wave}
+          progressColor={colors.progress}
           cursorColor="transparent"
-          barWidth={isSpectrogram ? undefined : 2}
-          barGap={isSpectrogram ? undefined : 1}
-          barRadius={isSpectrogram ? undefined : 12}
+          barWidth={2}
+          barGap={1}
+          barRadius={12}
           media={media}
           interact={false}
           hideScrollbar={true}
@@ -95,9 +89,9 @@ const WaveformBars: React.FC<WaveformBarsProps> = ({
           autoScroll={false}
           autoCenter={false}
           minPxPerSec={initialZoom}
-          peaks={isSpectrogram ? undefined : decoded?.peaks}
+          peaks={decoded?.peaks}
           duration={decoded?.duration}
-          barHeight={isSpectrogram ? undefined : decoded?.barHeight}
+          barHeight={decoded?.barHeight}
           onDestroy={handleDestroy}
           onReady={onReady}
         />
@@ -117,19 +111,33 @@ const TimelineWaveform: React.FC = () => {
   const activeThemeId = useThemeStore((s) => s.activeThemeId);
   const markerMode = useTimelineStore((s) => s.markerMode);
   const showSpectrum = useSettingsStore((s) => s.showSpectrum);
-  const visualization = useSettingsStore((s) => s.timelineVisualization);
-  const isSpectrogram = visualization === "spectrogram";
 
   const [ws, setWs] = useState<WaveSurfer | null>(null);
   const isPlaying = useAudioStore((s) => s.isPlaying);
   const drawnProgressTime = useRef<number | null>(null);
   const [settledFor, setSettledFor] = useState<WaveSurfer | null>(null);
   const [altHeld, setAltHeld] = useState(false);
-  const waveformHostRef = useRef<HTMLDivElement | null>(null);
-
-  const { gainComputing } = useTimelineSpectrogram({ ws, isSpectrogram, trackHeight: bandHeight - 1 });
+  const waveformHostRef = useRef<HTMLDivElement>(null);
+  useWaveformWindow(ws, waveformHostRef, !showSpectrum);
 
   const totalWidth = duration > 0 ? duration * zoom : 0;
+
+  // Drawn in the frame loop so progress and playhead move on the same frame time.
+  useFrameLoop(
+    () => {
+      if (!ws) return;
+      const time = livePlaybackTime();
+      drawnProgressTime.current = time;
+      ws.getRenderer().renderProgress(time / ws.getDuration(), true);
+    },
+    "waveform-progress",
+    isPlaying && ws !== null,
+  );
+
+  useEffect(() => {
+    if (!isPlaying) drawnProgressTime.current = null;
+  }, [isPlaying]);
+
   // Rebuild on loadstart, keyed on currentSrc: wavesurfer loads currentSrc, which lags src until then.
   const subscribeToMediaSource = useCallback(
     (onSourceChange: () => void) => {
@@ -145,13 +153,14 @@ const TimelineWaveform: React.FC = () => {
     wave: readToken("wave"),
     progress: readToken("wave-progress"),
   }));
+  // @wavesurfer/react rebuilds the instance whenever any option changes; later zooms go through ws.setOptions() in useWaveformWindow, which unlike ws.zoom() never throws mid-reload.
   const [initialZoom] = useState(() => useTimelineStore.getState().zoom);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: activeThemeId re-applies DOM-resolved colors on theme change without remounting WaveSurfer
   useEffect(() => {
-    if (!ws || isSpectrogram) return;
+    if (!ws) return;
     ws.setOptions({ waveColor: readToken("wave"), progressColor: readToken("wave-progress") });
-  }, [ws, activeThemeId, isSpectrogram]);
+  }, [ws, activeThemeId]);
 
   useEffect(() => {
     if (!ws) return;
@@ -210,23 +219,15 @@ const TimelineWaveform: React.FC = () => {
     }
   }, []);
 
-  useFrameLoop(() => {
-    if (!ws || !isPlaying) return;
-    const time = livePlaybackTime();
-    drawnProgressTime.current = time;
-    ws.setTime(time);
-  }, "timeline-waveform-progress");
-
-  useWaveformWindow(ws, waveformHostRef, !showSpectrum && visualization !== "spectrogram");
-
   if (!source) return null;
 
+  // A bunch of heights here are -1 to account for the 1px border at the bottom of the waveform container.
   return (
     <OverviewBand>
       <WaveformBackground width={totalWidth} />
       <BeatGridCanvas />
       {/* Never derive these in an effect: opacity and the sweep gate must land in the same commit. */}
-      <WaveformSkeleton width={totalWidth} waveformSettled={settledFor === ws && !gainComputing} />
+      <WaveformSkeleton width={totalWidth} waveformSettled={settledFor === ws} />
       {audioElement && (
         <WaveformBars
           key={waveformKey}
@@ -239,16 +240,6 @@ const TimelineWaveform: React.FC = () => {
           hostRef={waveformHostRef}
           onDestroy={onDestroy}
           onReady={onReady}
-          isSpectrogram={isSpectrogram}
-          trackHeight={isSpectrogram ? bandHeight - 1 : undefined}
-        />
-      )}
-      {isSpectrogram && ws && (
-        <SpectrogramUnplayedOverlay
-          totalWidth={totalWidth}
-          height={bandHeight - 1}
-          zoom={zoom}
-          hidden={gainComputing}
         />
       )}
       <WaveformFocusShade />

@@ -1,3 +1,5 @@
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { RECOMMENDED_ALIGNMENT_MODEL } from "@/audio/alignment/hubertfa/model-manifest";
 import type { MusicBrainzLookup } from "@/domain/musicbrainz/lookup-mode";
 import { DEFAULT_PITCH_LINE_MODE, type PitchLineMode } from "@/domain/pitch/pitch-line-mode";
@@ -15,15 +17,13 @@ import {
   resolveActiveCobaltInstance,
   resolveIsDefaultCobaltInstance,
 } from "@/stores/settings-cobalt";
-import { RUNS_LOCALLY, mergeLocalBridge } from "@/stores/settings-local-bridge";
-import { SETTINGS_PERSIST_VERSION, migrateSettings } from "@/stores/settings-migration";
+import { mergeLocalBridge, RUNS_LOCALLY } from "@/stores/settings-local-bridge";
+import { migrateSettings, SETTINGS_PERSIST_VERSION } from "@/stores/settings-migration";
 import { SNAP_DEFAULTS, type SnapSettings } from "@/stores/settings-snap";
 import { UNISON_SETTING_DEFAULTS, type UnisonSettings } from "@/stores/settings-unison";
 import { DEFAULT_BRIDGE_URL } from "@/utils/composer-bridge-url";
 import { PREVIEW_SIDEBAR_WIDTH } from "@/utils/preview-sidebar-width";
 import { DEFAULT_MIN_WORD_DURATION } from "@/utils/word-spaces";
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 // -- Types --------------------------------------------------------------------
 
@@ -33,7 +33,6 @@ type PreviewRenderer = "braccato" | "am-lyrics";
 type VocalModelVariant = "fp16" | "fp32" | "roformer";
 type LanguageAutoGenerate = "auto" | "manual";
 type RomanizationCase = "preserve" | "lowercase";
-type TimelineVisualization = "waveform" | "spectrum" | "spectrogram";
 type BooleanSettingKey = {
   [K in keyof SettingsState]: SettingsState[K] extends boolean ? K : never;
 }[keyof SettingsState];
@@ -65,8 +64,6 @@ interface SettingsState extends SnapSettings, SpectrumSettings, UnisonSettings {
   stepTimingBackground: boolean;
   syllablesFollowRolling: boolean;
   timelineHorizontalScroll: boolean;
-  timelineVisualization: TimelineVisualization;
-  spectrogramGain: number;
 
   nudgeAmount: number;
   defaultWordDuration: number;
@@ -166,8 +163,6 @@ const DEFAULTS: SettingsState = {
   stepTimingBackground: false,
   syllablesFollowRolling: false,
   timelineHorizontalScroll: false,
-  timelineVisualization: "waveform",
-  spectrogramGain: 1,
 
   nudgeAmount: 0.05,
   defaultWordDuration: 0.3,
@@ -266,20 +261,19 @@ const isUsingDefaultCobaltInstance = () => resolveIsDefaultCobaltInstance(useSet
 
 // -- Exports ------------------------------------------------------------------
 
-export {
-  useSettingsStore,
-  DEFAULTS,
-  BUILTIN_COBALT_INSTANCE,
-  DEFAULT_COBALT_INSTANCE_ID,
-  getActiveCobaltInstance,
-  isUsingDefaultCobaltInstance,
-};
 export type {
   BooleanSettingKey,
   CobaltInstanceStatus,
   LanguageAutoGenerate,
   RomanizationCase,
   SettingsState,
-  TimelineVisualization,
   VocalModelVariant,
+};
+export {
+  BUILTIN_COBALT_INSTANCE,
+  DEFAULT_COBALT_INSTANCE_ID,
+  DEFAULTS,
+  getActiveCobaltInstance,
+  isUsingDefaultCobaltInstance,
+  useSettingsStore,
 };
