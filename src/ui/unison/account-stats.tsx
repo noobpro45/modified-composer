@@ -34,12 +34,14 @@ const ProfileStats: React.FC<{ stats: UnisonProfileStats }> = ({ stats }) => (
 const AccountStats: React.FC<{ session: StoredUnisonSession }> = ({ session }) => {
   const profile = useUnisonProfile(session.keyId).data;
   const stats = profile?.ranked ? profile : null;
+  const avatarUrl = profile?.avatarUrl ?? session.avatarUrl;
+  const displayName = profile?.displayName || session.displayName;
   return (
     <>
       <div className="flex items-center gap-3 px-2 pt-1.5 pb-2">
-        <UnisonAvatar avatarUrl={session.avatarUrl} size="md" />
+        <UnisonAvatar avatarUrl={avatarUrl} size="md" />
         <div className="min-w-0">
-          <p className="text-[13px] font-medium text-composer-text truncate select-text">{session.displayName}</p>
+          <p className="text-[13px] font-medium text-composer-text truncate select-text">{displayName}</p>
           <p className="h-4 text-xs tabular-nums text-(--muted) select-text">
             {stats && `Level ${stats.level} ・ Rank ${stats.rank}`}
           </p>

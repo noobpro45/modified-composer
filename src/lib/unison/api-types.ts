@@ -47,6 +47,9 @@ interface UnisonProfileBanner {
 type UnisonProfile = ({ ranked: false } | ({ ranked: true } & UnisonProfileStats)) & {
   /** One of the user's own songs, present only while that lyric is live. */
   banner?: UnisonProfileBanner;
+  avatarUrl?: string | null;
+  displayName?: string;
+  handle?: string;
 };
 
 interface UnisonSubmitter extends UnisonActor {

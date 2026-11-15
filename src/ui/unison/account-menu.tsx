@@ -21,16 +21,18 @@ import { unisonViewPath } from "@/utils/app-routes";
 
 const AccountMenu: React.FC<{ session: StoredUnisonSession }> = ({ session }) => {
   // Loads with the header, so the account menu and the Unison page open with the profile ready.
-  useUnisonProfile(session.keyId);
+  const profile = useUnisonProfile(session.keyId).data;
   const navigate = useNavigate();
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
   const close = useCallback(() => setAnchor(null), []);
+  const avatarUrl = profile?.avatarUrl ?? session.avatarUrl;
+  const displayName = profile?.displayName || session.displayName;
 
   return (
     <>
       <IconButton
-        label={`Unison account, ${session.displayName}`}
-        icon={<UnisonAvatar avatarUrl={session.avatarUrl} />}
+        label={`Unison account, ${displayName}`}
+        icon={<UnisonAvatar avatarUrl={avatarUrl} />}
         variant="ghost"
         {...menuTriggerProps(anchor !== null)}
         onClick={(event) => setAnchor(anchor ? null : { kind: "element", element: event.currentTarget })}

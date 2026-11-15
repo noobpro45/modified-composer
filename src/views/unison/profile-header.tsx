@@ -135,16 +135,18 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({ session, songs }) => {
   const stats = profile?.ranked ? profile : null;
   const banner = profile?.banner;
   const onMedia = banner !== undefined;
+  const avatarUrl = profile?.avatarUrl ?? session.avatarUrl;
+  const displayName = profile?.displayName || session.displayName;
   return (
     <section aria-label="Your Unison profile" className={cn(CARD, onMedia ? BANNER_CARD : PLAIN_CARD)}>
       {banner && <BannerLayers banner={banner} song={songs.find((song) => song.videoId === banner.videoId)} />}
       <LevelRing percent={stats ? levelPercent(stats) : 0} onMedia={onMedia}>
-        <UnisonAvatar avatarUrl={session.avatarUrl} size="lg" className="size-[58px]" />
+        <UnisonAvatar avatarUrl={avatarUrl} size="lg" className="size-[58px]" />
       </LevelRing>
       <div className={cn("flex-1 min-w-0", onMedia && "flex flex-col gap-4")}>
         <div className="min-w-0">
           <h2 className="text-[22px] font-bold leading-[1.15] tracking-[-0.01em] truncate select-text">
-            {session.displayName}
+            {displayName}
           </h2>
           <p
             className={cn(
