@@ -66,7 +66,29 @@ interface UnisonMark {
 
 // -- Revisions -----------------------------------------------------------------
 
-type PendingReason = "sealed" | "flagged" | "large_text_drift" | "large_timing_drift";
+type PendingReason = "sealed" | "flagged" | "large_text_drift" | "large_timing_drift" | "suggested";
+type SuggestionDecider = "owner" | "council";
+
+interface RevisionSuggestion {
+  id: number;
+  revNo: number;
+  author: { displayName: string } | null;
+  authorKeyId: string | null;
+  authorAvatarUrl: string | null;
+  pendingReason: PendingReason;
+  sealed: boolean;
+  createdAt: number;
+  councilDecidesAt: number | null;
+  note: string | null;
+  rejectNoteMaxLength: number;
+  decider?: SuggestionDecider;
+}
+
+interface RevisionEditor {
+  keyId: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
 
 interface RevisionBar {
   revNo: number;
@@ -74,6 +96,8 @@ interface RevisionBar {
   pending: { revNo: number; pendingReason: PendingReason; textDrift: number; timingDrift: number } | null;
   lastRejected: { revNo: number; reviewNote: string | null } | null;
   updatedAt: number;
+  suggestion?: RevisionSuggestion;
+  editors?: RevisionEditor[];
 }
 
 // -- Lyrics --------------------------------------------------------------------
@@ -252,7 +276,9 @@ export type {
   LyricsSubmissionResult,
   LyricVideoSuggestions,
   PendingReason,
+  RevisionSuggestion,
   SongForSuggestions,
+  SuggestionDecider,
   SuggestedVideo,
   UnisonChallenge,
   UnisonConfidence,

@@ -1,13 +1,29 @@
 import { toast } from "sonner";
 import { artistCredit } from "@/domain/project/display-title";
+import type { ProjectIndexEntry } from "@/domain/project/index-entry";
 import { normalizeLanguageTag } from "@/domain/project/language";
 import type { ProjectMetadata } from "@/domain/project/metadata";
+import { projectsByLyricId } from "@/domain/unison/linked-projects";
+import { isOwnLyric, lyricOwnerName } from "@/domain/unison/ownership";
+import { openProject } from "@/lib/open-project";
+import { openProjectIdSnapshot } from "@/lib/open-project-session";
+import { getQueryImportSettled } from "@/lib/persistence-settled";
 import type { UnisonLyric, UnisonLyricsFormat } from "@/lib/unison/api-types";
-import { startVideoProject } from "@/lib/unison/video-project";
+import { readUnisonSession } from "@/lib/unison/session";
+import {
+  type VideoProjectStart,
+  announceVideoProject,
+  createVideoProject,
+  loadVideoProject,
+  startVideoProject,
+} from "@/lib/unison/video-project";
 import { useProjectStore } from "@/stores/project";
+import { EDITOR_PATH } from "@/utils/app-routes";
 import { normalizeIsrc } from "@/utils/isrc";
 import type { ParseResult } from "@/utils/lyrics-parsers";
 import { skippedLinesMessage } from "@/utils/lyrics-parsers/shared";
+import { ownerLyric } from "@/utils/unison-suggest-copy";
+import { showLinkedProjectReopenedToast, showSuggestOpenedToast } from "@/utils/unison-toast";
 import { type LyricsRead, readLyricsFile, replaceWithParsedLyrics } from "@/views/lyrics-import-modal/import-lyrics";
 
 // -- Types ---------------------------------------------------------------------
@@ -56,13 +72,13 @@ function readUnisonLyric(lyric: Pick<UnisonLyric, "song" | "format" | "lyrics">)
 
 // -- Opening -------------------------------------------------------------------
 
-async function openUnisonLyric(lyric: UnisonLyric, { link, navigate }: OpenUnisonLyricOptions): Promise<void> {
+function unisonLyricStart(lyric: UnisonLyric, { link, navigate }: OpenUnisonLyricOptions): VideoProjectStart | null {
   const read = readUnisonLyric(lyric);
   if (read.status === "unreadable") {
     toast.error(read.message);
-    return;
+    return null;
   }
-  await startVideoProject({
+  return {
     videoId: lyric.videoId,
     title: lyric.song || lyric.videoId,
     prepare: () => {
@@ -73,9 +89,53 @@ async function openUnisonLyric(lyric: UnisonLyric, { link, navigate }: OpenUniso
       if (skipped > 0) toast.warning(skippedLinesMessage(skipped));
     },
     navigate,
+  };
+}
+
+async function openUnisonLyric(lyric: UnisonLyric, options: OpenUnisonLyricOptions): Promise<void> {
+  const start = unisonLyricStart(lyric, options);
+  if (start) await startVideoProject(start);
+}
+
+type LinkOpenOutcome = "created" | "reopened" | "failed";
+
+function linkedLyricLabel(lyric: UnisonLyric): string | null {
+  return isOwnLyric(lyric, readUnisonSession()?.keyId ?? null) ? null : ownerLyric(lyricOwnerName(lyric));
+}
+
+async function reopenLinkedProject(
+  lyric: UnisonLyric,
+  projectId: string,
+  navigate: (path: string) => void,
+): Promise<LinkOpenOutcome> {
+  await openProject(projectId);
+  navigate(EDITOR_PATH);
+  showLinkedProjectReopenedToast(linkedLyricLabel(lyric));
+  return "reopened";
+}
+
+async function openUnisonLyricFromLink(
+  lyric: UnisonLyric,
+  entries: readonly ProjectIndexEntry[] | null,
+  navigate: (path: string) => void,
+): Promise<LinkOpenOutcome> {
+  const linked = entries ? projectsByLyricId(entries).get(String(lyric.id)) : undefined;
+  if (linked) return reopenLinkedProject(lyric, linked.id, navigate);
+  const link = entries !== null;
+  const start = unisonLyricStart(lyric, { link, navigate });
+  const started = start && (await createVideoProject(start));
+  if (!started) return "failed";
+  useProjectStore.getState().setActiveTab("edit");
+  void getQueryImportSettled().then(() => {
+    if (openProjectIdSnapshot() !== started.newId) return;
+    const label = link ? linkedLyricLabel(lyric) : null;
+    if (label === null) announceVideoProject(started);
+    else showSuggestOpenedToast(label);
   });
+  void loadVideoProject(lyric.videoId, started);
+  return "created";
 }
 
 // -- Exports -------------------------------------------------------------------
 
-export { openUnisonLyric, readUnisonLyric, withUnisonDetails };
+export { openUnisonLyric, openUnisonLyricFromLink, readUnisonLyric, withUnisonDetails };
