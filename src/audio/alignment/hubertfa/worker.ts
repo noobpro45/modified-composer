@@ -12,13 +12,7 @@ import type {
   LineRequest,
   OutboundMessage,
 } from "@/audio/alignment/hubertfa/worker-protocol";
-import {
-  alignPhones,
-  ctcSpan,
-  isLineFinder,
-  lineFeeds,
-  linesAround,
-} from "@/audio/alignment/hubertfa/line-search";
+import { alignPhones, ctcSpan, isLineFinder, lineFeeds, linesAround } from "@/audio/alignment/hubertfa/line-search";
 import {
   type PhoneSequence,
   buildPhoneSequence,
