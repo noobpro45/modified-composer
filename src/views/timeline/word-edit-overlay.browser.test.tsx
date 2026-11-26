@@ -70,4 +70,59 @@ describe("WordEditOverlay", () => {
     expect(after.begin).toBe(0);
     expect(after.end).toBe(3);
   });
+
+  it("edits transliteration when textVariant is transliteration", async () => {
+    const line = {
+      ...createLine({
+        id: "lt",
+        text: "世界",
+        words: [createWord({ text: "世界", begin: 0, end: 2 })],
+      }),
+      transliteration: {
+        language: "ja-Latn",
+        origin: "google" as const,
+        sourceFingerprint: "fp",
+        text: "sekai",
+        segments: [{ original: "世界", transliteration: "sekai" }],
+      },
+    };
+    useProjectStore.setState({ lines: [line] });
+    useTimelineStore.setState({ zoom: 100, textVariant: "transliteration" });
+    const screen = await render(<PositionedHarness lineId={line.id} wordKey={`${line.id}-word-0`} />);
+
+    await screen.getByRole("textbox", { name: "Edit transliteration" }).fill("se-kai");
+    await userEvent.keyboard("{Enter}");
+
+    await expect.poll(() => useProjectStore.getState().lines[0].transliteration?.text).toBe("se-kai");
+    expect(useProjectStore.getState().lines[0].words?.[0]?.transliteration).toBe("se-kai");
+    expect(useProjectStore.getState().lines[0].text).toBe("世界");
+  });
+
+  it("edits both word text and transliteration when textVariant is both", async () => {
+    const line = {
+      ...createLine({
+        id: "lb",
+        text: "世界",
+        words: [createWord({ text: "世界", begin: 0, end: 2 })],
+      }),
+      transliteration: {
+        language: "ja-Latn",
+        origin: "google" as const,
+        sourceFingerprint: "fp",
+        text: "sekai",
+        segments: [{ original: "世界", transliteration: "sekai" }],
+      },
+    };
+    useProjectStore.setState({ lines: [line] });
+    useTimelineStore.setState({ zoom: 100, textVariant: "both" });
+    const screen = await render(<PositionedHarness lineId={line.id} wordKey={`${line.id}-word-0`} />);
+
+    await screen.getByRole("textbox", { name: "Edit word" }).fill("未来");
+    await screen.getByRole("textbox", { name: "Edit transliteration" }).fill("mirai");
+    await userEvent.keyboard("{Enter}");
+
+    await expect.poll(() => useProjectStore.getState().lines[0].text).toBe("未来");
+    expect(useProjectStore.getState().lines[0].transliteration?.text).toBe("mirai");
+    expect(useProjectStore.getState().lines[0].words?.[0]?.transliteration).toBe("mirai");
+  });
 });

@@ -51,6 +51,14 @@ function songLanguage(language: string | undefined, lines: readonly Pick<LyricLi
   return detectNonLatinLanguage(text) ?? (hasLatinLetter(text) ? "en" : null);
 }
 
+// Preserves script/region subtags (e.g. `zh-Hant`, `zh-Hans`) when set on the project
+// so CSS `:lang(...)` selectors choose the right CJK glyph variant and weight.
+function contentLanguageTag(language: string | undefined, lines: readonly Pick<LyricLine, "text">[]): string | null {
+  const trimmed = language?.trim();
+  if (trimmed && trimmed !== "auto" && trimmed !== "und") return trimmed;
+  return songLanguage(language, lines);
+}
+
 function coversLanguage(languages: readonly string[], code: string): boolean {
   return languages.some((language) => baseLanguage(language) === code);
 }
@@ -71,6 +79,7 @@ function coverageColumns(languageLists: readonly (readonly string[])[], song: st
 export {
   baseLanguage,
   canAlignLanguage,
+  contentLanguageTag,
   coverageColumns,
   coversLanguage,
   hanReadingFor,

@@ -24,6 +24,7 @@ import { useStorageMaintenance } from "@/hooks/useStorageMaintenance";
 import { useVocalOnsetSnapPoints } from "@/hooks/useVocalOnsetSnapPoints";
 import { appQueryClient } from "@/lib/app-query-client";
 import { wireFrameLoop } from "@/lib/frame-loop-wiring";
+import { isExternalHttpUrl, openExternalUrl } from "@/lib/open-external-url";
 import { commitAllPendingDeletions } from "@/lib/pending-deletions";
 import { useAudioStore } from "@/stores/audio";
 import { useConfirmStore } from "@/stores/confirm-store";
@@ -138,6 +139,19 @@ const AppShell: React.FC = () => {
         });
     });
     return () => cancel();
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktop()) return;
+    const handleExternalLinkClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+      if (!anchor || anchor.target !== "_blank" || !isExternalHttpUrl(anchor.href)) return;
+      event.preventDefault();
+      openExternalUrl(anchor.href);
+    };
+    document.addEventListener("click", handleExternalLinkClick);
+    return () => document.removeEventListener("click", handleExternalLinkClick);
   }, []);
 
   useEffect(() => {

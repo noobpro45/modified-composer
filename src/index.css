@@ -1,5 +1,5 @@
 @import url("https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@500;600&family=Noto+Sans+JP:wght@400..700&family=Noto+Sans+KR:wght@400..700&family=Noto+Sans+SC:wght@400..700&family=Noto+Sans+TC:wght@400..700&display=swap");
 @import "@braccato/core/styles/image-highlights.css";
 @import "@braccato/core/styles/lyrics.css";
 @import "@braccato/core/styles/instrumental.css";
@@ -54,7 +54,10 @@
   --color-composer-onset: #4fd6c0;
 
   /* Typography */
-  --font-sans: "Satoshi", "Avenir", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-sans:
+    "Satoshi", "Avenir", "Segoe UI", "Helvetica Neue", "Arial", "Noto Sans JP", "Noto Sans SC", "Noto Sans TC",
+    "Noto Sans KR", "Hiragino Sans", "Yu Gothic UI", "Microsoft YaHei UI", "Malgun Gothic", ui-sans-serif, system-ui,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
   /* Animation */
@@ -156,9 +159,64 @@ body {
 :root {
   --blyrics-text-color: var(--color-composer-text);
   --blyrics-inactive-opacity: 0.2;
-  --blyrics-font-family: "Satoshi", sans-serif;
+  --blyrics-font-family:
+    "Satoshi", "Avenir", "Segoe UI", "Helvetica Neue", "Arial", "Noto Sans JP", "Noto Sans SC", "Noto Sans TC",
+    "Noto Sans KR", "Hiragino Sans", "Yu Gothic UI", "Microsoft YaHei UI", "Malgun Gothic", sans-serif;
   --blyrics-font-size: 2.5rem;
   --blyrics-translated-color: color-mix(in oklab, var(--color-composer-text) 60%, transparent);
+}
+
+/* Order CJK font fallbacks by script so shared Han characters keep uniform glyphs and weights. */
+:lang(ja) {
+  --font-sans:
+    "Satoshi", "Avenir", "Segoe UI", "Helvetica Neue", "Arial", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo",
+    "Noto Sans SC", "Noto Sans TC", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  --blyrics-font-family:
+    "Satoshi", "Avenir", "Segoe UI", "Helvetica Neue", "Arial", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo",
+    "Noto Sans SC", "Noto Sans TC", "Noto Sans KR", sans-serif;
+}
+
+:lang(ko) {
+  --font-sans:
+    "Satoshi", "Avenir", "Segoe UI", "Helvetica Neue", "Arial", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic",
+    "Noto Sans JP", "Noto Sans SC", "Noto Sans TC", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  --blyrics-font-family:
+    "Satoshi", "Avenir", "Segoe UI", "Helvetica Neue", "Arial", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic",
+    "Noto Sans JP", "Noto Sans SC", "Noto Sans TC", sans-serif;
+}
+
+:lang(zh),
+:lang(zh-Hans),
+:lang(zh-CN),
+:lang(zh-SG) {
+  --font-sans:
+    "Satoshi", "Avenir", "Segoe UI", "Helvetica Neue", "Arial", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI",
+    "Noto Sans TC", "Noto Sans JP", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  --blyrics-font-family:
+    "Satoshi", "Avenir", "Segoe UI", "Helvetica Neue", "Arial", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI",
+    "Noto Sans TC", "Noto Sans JP", "Noto Sans KR", sans-serif;
+}
+
+:lang(zh-Hant),
+:lang(zh-TW),
+:lang(zh-HK),
+:lang(zh-MO),
+:lang(yue) {
+  --font-sans:
+    "Satoshi", "Avenir", "Segoe UI", "Helvetica Neue", "Arial", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei UI",
+    "Noto Sans SC", "Noto Sans JP", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  --blyrics-font-family:
+    "Satoshi", "Avenir", "Segoe UI", "Helvetica Neue", "Arial", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei UI",
+    "Noto Sans SC", "Noto Sans JP", "Noto Sans KR", sans-serif;
+}
+
+/* Re-evaluate --font-sans at language boundaries without overriding .font-mono or .blyrics--line. */
+:where(:lang(ja), :lang(ko), :lang(zh), :lang(yue)) {
+  font-family: var(--font-sans);
 }
 
 /* lyrics.css paints the romanization pill in fixed white, which vanishes on light themes. */

@@ -1,16 +1,16 @@
+import { IconLink } from "@tabler/icons-react";
+import { memo, useMemo } from "react";
 import { getAgentColor } from "@/domain/agent/colors";
 import { computeSyllableGroups } from "@/domain/word/syllable-groups";
 import type { WordTiming } from "@/domain/word/timing";
 import { useSettingsStore } from "@/stores/settings";
+import { cn } from "@/utils/cn";
 import { withoutSplitCharacter } from "@/utils/split-character";
 import { splitIntoWords } from "@/utils/sync-helpers";
 import { focusedControlOwnsKey } from "@/utils/typing-target";
 import { SyllableGroup } from "@/views/sync/syllable-group";
 import { TimeNudgeInput } from "@/views/sync/time-nudge-input";
 import { type WordHandlers, WordRenderer } from "@/views/sync/word-renderer";
-import { IconLink } from "@tabler/icons-react";
-import { memo, useMemo } from "react";
-import { cn } from "@/utils/cn";
 
 // -- Interfaces ---------------------------------------------------------------
 
@@ -27,6 +27,11 @@ interface ScrollableLineProps {
   text: string;
   displayText?: string;
   displayWordTexts?: string[];
+  transliterationWordTexts?: string[];
+  backgroundTransliterationWordTexts?: string[];
+  transliterationText?: string;
+  backgroundTransliterationText?: string;
+  showBoth?: boolean;
   lineNumber: number;
   isCurrent: boolean;
   agentId?: string;
@@ -66,6 +71,11 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
   text,
   displayText,
   displayWordTexts,
+  transliterationWordTexts,
+  backgroundTransliterationWordTexts,
+  transliterationText,
+  backgroundTransliterationText,
+  showBoth,
   lineNumber,
   isCurrent,
   agentId,
@@ -99,22 +109,61 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
 }) => {
   // biome-ignore lint/correctness/useExhaustiveDependencies: splitIntoWords splits by the split character
   const wordTexts = useMemo(
-    () => displayWordTexts ?? (words?.length ? words.map((w) => w.text) : splitIntoWords(text)),
-    [displayWordTexts, text, words, splitCharacter],
+    () =>
+      (showBoth ? undefined : displayWordTexts) ?? (words?.length ? words.map((w) => w.text) : splitIntoWords(text)),
+    [displayWordTexts, showBoth, text, words, splitCharacter],
   );
   // biome-ignore lint/correctness/useExhaustiveDependencies: splitIntoWords splits by the split character
   const bgWordTexts = useMemo(
     () =>
-      displayBackgroundWordTexts ??
+      (showBoth ? undefined : displayBackgroundWordTexts) ??
       (backgroundWords?.length
         ? backgroundWords.map((w) => w.text)
-        : (displayBackgroundText ?? backgroundText)
-          ? splitIntoWords(displayBackgroundText ?? backgroundText ?? "")
+        : (showBoth ? backgroundText : (displayBackgroundText ?? backgroundText))
+          ? splitIntoWords((showBoth ? backgroundText : (displayBackgroundText ?? backgroundText)) ?? "")
           : []),
-    [backgroundText, backgroundWords, displayBackgroundText, displayBackgroundWordTexts, splitCharacter],
+    [backgroundText, backgroundWords, displayBackgroundText, displayBackgroundWordTexts, showBoth, splitCharacter],
   );
 
   const renderLineContent = () => {
+    const originalText = withoutSplitCharacter(text, splitCharacter);
+    const transText =
+      showBoth && transliterationText ? withoutSplitCharacter(transliterationText, splitCharacter) : undefined;
+    const isSynced = lineBegin !== undefined;
+    const syncedClass = "text-(--muted)";
+    const unsyncedClass = "text-composer-text";
+    const activeClass = "text-composer-accent-text";
+
+    if (transText) {
+      if (editMode && lineBegin !== undefined && lineEnd !== undefined) {
+        return (
+          <span className="relative inline-flex flex-col items-start leading-tight">
+            <span className={`inline-flex flex-col items-start leading-tight ${syncedClass}`}>
+              <span className="font-medium">{originalText}</span>
+              <span className="text-xs text-composer-accent font-mono opacity-90">{transText}</span>
+            </span>
+            <span
+              className={`absolute inset-0 overflow-hidden ${activeClass}`}
+              data-word-begin={lineBegin}
+              data-word-end={lineEnd}
+              style={{ width: "0%" }}
+            >
+              <span className="inline-flex flex-col items-start leading-tight">
+                <span className="font-medium">{originalText}</span>
+                <span className="text-xs text-composer-accent font-mono opacity-90">{transText}</span>
+              </span>
+            </span>
+          </span>
+        );
+      }
+      return (
+        <span className={`inline-flex flex-col items-start leading-tight ${isSynced ? syncedClass : unsyncedClass}`}>
+          <span className="font-medium">{originalText}</span>
+          <span className="text-xs text-composer-accent font-mono opacity-90">{transText}</span>
+        </span>
+      );
+    }
+
     const renderedText = withoutSplitCharacter(displayText ?? text, splitCharacter);
     if (editMode && lineBegin !== undefined && lineEnd !== undefined) {
       return (
@@ -131,7 +180,7 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
         </span>
       );
     }
-    return <span className={lineBegin !== undefined ? "text-(--muted)" : "text-composer-text"}>{renderedText}</span>;
+    return <span className={isSynced ? "text-(--muted)" : "text-composer-text"}>{renderedText}</span>;
   };
 
   const showSyllableIndicators = useSettingsStore((s) => s.showSyllableIndicators);
@@ -170,6 +219,7 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
     groups: ReturnType<typeof computeSyllableGroups>,
     prefix: string,
     isBackground?: boolean,
+    transliterations?: string[],
   ) => {
     if (groups.length === 0) {
       return texts.map((word, idx) => (
@@ -177,6 +227,8 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
           key={`${lineNumber}-${prefix}-${idx}`}
           lineId={lineId}
           word={word}
+          transliteration={showBoth ? (transliterations?.[idx] ?? timings?.[idx]?.transliteration) : undefined}
+          showBoth={showBoth}
           idx={idx}
           timing={timings?.[idx]}
           allWords={timings}
@@ -217,6 +269,8 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
                   key={`${lineNumber}-${prefix}-${idx}`}
                   lineId={lineId}
                   word={word}
+                  transliteration={showBoth ? (transliterations?.[idx] ?? timings?.[idx]?.transliteration) : undefined}
+                  showBoth={showBoth}
                   idx={idx}
                   timing={timings?.[idx]}
                   allWords={timings}
@@ -236,6 +290,8 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
             key={`${lineNumber}-${prefix}-${i}`}
             lineId={lineId}
             word={texts[i]}
+            transliteration={showBoth ? (transliterations?.[i] ?? timings?.[i]?.transliteration) : undefined}
+            showBoth={showBoth}
             idx={i}
             timing={timings?.[i]}
             allWords={timings}
@@ -299,14 +355,49 @@ const ScrollableLineInner: React.FC<ScrollableLineProps> = ({
             </div>
           ) : (
             <div className="flex flex-wrap gap-x-3.5 gap-y-2 items-end">
-              {renderWordList(wordTexts, words, mainWordHandlers, mainSyllableGroups, "main")}
+              {renderWordList(
+                wordTexts,
+                words,
+                mainWordHandlers,
+                mainSyllableGroups,
+                "main",
+                false,
+                transliterationWordTexts ??
+                  (showBoth && transliterationText ? splitIntoWords(transliterationText) : undefined),
+              )}
             </div>
           )}
-          {bgWordTexts.length > 0 && (
-            <div className="flex flex-wrap gap-x-3.5 gap-y-2 items-end">
-              {renderWordList(bgWordTexts, backgroundWords, bgWordHandlers, bgSyllableGroups, "bg", true)}
-            </div>
-          )}
+          {bgWordTexts.length > 0 &&
+            (granularity === "line" ? (
+              <div className="flex flex-col items-start leading-tight text-[15px] italic text-(--muted)">
+                <span>
+                  {withoutSplitCharacter(
+                    (showBoth ? backgroundText : (displayBackgroundText ?? backgroundText)) ?? "",
+                    splitCharacter,
+                  )}
+                </span>
+                {showBoth && backgroundTransliterationText && (
+                  <span className="text-xs not-italic text-composer-accent font-mono opacity-90">
+                    {withoutSplitCharacter(backgroundTransliterationText, splitCharacter)}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-x-3.5 gap-y-2 items-end">
+                {renderWordList(
+                  bgWordTexts,
+                  backgroundWords,
+                  bgWordHandlers,
+                  bgSyllableGroups,
+                  "bg",
+                  true,
+                  backgroundTransliterationWordTexts ??
+                    (showBoth && backgroundTransliterationText
+                      ? splitIntoWords(backgroundTransliterationText)
+                      : undefined),
+                )}
+              </div>
+            ))}
         </div>
         {linkInfo && (
           <span
@@ -349,11 +440,16 @@ const ScrollableLine = memo(ScrollableLineInner, (prev, next) => {
     prev.linkInfo?.ordinal === next.linkInfo?.ordinal &&
     prev.linkInfo?.totalInstances === next.linkInfo?.totalInstances &&
     prev.linkInfo?.shared === next.linkInfo?.shared &&
+    prev.showBoth === next.showBoth &&
+    prev.transliterationText === next.transliterationText &&
+    prev.backgroundTransliterationText === next.backgroundTransliterationText &&
+    prev.transliterationWordTexts === next.transliterationWordTexts &&
+    prev.backgroundTransliterationWordTexts === next.backgroundTransliterationWordTexts &&
     prev.splitCharacter === next.splitCharacter
   );
 });
 
 // -- Exports ------------------------------------------------------------------
 
-export { ScrollableLine };
 export type { ScrollableLineLinkInfo };
+export { ScrollableLine };

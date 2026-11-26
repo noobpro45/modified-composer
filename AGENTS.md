@@ -11,15 +11,24 @@ Operating notes for AI agents working in this repo.
 
 ## Verification gates
 
-Run these before claiming work is done. CI runs the same checks:
+Run these before claiming work is done. CI (`.github/workflows/test.yml`) runs the full sharded
+suite on every push and PR to `master`:
 
 ```bash
 pnpm typecheck        # tsc -b
-pnpm test:unit        # Vitest, jsdom
-pnpm test:component   # Vitest browser mode, Playwright Chromium
 pnpm jscpd            # duplication check
 pnpm lint:fix         # Biome lint + format; rewrites files in place
+pnpm test:unit        # Vitest, jsdom (filter paths during normal tasks; full before PR/merge)
+pnpm test:component   # Vitest browser mode, Playwright Chromium (filter paths during normal tasks; full before PR/merge)
 ```
+
+For normal coding tasks and iterations, keep verification targeted and fast without skipping checks:
+always run `pnpm typecheck`, `pnpm jscpd`, `pnpm lint:fix`, the architecture guards
+(`pnpm test:unit src/test/`), and the relevant unit/browser test files for the changed feature and
+its callers (e.g. `pnpm test:unit <paths>` and `pnpm test:component <paths>`). Run the full
+unfiltered `pnpm test:unit` and `pnpm test:component` suites when touching shared core
+infrastructure (stores, persistence, frame loop, global styles), before a PR/merge, or when asked.
+State the exact scope of any filtered test run in your final summary.
 
 `pnpm test` runs both test projects. `pnpm knip` reports unused exports, dependencies and files: an
 export with no importer is either dead or a duplicate of something that already exists.

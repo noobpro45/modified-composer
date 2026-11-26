@@ -2,6 +2,7 @@ import { AudioPlayer } from "@/audio/audio-player";
 import type { ProjectTab } from "@/domain/project/tab";
 import { useHistoryShortcuts } from "@/hooks/useHistoryShortcuts";
 import { useMissingAudioNotice } from "@/hooks/useMissingAudioNotice";
+import { useContentLanguage } from "@/hooks/useSongLanguage";
 import { useTransportDeckShown } from "@/hooks/use-transport-deck-shown";
 import { GuideHost } from "@/guide/guide-host";
 import { useProjectStore } from "@/stores/project";
@@ -23,6 +24,7 @@ interface TabPanelProps {
   tab: ProjectTab;
   Panel: React.FC;
   isActive: boolean;
+  contentLanguage: string | null;
 }
 
 interface PanelContentProps {
@@ -52,9 +54,9 @@ const rendersOnlyOnReveal = (previous: PanelContentProps, next: PanelContentProp
 // Panels read their own stores; the shell renders one only as it is revealed, so it shows current state.
 const PanelContent = memo<PanelContentProps>(({ Panel }) => <Panel />, rendersOnlyOnReveal);
 
-const TabPanel = memo<TabPanelProps>(({ tab, Panel, isActive }) => (
+const TabPanel = memo<TabPanelProps>(({ tab, Panel, isActive, contentLanguage }) => (
   <Activity mode={isActive ? "visible" : "hidden"}>
-    <div data-tab-panel={tab} className="absolute inset-0 flex flex-col">
+    <div data-tab-panel={tab} lang={contentLanguage ?? undefined} className="absolute inset-0 flex flex-col">
       <PanelContent Panel={Panel} isActive={isActive} />
     </div>
   </Activity>
@@ -64,6 +66,7 @@ const EditorScreen: React.FC = () => {
   useMissingAudioNotice();
   useReleaseTimelineCachesWithEditor();
   const activeTab = useProjectStore((state) => state.activeTab);
+  const contentLanguage = useContentLanguage();
   const showPlayer = useTransportDeckShown();
   const showGuide = useSettingsStore((state) => state.showGuide);
   useHistoryShortcuts(!TABS_WITH_OWN_HISTORY_KEYS.has(activeTab));
@@ -75,7 +78,7 @@ const EditorScreen: React.FC = () => {
     <div className="flex flex-col flex-1 min-h-0">
       <main className={cn("flex-1 min-h-0 workspace-card", !showPlayer && "mb-2")}>
         {PANELS.filter(({ tab }) => visitedTabs.has(tab)).map(({ tab, Panel }) => (
-          <TabPanel key={tab} tab={tab} Panel={Panel} isActive={activeTab === tab} />
+          <TabPanel key={tab} tab={tab} Panel={Panel} isActive={activeTab === tab} contentLanguage={contentLanguage} />
         ))}
         {showGuide && <GuideHost />}
       </main>

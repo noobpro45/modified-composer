@@ -5,6 +5,7 @@ import { TimingDisplay } from "@/views/sync/timing-display";
 interface SyncGestureControlsProps {
   currentWord?: string;
   displayWord?: string;
+  transliterationWord?: string;
   isHolding: boolean;
   showPulse: boolean;
   handleHoldPointerDown: React.PointerEventHandler<HTMLButtonElement>;
@@ -20,6 +21,7 @@ const shortcutLabel = (id: string) => getEffectiveKeysArray(id).join(" ");
 const SyncGestureControls: React.FC<SyncGestureControlsProps> = ({
   currentWord,
   displayWord,
+  transliterationWord,
   isHolding,
   showPulse,
   handleHoldPointerDown,
@@ -27,7 +29,15 @@ const SyncGestureControls: React.FC<SyncGestureControlsProps> = ({
   handleTapPointerDown,
 }) => (
   <div className="flex items-center justify-self-end gap-4">
-    {currentWord && <span className="text-xl font-semibold text-composer-text">{displayWord ?? currentWord}</span>}
+    {currentWord &&
+      (transliterationWord ? (
+        <div className="flex flex-col items-end leading-tight">
+          <span className="text-xl font-semibold text-composer-text">{currentWord}</span>
+          <span className="text-xs font-mono text-composer-accent opacity-90">{transliterationWord}</span>
+        </div>
+      ) : (
+        <span className="text-xl font-semibold text-composer-text">{displayWord ?? currentWord}</span>
+      ))}
     <div className="flex items-center gap-2">
       <Key
         tabIndex={-1}
@@ -58,6 +68,7 @@ const SyncGestureControls: React.FC<SyncGestureControlsProps> = ({
 );
 
 interface SyncFooterProps {
+  granularity: "line" | "word";
   lastSyncedTime?: number;
   isComplete: boolean;
   editMode: boolean;
@@ -68,6 +79,7 @@ interface SyncFooterProps {
 }
 
 const SyncFooter: React.FC<SyncFooterProps> = ({
+  granularity,
   lastSyncedTime,
   isComplete,
   editMode,
@@ -80,7 +92,11 @@ const SyncFooter: React.FC<SyncFooterProps> = ({
     <TimingDisplay lastSyncedTime={lastSyncedTime} />
 
     <div className="text-[13px] text-center text-(--muted)">
-      {!isComplete && editMode && "Editing timings ・ click a word to re-record, or press Done to sync"}
+      {!isComplete &&
+        editMode &&
+        (granularity === "line"
+          ? "Editing timings ・ click a line to re-record, or press Done to sync"
+          : "Editing timings ・ click a word to re-record, or press Done to sync")}
       {status}
       {!status &&
         !isComplete &&

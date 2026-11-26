@@ -26,6 +26,10 @@ interface LaneRow {
   wordTexts: string[];
   wordRuns: WordRun[];
   backgroundText?: string;
+  transliterationText?: string;
+  backgroundTransliterationText?: string;
+  transliterationWordTexts?: string[];
+  showBoth?: boolean;
   singer?: LaneSinger;
   groupTag?: LaneGroupTag;
   folded: boolean;
@@ -34,6 +38,7 @@ interface LaneRow {
 interface LineWords {
   display: LanguageDisplayLine;
   splitCharacter: string;
+  showBoth?: boolean;
   wordTexts: string[];
   wordRuns: WordRun[];
 }
@@ -44,6 +49,7 @@ interface LaneRowsInput {
   agents: readonly Agent[];
   groupTags: ReadonlyMap<string, LaneGroupTag>;
   folded: ReadonlySet<string>;
+  showBoth?: boolean;
 }
 
 // -- Cache --------------------------------------------------------------------
@@ -73,12 +79,15 @@ function wordRunsOf(text: string, slotCount: number): WordRun[] {
   return runs;
 }
 
-function lineWords(line: LyricLine, display: LanguageDisplayLine): LineWords {
+function lineWords(line: LyricLine, display: LanguageDisplayLine, showBoth?: boolean): LineWords {
   const splitCharacter = getSplitCharacter();
   const cached = wordsByLine.get(line);
-  if (cached?.display === display && cached.splitCharacter === splitCharacter) return cached;
-  const wordTexts = display.wordTexts ?? splitIntoWords(display.text);
-  const words = { display, splitCharacter, wordTexts, wordRuns: wordRunsOf(line.text, wordTexts.length) };
+  if (cached?.display === display && cached.splitCharacter === splitCharacter && cached.showBoth === showBoth) {
+    return cached;
+  }
+  const originalWordTexts = line.words?.length ? line.words.map((w) => w.text) : splitIntoWords(line.text);
+  const wordTexts = showBoth ? originalWordTexts : (display.wordTexts ?? splitIntoWords(display.text));
+  const words = { display, splitCharacter, showBoth, wordTexts, wordRuns: wordRunsOf(line.text, wordTexts.length) };
   wordsByLine.set(line, words);
   return words;
 }
@@ -94,13 +103,17 @@ function reusedRow(previous: LaneRow | undefined, next: LaneRow): LaneRow {
     previous.wordTexts === next.wordTexts &&
     previous.text === next.text &&
     previous.backgroundText === next.backgroundText &&
+    previous.transliterationText === next.transliterationText &&
+    previous.backgroundTransliterationText === next.backgroundTransliterationText &&
+    previous.transliterationWordTexts === next.transliterationWordTexts &&
+    previous.showBoth === next.showBoth &&
     previous.groupTag === next.groupTag &&
     previous.folded === next.folded &&
     sameSinger(previous.singer, next.singer);
   return unchanged ? previous : next;
 }
 
-function buildLaneRows({ lines, displayLines, agents, groupTags, folded }: LaneRowsInput): LaneRow[] {
+function buildLaneRows({ lines, displayLines, agents, groupTags, folded, showBoth }: LaneRowsInput): LaneRow[] {
   const showsSingers = new Set(lines.map((line) => line.agentId)).size > 1;
   let previousAgentId: string | null = null;
   return lines.map((line, lineIndex) => {
@@ -108,14 +121,19 @@ function buildLaneRows({ lines, displayLines, agents, groupTags, folded }: LaneR
     const isFolded = folded.has(line.id);
     const singerChanged = !isFolded && line.agentId !== previousAgentId;
     if (!isFolded) previousAgentId = line.agentId;
-    const { wordTexts, wordRuns } = lineWords(line, display);
+    const hasTrans = Boolean(showBoth && line.transliteration);
+    const { wordTexts, wordRuns } = lineWords(line, display, hasTrans);
     const row = reusedRow(rowByLine.get(line), {
       line,
       lineIndex,
-      text: display.text,
+      text: hasTrans ? line.text : display.text,
       wordTexts,
       wordRuns,
-      backgroundText: display.backgroundText,
+      backgroundText: hasTrans ? line.backgroundText : display.backgroundText,
+      transliterationText: line.transliteration?.text,
+      backgroundTransliterationText: line.transliteration?.backgroundText,
+      transliterationWordTexts: display.transliterationWordTexts,
+      showBoth: hasTrans,
       singer: showsSingers && singerChanged ? laneSinger(line.agentId, agents) : undefined,
       groupTag: groupTags.get(line.id),
       folded: isFolded,
@@ -127,5 +145,5 @@ function buildLaneRows({ lines, displayLines, agents, groupTags, folded }: LaneR
 
 // -- Exports ------------------------------------------------------------------
 
-export { buildLaneRows };
 export type { LaneRow };
+export { buildLaneRows };

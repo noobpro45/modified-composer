@@ -54,6 +54,7 @@ const LanguageField: React.FC<LanguageFieldProps> = ({
       <div className="flex min-w-0 flex-col gap-1.5">
         <input
           id={inputId}
+          lang={pasteLanguage}
           aria-label={ariaLabel}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { SyncGranularity } from "@/domain/line/sync-progress";
 import { SingerTag } from "@/ui/singer-tag";
 import { cn } from "@/utils/cn";
@@ -5,7 +6,6 @@ import { stripSplitCharacter } from "@/utils/split-character";
 import type { LaneRow } from "@/views/sync/lane-rows";
 import { laneSlotState } from "@/views/sync/lane-slot-state";
 import { LaneWord, TapRing } from "@/views/sync/sync-lane-word";
-import { memo } from "react";
 
 // -- Interfaces ---------------------------------------------------------------
 
@@ -58,6 +58,7 @@ const WordModeSlot: React.FC<WordModeSlotProps> = ({
     isHolding,
   });
   const isNext = state === "next";
+  const transWord = row.showBoth ? row.transliterationWordTexts?.[widx] : undefined;
   return (
     <LaneWord
       state={state}
@@ -66,7 +67,14 @@ const WordModeSlot: React.FC<WordModeSlotProps> = ({
       dimmed={isPlacing && widx > 0}
       hasDot={hasDot}
     >
-      <span className="relative">{row.wordTexts[widx]}</span>
+      {transWord ? (
+        <span className="relative inline-flex flex-col items-center leading-tight">
+          <span>{row.wordTexts[widx]}</span>
+          <span className="text-xs font-mono text-composer-accent opacity-90">{transWord}</span>
+        </span>
+      ) : (
+        <span className="relative">{row.wordTexts[widx]}</span>
+      )}
       {ring?.wordIndex === widx && <TapRing key={ring.nonce} onComplete={onRingDone} />}
     </LaneWord>
   );
@@ -86,15 +94,25 @@ const WordModeWords: React.FC<LaneWordsProps> = (props) => {
   });
 };
 
-const LineModeWord: React.FC<LaneWordsProps> = ({ row, isCurrent, isLastLine, isHolding }) => (
-  <LaneWord
-    state={isCurrent ? "next" : isLastLine && !isHolding ? "lastTapped" : "plain"}
-    onCurrentLine={isCurrent}
-    isHeld={isHolding && isCurrent}
-  >
-    <span className="relative">{stripSplitCharacter(row.text)}</span>
-  </LaneWord>
-);
+const LineModeWord: React.FC<LaneWordsProps> = ({ row, isCurrent, isLastLine, isHolding }) => {
+  const transText = row.showBoth && row.transliterationText ? stripSplitCharacter(row.transliterationText) : undefined;
+  return (
+    <LaneWord
+      state={isCurrent ? "next" : isLastLine && !isHolding ? "lastTapped" : "plain"}
+      onCurrentLine={isCurrent}
+      isHeld={isHolding && isCurrent}
+    >
+      {transText ? (
+        <span className="relative inline-flex flex-col items-center leading-tight">
+          <span>{stripSplitCharacter(row.text)}</span>
+          <span className="text-sm font-mono text-composer-accent opacity-90 mt-0.5">{transText}</span>
+        </span>
+      ) : (
+        <span className="relative">{stripSplitCharacter(row.text)}</span>
+      )}
+    </LaneWord>
+  );
+};
 
 const SyncLaneLine: React.FC<SyncLaneLineProps> = memo(({ granularity, aboveCurrent, className, ...wordsProps }) => {
   const { row, isCurrent, isPlacing } = wordsProps;
@@ -135,11 +153,19 @@ const SyncLaneLine: React.FC<SyncLaneLineProps> = memo(({ granularity, aboveCurr
         >
           {granularity === "line" ? <LineModeWord {...wordsProps} /> : <WordModeWords {...wordsProps} />}
         </div>
-        {row.backgroundText && (
-          <span className="relative text-xl font-medium text-composer-text-faint">
-            {stripSplitCharacter(row.backgroundText)}
-          </span>
-        )}
+        {row.backgroundText &&
+          (row.showBoth && row.backgroundTransliterationText ? (
+            <span className="relative inline-flex flex-col items-center leading-tight text-xl font-medium text-composer-text-faint">
+              <span>{stripSplitCharacter(row.backgroundText)}</span>
+              <span className="text-xs font-mono text-composer-accent opacity-90">
+                {stripSplitCharacter(row.backgroundTransliterationText)}
+              </span>
+            </span>
+          ) : (
+            <span className="relative text-xl font-medium text-composer-text-faint">
+              {stripSplitCharacter(row.backgroundText)}
+            </span>
+          ))}
       </div>
     </div>
   );
@@ -147,5 +173,5 @@ const SyncLaneLine: React.FC<SyncLaneLineProps> = memo(({ granularity, aboveCurr
 
 // -- Exports ------------------------------------------------------------------
 
-export { SyncLaneLine };
 export type { LaneRing };
+export { SyncLaneLine };

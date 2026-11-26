@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ListItem, Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { LinkGroup } from "@/domain/group/template";
 import { instancePositionsByLineId } from "@/domain/instance/enumerate";
 import { isLinked } from "@/domain/instance/predicates";
@@ -11,8 +13,6 @@ import { cancelNextFrame, nextFrame } from "@/lib/frame-loop";
 import { ScrollableLine, type ScrollableLineLinkInfo } from "@/views/sync/scrollable-line";
 import { SkippedInstanceBand } from "@/views/sync/skipped-instance-band";
 import { type SyncLineListHandlers, useRowCallbacks } from "@/views/sync/use-row-callbacks";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type ListItem, Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 // -- Interfaces ---------------------------------------------------------------
 
@@ -31,6 +31,7 @@ interface SyncLineListProps {
   handlers: SyncLineListHandlers;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   splitCharacter: string;
+  showBoth?: boolean;
 }
 
 // -- Constants ----------------------------------------------------------------
@@ -69,6 +70,7 @@ const SyncLineList: React.FC<SyncLineListProps> = ({
   handlers,
   scrollContainerRef,
   splitCharacter,
+  showBoth,
 }) => {
   const groupsById = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
   const linkInfoByLineId = useMemo(() => {
@@ -151,6 +153,11 @@ const SyncLineList: React.FC<SyncLineListProps> = ({
           text={line.text}
           displayText={displayLine.text}
           displayWordTexts={displayLine.wordTexts}
+          transliterationWordTexts={displayLine.transliterationWordTexts}
+          backgroundTransliterationWordTexts={displayLine.backgroundTransliterationWordTexts}
+          transliterationText={line.transliteration?.text}
+          backgroundTransliterationText={line.transliteration?.backgroundText}
+          showBoth={showBoth}
           isCurrent={index === currentLineIndex}
           agentId={line.agentId}
           backgroundText={line.backgroundText}

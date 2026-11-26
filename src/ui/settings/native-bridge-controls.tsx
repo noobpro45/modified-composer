@@ -1,10 +1,12 @@
 import { useBridgeConfig } from "@/hooks/use-bridge-config";
 import { Button } from "@/ui/button";
 import { IconButton } from "@/ui/icon-button";
+import { INPUT_STYLES } from "@/ui/input-styles";
 import { Select } from "@/ui/select";
 import { BridgeLogModal } from "@/ui/settings/bridge-log-modal";
-import { SettingRow, ToggleSwitch } from "@/ui/settings/native-bridge-row";
+import { SettingRow } from "@/ui/settings/native-bridge-row";
 import { SettingsGroup } from "@/ui/settings/setting-controls";
+import { Switch } from "@/ui/switch";
 import { cn } from "@/utils/cn";
 import {
   IconCheck,
@@ -86,7 +88,7 @@ export const NativeBridgeControls: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col text-composer-text">
+    <div className="flex flex-col divide-y divide-(--divider) text-composer-text">
       <SettingsGroup title="Bridge Service">
         <SettingRow
           title="Bridge Server"
@@ -102,12 +104,16 @@ export const NativeBridgeControls: React.FC = () => {
                 "text-xs px-2 py-0.5 rounded-md font-mono transition-colors",
                 isServerRunning
                   ? "bg-composer-positive/15 text-composer-positive border border-composer-positive/30"
-                  : "bg-composer-input text-composer-text-muted border border-composer-border",
+                  : "bg-(--well) text-composer-text-muted border border-(--edge)",
               )}
             >
               {isServerRunning ? `port ${config.listen_port}` : "stopped"}
             </span>
-            <ToggleSwitch checked={isServerRunning} onChange={toggleServer} label="Toggle bridge server" />
+            <Switch
+              checked={isServerRunning}
+              onCheckedChange={() => void toggleServer()}
+              label="Toggle bridge server"
+            />
           </div>
         </SettingRow>
 
@@ -121,7 +127,7 @@ export const NativeBridgeControls: React.FC = () => {
             max={65535}
             value={config.listen_port}
             onChange={(e) => update("listen_port", Number(e.target.value))}
-            className="h-7.5 w-20 px-2.5 text-xs font-mono rounded-lg bg-composer-input border border-composer-border text-composer-text text-right focus:outline-none focus:border-composer-border-hover transition-colors"
+            className={cn(INPUT_STYLES, "h-7.5 w-20 text-xs font-mono text-right transition-colors")}
           />
         </SettingRow>
 
@@ -129,9 +135,9 @@ export const NativeBridgeControls: React.FC = () => {
           title="Use random port if busy"
           description="Avoid startup failures if another program occupies the preferred port."
         >
-          <ToggleSwitch
+          <Switch
             checked={config.use_random_if_busy}
-            onChange={() => update("use_random_if_busy", !config.use_random_if_busy)}
+            onCheckedChange={(checked) => update("use_random_if_busy", checked)}
             label="Random port fallback"
           />
         </SettingRow>
@@ -171,7 +177,7 @@ export const NativeBridgeControls: React.FC = () => {
             value={config.ytdlp_binary_path || ""}
             onChange={(e) => update("ytdlp_binary_path", e.target.value)}
             placeholder="Managed yt-dlp"
-            className="h-7.5 w-56 px-2.5 text-xs rounded-lg bg-composer-input border border-composer-border text-composer-text placeholder:text-composer-text-muted focus:outline-none focus:border-composer-border-hover transition-colors"
+            className={cn(INPUT_STYLES, "h-7.5 w-56 text-xs transition-colors")}
           />
         </SettingRow>
 
@@ -197,9 +203,9 @@ export const NativeBridgeControls: React.FC = () => {
           title="Cache streams for offline replay"
           description="Automatically store streamed tracks to local library cache for instant replay."
         >
-          <ToggleSwitch
+          <Switch
             checked={config.auto_download_to_library}
-            onChange={() => update("auto_download_to_library", !config.auto_download_to_library)}
+            onCheckedChange={(checked) => update("auto_download_to_library", checked)}
             label="Auto download to library"
           />
         </SettingRow>
@@ -241,9 +247,9 @@ export const NativeBridgeControls: React.FC = () => {
           title="Prefer Premium Audio"
           description="Request higher quality audio streams from YouTube Music (requires active YouTube cookies)."
         >
-          <ToggleSwitch
+          <Switch
             checked={config.prefer_premium_audio}
-            onChange={() => update("prefer_premium_audio", !config.prefer_premium_audio)}
+            onCheckedChange={(checked) => update("prefer_premium_audio", checked)}
             label="Prefer premium audio"
           />
         </SettingRow>

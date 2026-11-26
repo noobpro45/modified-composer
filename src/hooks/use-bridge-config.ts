@@ -1,3 +1,4 @@
+import { openExternalUrl } from "@/lib/open-external-url";
 import {
   BridgeStatus,
   CookiesState,
@@ -12,7 +13,6 @@ import {
   UploadCookies,
 } from "@/wailsjs/go/app/App";
 import type { app, config } from "@/wailsjs/go/models";
-import { BrowserOpenURL } from "@/wailsjs/runtime/runtime";
 import { isDesktop } from "@/utils/platform";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -174,13 +174,7 @@ export function useBridgeConfig(): UseBridgeConfigResult {
     if (!isDesktopApp || !window.go?.app?.App) return;
     try {
       const url = await OpenLogFile();
-      if (url) {
-        if (typeof window !== "undefined" && window.runtime?.BrowserOpenURL) {
-          window.runtime.BrowserOpenURL(url);
-        } else {
-          BrowserOpenURL(url);
-        }
-      }
+      if (url) openExternalUrl(url);
     } catch (err) {
       console.error("Failed to open log file:", err);
     }
