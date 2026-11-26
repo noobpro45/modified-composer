@@ -46,6 +46,11 @@ export default defineConfig({
           Referer: "https://composer.betterlyrics.org/",
         },
       },
+      "/google-translate": {
+        target: "https://translate.googleapis.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/google-translate/, "/translate_a/single"),
+      },
     },
   },
   preview: { host: "127.0.0.1" },

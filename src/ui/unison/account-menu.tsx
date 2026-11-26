@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUnisonProfile } from "@/hooks/unison/useUnisonProfile";
 import { useUnisonSession } from "@/hooks/useUnisonSession";
+import { openExternalUrl } from "@/lib/open-external-url";
 import type { StoredUnisonSession } from "@/lib/unison/session";
 import { signOutOfUnison } from "@/lib/unison/sign-out";
 import { unisonProfileUrl } from "@/lib/unison/web-urls";
@@ -50,7 +51,7 @@ const AccountMenu: React.FC<{ session: StoredUnisonSession }> = ({ session }) =>
         <MenuItem
           icon={IconExternalLink}
           label="Profile on Unison"
-          onSelect={() => window.open(unisonProfileUrl(session.keyId), "_blank", "noopener,noreferrer")}
+          onSelect={() => openExternalUrl(unisonProfileUrl(session.keyId))}
         />
         <MenuSeparator />
         <MenuItem icon={IconLogout} label="Disconnect" onSelect={signOutOfUnison} />

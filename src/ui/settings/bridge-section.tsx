@@ -32,14 +32,14 @@ const StatusBadge: React.FC<{
   }
   if (state === "ok" && data) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-emerald-500" title={`yt-dlp ${data.ytdlp}`}>
+      <span className="inline-flex items-center gap-1.5 text-xs text-composer-positive" title={`yt-dlp ${data.ytdlp}`}>
         <IconCheck size={12} />
         Running · bridge {data.bridge} · yt-dlp {data.ytdlp}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-rose-500">
+    <span className="inline-flex items-center gap-1.5 text-xs text-composer-negative">
       <IconExclamationCircle size={12} />
       Not running
     </span>
@@ -106,7 +106,7 @@ const BridgeSection: React.FC = () => {
 
   if (isDesktopApp) {
     return (
-      <div data-testid="bridge-section" className="py-2">
+      <div data-testid="bridge-section">
         <NativeBridgeControls />
       </div>
     );
@@ -152,7 +152,7 @@ const BridgeSection: React.FC = () => {
           />
 
           {state === "error" && errorMessage && (
-            <p className="text-xs text-rose-500 select-text break-words">{errorMessage}</p>
+            <p className="text-xs text-composer-negative select-text break-words">{errorMessage}</p>
           )}
           {state === "error" &&
             (everDetectedAtMount ? <BridgeStoppedHint /> : <BridgeInstallGuide onCheckNow={() => health.refetch()} />)}

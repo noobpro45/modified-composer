@@ -1,4 +1,4 @@
-import { songLanguage } from "@/domain/alignment/language";
+import { contentLanguageTag, songLanguage } from "@/domain/alignment/language";
 import { useProjectStore } from "@/stores/project";
 import { useMemo } from "react";
 
@@ -10,6 +10,12 @@ const useSongLanguage = (): string | null => {
   return useMemo(() => songLanguage(language, lines), [language, lines]);
 };
 
+const useContentLanguage = (): string | null => {
+  const language = useProjectStore((s) => s.metadata.language);
+  const lines = useProjectStore((s) => s.lines);
+  return useMemo(() => contentLanguageTag(language, lines), [language, lines]);
+};
+
 // -- Exports -------------------------------------------------------------------
 
-export { useSongLanguage };
+export { useContentLanguage, useSongLanguage };

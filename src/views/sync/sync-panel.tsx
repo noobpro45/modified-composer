@@ -104,8 +104,11 @@ const SyncPanel: React.FC = () => {
   const showsLane = !showLineList && !isComplete;
   // biome-ignore lint/correctness/useExhaustiveDependencies: buildLaneRows splits words by the split character
   const laneRows = useMemo(
-    () => (showsLane ? buildLaneRows({ lines, displayLines, agents, groupTags, folded }) : []),
-    [showsLane, lines, displayLines, agents, groupTags, folded, splitCharacter],
+    () =>
+      showsLane
+        ? buildLaneRows({ lines, displayLines, agents, groupTags, folded, showBoth: textVariant === "both" })
+        : [],
+    [showsLane, lines, displayLines, agents, groupTags, folded, splitCharacter, textVariant],
   );
 
   const stopSessionAtSongEnd = useEffectEvent(() => {
@@ -432,6 +435,7 @@ const SyncPanel: React.FC = () => {
           handlers={syncHandlers}
           scrollContainerRef={scrollContainerRef}
           splitCharacter={splitCharacter}
+          showBoth={textVariant === "both"}
         />
       ) : isComplete ? (
         <SyncEndScreen syncComplete={syncComplete} />
@@ -450,6 +454,7 @@ const SyncPanel: React.FC = () => {
       )}
 
       <SyncFooter
+        granularity={granularity}
         lastSyncedTime={lastSyncedTime}
         isComplete={isComplete}
         editMode={editMode}
@@ -462,8 +467,15 @@ const SyncPanel: React.FC = () => {
         gestureControls={
           showGestureCircles && (
             <SyncGestureControls
-              currentWord={currentWord}
-              displayWord={placingName ?? displayLines[lineIndex]?.wordTexts?.[wordIndex]}
+              currentWord={granularity === "word" ? currentWord : (placingName ?? undefined)}
+              displayWord={
+                granularity === "word" ? (placingName ?? displayLines[lineIndex]?.wordTexts?.[wordIndex]) : undefined
+              }
+              transliterationWord={
+                granularity === "word" && textVariant === "both"
+                  ? displayLines[lineIndex]?.transliterationWordTexts?.[wordIndex]
+                  : undefined
+              }
               isHolding={isHolding}
               handleHoldPointerDown={handleHoldPointerDown}
               handleHoldPointerRelease={handleHoldPointerRelease}

@@ -1,6 +1,7 @@
 import { pastedRows } from "@/domain/language/paste-import";
 import { noteGuideSignal } from "@/lib/guide-signals";
 import { useProjectStore } from "@/stores/project";
+import { useSettingsStore } from "@/stores/settings";
 import { Button } from "@/ui/button";
 import { EmptyState } from "@/ui/empty-state";
 import { Scroll } from "@/ui/scroll";
@@ -71,6 +72,7 @@ const LanguagesPanel: React.FC = () => {
           translations: requestedTargets,
           transliteration: includeTransliteration,
           sourceLanguage: requestedSource,
+          romanizationCase: useSettingsStore.getState().romanizationCase,
           signal: controller.signal,
         });
         const currentState = useProjectStore.getState();
@@ -83,7 +85,12 @@ const LanguagesPanel: React.FC = () => {
         ) {
           return;
         }
-        if (generation.failedLineIds.size > 0) toast.error("Couldn't generate some lines. Try Regenerate.");
+        if (generation.failedLineIds.size > 0) {
+          toast.error(
+            "Couldn't generate some lines. Try Regenerate.",
+            generation.error ? { description: generation.error } : undefined,
+          );
+        }
         const updates = mergeGeneratedLanguageUpdates(
           startingLines,
           currentState.lines,
@@ -103,7 +110,10 @@ const LanguagesPanel: React.FC = () => {
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
         console.warn(LOG_PREFIX, "generation failed", error);
-        toast.error("Couldn't generate some lines. Try Regenerate.");
+        toast.error(
+          "Couldn't generate some lines. Try Regenerate.",
+          error instanceof Error ? { description: error.message } : undefined,
+        );
       } finally {
         stop();
         if (abortRef.current === controller) {

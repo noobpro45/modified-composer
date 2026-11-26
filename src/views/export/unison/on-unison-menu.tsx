@@ -1,3 +1,4 @@
+import { openExternalUrl } from "@/lib/open-external-url";
 import type { UnisonLyric } from "@/lib/unison/api-types";
 import { unisonLyricPageUrl } from "@/lib/unison/web-urls";
 import { IconButton } from "@/ui/icon-button";
@@ -42,7 +43,7 @@ const OnUnisonMenu: React.FC<OnUnisonMenuProps> = ({ lyric, disabled, onRemove, 
         <MenuItem
           icon={IconExternalLink}
           label="View on Unison"
-          onSelect={() => window.open(unisonLyricPageUrl(lyric.videoId, lyric.id), "_blank", "noopener,noreferrer")}
+          onSelect={() => openExternalUrl(unisonLyricPageUrl(lyric.videoId, lyric.id))}
         />
         {onUnlink && <MenuItem icon={IconUnlink} label="Unlink" onSelect={onUnlink} />}
         {onRemove && (

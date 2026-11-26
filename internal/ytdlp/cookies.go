@@ -21,22 +21,18 @@ func CookiesPath(dataDir string) string {
 	return filepath.Join(dataDir, cookiesFilename)
 }
 
-// BuildExtractorArgs returns the youtube:player_client + player_skip
-// extractor-args string for yt-dlp. When preferPremium is true, web_music
-// is prepended so YouTube Music's high-quality tier is tried first; this
-// costs latency when Premium isn't actually available, hence the opt-in.
-// tv_embedded currently exposes direct DASH audio formats without requiring a
-// PO token, so it is used as the default client. The older Android and Safari
-// clients can expose URLs that return 403 or no media at all. When premium
-// audio is enabled, web_music is tried before tv_embedded. player_skip=
-// configs,initial_data eliminates redundant Innertube round trips and is
-// always applied.
+// BuildExtractorArgs returns the youtube extractor-args string for yt-dlp.
+// Player clients are left to yt-dlp, whose defaults track YouTube changes
+// through the daily binary refresh; pinning them broke downloads when YouTube
+// changed client requirements. preferPremium adds web_music on top of the
+// defaults for YouTube Music's higher quality tier.
+// player_skip=configs,initial_data skips redundant Innertube round trips.
 func BuildExtractorArgs(preferPremium bool) string {
-	clients := "tv_embedded"
+	const skip = "player_skip=configs,initial_data"
 	if preferPremium {
-		clients = "web_music," + clients
+		return "youtube:player_client=default,web_music;" + skip
 	}
-	return "youtube:player_client=" + clients + ";player_skip=configs,initial_data"
+	return "youtube:" + skip
 }
 
 // HasCookies reports whether a cookies.txt exists in dataDir. Treats stat
@@ -138,7 +134,6 @@ func VerifyCookies(ctx context.Context, ytdlpPath, cookiesPath string) (VerifyRe
 		"--verbose",
 		"--skip-download",
 		"--print", "%(id)s",
-		"--no-warnings",
 		"--no-playlist",
 		"--cookies", cookiesPath,
 		verifyTestURL,
@@ -158,8 +153,12 @@ func VerifyCookies(ctx context.Context, ytdlpPath, cookiesPath string) (VerifyRe
 	var stderr strings.Builder
 	authenticated := false
 	rotated := false
+	killed := false
 	scanner := bufio.NewScanner(stderrPipe)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	// yt-dlp logs the auth marker at startup but checks for rotation only after
+	// each page request, so an authenticated verdict waits until the request
+	// after "Downloading webpage" starts.
 	for scanner.Scan() {
 		line := scanner.Text()
 		stderr.WriteString(line)
@@ -171,12 +170,19 @@ func VerifyCookies(ctx context.Context, ytdlpPath, cookiesPath string) (VerifyRe
 		case strings.Contains(line, "Found YouTube account cookies"):
 			authenticated = true
 		}
-		if rotated || authenticated {
+		firstRequestDone := strings.HasPrefix(line, "[youtube] ") && strings.Contains(line, ": Downloading ") && !strings.Contains(line, "Downloading webpage")
+		if rotated || authenticated && firstRequestDone {
 			_ = cmd.Process.Kill()
+			killed = true
 			break
 		}
 	}
-	_, _ = io.Copy(io.Discard, stderrPipe)
+	// After a kill, a child of yt-dlp's bootloader can hold stderr open until
+	// it finishes, so draining would wait out the whole extraction; Wait
+	// closes the pipe once the killed process exits.
+	if !killed {
+		_, _ = io.Copy(io.Discard, stderrPipe)
+	}
 	waitErr := cmd.Wait()
 	se := stderr.String()
 
@@ -186,7 +192,7 @@ func VerifyCookies(ctx context.Context, ytdlpPath, cookiesPath string) (VerifyRe
 			Detail: "The cookies have expired or been rotated. Export a fresh cookies.txt from a signed-in browser session.",
 		}, nil
 	}
-	if authenticated {
+	if authenticated && !rotated {
 		return VerifyResult{
 			Loaded: true, Authenticated: true,
 			Detail: "Cookies loaded and YouTube recognised an authenticated session.",

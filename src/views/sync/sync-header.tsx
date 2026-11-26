@@ -1,3 +1,4 @@
+import { IconLanguage, IconLock, IconLockOpen, IconPlayerPlayFilled, IconRefresh } from "@tabler/icons-react";
 import type { LanguageTextVariant } from "@/domain/language/display";
 import { useSettingsStore } from "@/stores/settings";
 import { getEffectiveKeysArray } from "@/stores/shortcut-bindings";
@@ -6,7 +7,6 @@ import { InlineKeyBadge } from "@/ui/inline-key-badge";
 import { SegmentedControl } from "@/ui/segmented-control";
 import { ShortcutToggleButton } from "@/ui/shortcut-toggle-button";
 import { AutoAlignDropdown } from "@/views/sync/auto-align-dropdown";
-import { IconLanguage, IconLock, IconLockOpen, IconPlayerPlayFilled, IconRefresh } from "@tabler/icons-react";
 
 // -- Interfaces ---------------------------------------------------------------
 
@@ -57,13 +57,13 @@ const SyncHeader: React.FC<SyncHeaderProps> = ({
       <div className="flex items-center gap-3">
         <div className="tray">
           <ShortcutToggleButton
-            active={textVariant === "transliteration"}
-            label={textVariant === "transliteration" ? "Transliteration" : "Original"}
+            active={textVariant !== "original"}
+            label={textVariant === "both" ? "Both" : textVariant === "transliteration" ? "Transliteration" : "Original"}
             stateInLabel
             shortcut="sync.toggleTextVariant"
             onClick={toggleTextVariant}
             disabled={!hasTransliteration}
-            description="Toggle original / transliteration text"
+            description="Toggle original / transliteration / both text"
           >
             <IconLanguage />
           </ShortcutToggleButton>

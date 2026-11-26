@@ -188,6 +188,7 @@ func main() {
 		func() string { return a.GetConfig().YtdlpBinaryPath },
 		refreshYtdlpVersion,
 	)
+	go ytdlp.RefreshDenoDaily(bgCtx, dataDir)
 	go updater.PollDaily(bgCtx, manifestURL, Version, func(info updater.UpdateInfo) {
 		slog.Info("bridge update available", "version", info.Latest, "current", info.Current)
 		a.SetLatestUpdate(&info)
@@ -294,6 +295,12 @@ func main() {
 						// Proxy external avatar/images to bypass COEP require-corp & CORS
 						if r.URL.Path == "/proxy-image" {
 							handleProxyImage(w, r)
+							return
+						}
+
+						// Proxy Google Translate requests from the desktop app to avoid WebView2 CORS/COEP fetch failures
+						if r.URL.Path == "/google-translate" {
+							handleGoogleTranslateProxy(w, r)
 							return
 						}
 

@@ -11,8 +11,10 @@ import type {
   TranslationBatchResult,
   TransliterationBatchResult,
 } from "@/services/language-provider";
+import { isDesktop } from "@/utils/platform";
 
-const API = "https://translate.googleapis.com/translate_a/single";
+const GOOGLE_TRANSLATE_API = "https://translate.googleapis.com/translate_a/single";
+const DESKTOP_TRANSLATE_PROXY = "/google-translate";
 const LITERAL_DASH_MARKER = "\uE000";
 const SOFT_SEPARATOR_MARKER = "\uE003";
 // Keep project BCP 47 tags outside this boundary; Google uses region aliases.
@@ -62,20 +64,24 @@ function normalizeGoogleTransliteration(value: string): string {
     .replace(new RegExp(SOFT_SEPARATOR_MARKER, "g"), " ");
 }
 
+function apiEndpoint(): string {
+  return isDesktop() ? DESKTOP_TRANSLATE_PROXY : GOOGLE_TRANSLATE_API;
+}
+
 function endpoint(params: Record<string, string>): string {
   const query = new URLSearchParams({ client: "gtx", dt: "t", ...params });
-  return `${API}?${query.toString()}`;
+  return `${apiEndpoint()}?${query.toString()}`;
 }
 
 function romanizationEndpoint(sourceLanguage: string, text: string): string {
   const query = new URLSearchParams({ client: "gtx", sl: sourceLanguage, tl: `${sourceLanguage}-Latn`, q: text });
   query.append("dt", "t");
   query.append("dt", "rm");
-  return `${API}?${query.toString()}`;
+  return `${apiEndpoint()}?${query.toString()}`;
 }
 
 async function fetchJson(url: string, signal?: AbortSignal): Promise<unknown> {
-  const response = await fetch(url, { cache: "force-cache", signal });
+  const response = await fetch(url, { cache: "no-store", signal });
   if (!response.ok) throw new Error(`Google Translate returned ${response.status}`);
   return response.json();
 }
@@ -135,9 +141,14 @@ async function transliterateWithFallback(text: string, sourceLanguage: string, s
   return { ...result, usedLanguage: inferredLanguage ?? result.detectedLanguage ?? preferredLanguage };
 }
 
-async function settleWithLimit<T, R>(items: T[], worker: (item: T) => Promise<R>, limit = 6): Promise<(R | null)[]> {
+async function settleWithLimit<T, R>(
+  items: T[],
+  worker: (item: T) => Promise<R>,
+  limit = 2,
+): Promise<{ results: (R | null)[]; error?: string }> {
   const results: (R | null)[] = new Array(items.length).fill(null);
   let cursor = 0;
+  let firstError: string | undefined;
   async function run() {
     while (cursor < items.length) {
       const index = cursor++;
@@ -145,12 +156,13 @@ async function settleWithLimit<T, R>(items: T[], worker: (item: T) => Promise<R>
         results[index] = await worker(items[index]);
       } catch (error) {
         if ((error as Error).name === "AbortError") throw error;
+        firstError ??= error instanceof Error ? error.message : String(error);
         console.warn("[Languages] Google request failed", error);
       }
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => run()));
-  return results;
+  return { results, error: firstError };
 }
 
 const googleLanguageProvider: LanguageProvider = {
@@ -158,7 +170,7 @@ const googleLanguageProvider: LanguageProvider = {
   async translate(lines, targetLanguage, sourceLanguage, signal): Promise<TranslationBatchResult> {
     const source = googleLanguageCode(sourceLanguage || "auto");
     const target = googleLanguageCode(targetLanguage);
-    const results = await settleWithLimit(lines, (line) => translateOne(line.text, target, source, signal));
+    const { results, error } = await settleWithLimit(lines, (line) => translateOne(line.text, target, source, signal));
     return {
       detectedLanguage: results.find((result) => result?.detectedLanguage)?.detectedLanguage ?? "",
       lines: lines.map((line, index) => ({
@@ -166,11 +178,14 @@ const googleLanguageProvider: LanguageProvider = {
         text: results[index]?.text ?? null,
         ...(results[index] === null ? { failed: true } : {}),
       })),
+      ...(error ? { error } : {}),
     };
   },
   async transliterate(lines, sourceLanguage, signal): Promise<TransliterationBatchResult> {
     const source = googleLanguageCode(sourceLanguage || "auto");
-    const results = await settleWithLimit(lines, (line) => transliterateWithFallback(line.text, source, signal));
+    const { results, error } = await settleWithLimit(lines, (line) =>
+      transliterateWithFallback(line.text, source, signal),
+    );
     const languageCounts = new Map<string, number>();
     for (const result of results) {
       if (!result?.usedLanguage || result.usedLanguage === "auto") continue;
@@ -189,6 +204,7 @@ const googleLanguageProvider: LanguageProvider = {
         segments: results[index]?.segments ?? [],
         ...(results[index] === null ? { failed: true } : {}),
       })),
+      ...(error ? { error } : {}),
     };
   },
 };

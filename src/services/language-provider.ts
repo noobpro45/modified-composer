@@ -22,12 +22,14 @@ interface TransliterationLineResult {
 interface TranslationBatchResult {
   detectedLanguage: string;
   lines: TranslationLineResult[];
+  error?: string;
 }
 
 interface TransliterationBatchResult {
   detectedLanguage: string;
   language: string;
   lines: TransliterationLineResult[];
+  error?: string;
 }
 
 interface LanguageProvider {

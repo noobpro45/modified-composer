@@ -142,10 +142,10 @@ export const BridgeLogModal: React.FC<BridgeLogModalProps> = ({ isOpen, onClose,
       className="max-w-4xl h-[75%] flex flex-col"
       bodyClassName="p-0 flex-1 min-h-0 flex flex-col"
     >
-      <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-composer-border bg-composer-bg shrink-0 text-xs">
+      <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-(--edge) bg-composer-bg shrink-0 text-xs">
         {tab === "logs" ? (
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-composer-input border border-composer-border flex-1 max-w-xs focus-within:border-composer-border-hover">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-(--well) border border-(--edge) flex-1 max-w-xs focus-within:border-composer-border-hover">
               <IconSearch size={13} className="text-composer-text-muted shrink-0" />
               <input
                 type="text"
@@ -249,7 +249,7 @@ export const BridgeLogModal: React.FC<BridgeLogModalProps> = ({ isOpen, onClose,
         )}
       </Scroll>
 
-      <div className="px-5 py-2.5 border-t border-composer-border bg-composer-bg-dark text-xs text-composer-text-muted flex items-center justify-between shrink-0 select-none">
+      <div className="px-5 py-2.5 border-t border-(--edge) bg-composer-bg text-xs text-composer-text-muted flex items-center justify-between shrink-0 select-none">
         <span className="truncate mr-4">Log file: ~/.composer-bridge/bridge.log</span>
         <div className="flex items-center gap-1.5 shrink-0">
           <Button size="sm" variant="ghost" onClick={handleOpenInEditor} title="Open bridge.log in Notepad">

@@ -258,3 +258,73 @@ func TestWithCORS_WailsOriginsAllowedWithPort(t *testing.T) {
 		}
 	}
 }
+
+func TestOriginAllowed_SubdomainWildcard(t *testing.T) {
+	allowed := []string{
+		"https://*.dev.composer.betterlyrics.org",
+		"http://*.preview.example:8080",
+		"https://*",
+		"https://*.com",
+		"https://*.org.",
+		"https://*..net",
+		"https://*.Mixed.Example.org",
+	}
+	cases := []struct {
+		origin string
+		want   bool
+	}{
+		{"https://pr-12.dev.composer.betterlyrics.org", true},
+		{"https://pr-12.dev.composer.betterlyrics.org/", true},
+		{"https://a.b.dev.composer.betterlyrics.org", true},
+		{"http://a.preview.example:8080", true},
+		{"https://a.mixed.example.org", true},
+		{"https://PR-12.dev.composer.betterlyrics.org", true},
+
+		{"https://dev.composer.betterlyrics.org", false},
+		{"https://.dev.composer.betterlyrics.org", false},
+		{"http://pr-12.dev.composer.betterlyrics.org", false},
+		{"https://evildev.composer.betterlyrics.org", false},
+		{"https://pr-12.dev.composer.betterlyrics.org.evil.com", false},
+		{"https://pr-12.dev.composer.betterlyrics.org:8443", false},
+		{"http://a.preview.example", false},
+		{"http://a.preview.example:9090", false},
+		{"https://evil.example", false},
+		{"https://anything.com", false},
+		{"https://evil.org.", false},
+		{"https://evil.x.net", false},
+	}
+	for _, c := range cases {
+		if got := originAllowed(c.origin, allowed); got != c.want {
+			t.Errorf("originAllowed(%q) = %v, want %v", c.origin, got, c.want)
+		}
+	}
+}
+
+func TestOriginAllowed_LoopbackEntryMatchesAnyPort(t *testing.T) {
+	cases := []struct {
+		allowed []string
+		origin  string
+		want    bool
+	}{
+		{[]string{"localhost"}, "http://localhost:3000", true},
+		{[]string{"localhost"}, "https://localhost:8443", true},
+		{[]string{"LOCALHOST"}, "http://localhost/", true},
+		{[]string{"127.0.0.1"}, "http://127.0.0.1:61234", true},
+		{[]string{"http://localhost"}, "http://localhost:5173", true},
+
+		{[]string{"localhost"}, "http://127.0.0.1:3000", false},
+		{[]string{"127.0.0.1"}, "http://localhost:3000", false},
+
+		{[]string{"http://localhost"}, "https://localhost:5173", false},
+		{[]string{"http://localhost:5173"}, "http://localhost:5175", false},
+		{[]string{"localhost"}, "http://localhost.evil.com:3000", false},
+		{[]string{"localhost"}, "http://evil.localhost:3000", false},
+		{[]string{"localhost"}, "ftp://localhost:21", false},
+		{[]string{"https://composer.boidu.dev"}, "http://localhost:3000", false},
+	}
+	for _, c := range cases {
+		if got := originAllowed(c.origin, c.allowed); got != c.want {
+			t.Errorf("originAllowed(%q, %q) = %v, want %v", c.origin, c.allowed, got, c.want)
+		}
+	}
+}

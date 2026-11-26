@@ -1,7 +1,7 @@
+import { describe, expect, it } from "vitest";
 import { useSettingsStore } from "@/stores/settings";
 import { createLine } from "@/test/factories";
 import { buildLaneRows } from "@/views/sync/lane-rows";
-import { describe, expect, it } from "vitest";
 
 const rowFor = (text: string) => {
   const line = createLine({ id: "l0", text });
@@ -64,5 +64,40 @@ describe("buildLaneRows per-line reuse", () => {
 
     useSettingsStore.setState({ splitCharacter: "/" });
     expect(rowsOf(next)[0].wordTexts).toEqual(["Walk|ing", "the", "line"]);
+  });
+
+  it("regression: populates transliteration fields and retains original words when showBoth is true", () => {
+    const line: ReturnType<typeof createLine> = {
+      ...createLine({
+        id: "line-both",
+        text: "こんにちは 世界",
+      }),
+      transliteration: {
+        language: "ja-Latn",
+        origin: "manual",
+        sourceFingerprint: "fp-1",
+        text: "konnichiwa sekai",
+        segments: [{ original: "こんにちは 世界", transliteration: "konnichiwa sekai" }],
+      },
+    };
+    const displayLine = {
+      text: "こんにちは 世界 (konnichiwa sekai)",
+      wordTexts: ["konnichiwa", "sekai"],
+      transliterationWordTexts: ["konnichiwa", "sekai"],
+    };
+    const [row] = buildLaneRows({
+      lines: [line],
+      displayLines: [displayLine],
+      agents: [],
+      groupTags: new Map(),
+      folded: new Set(),
+      showBoth: true,
+    });
+
+    expect(row.showBoth).toBe(true);
+    expect(row.text).toBe("こんにちは 世界");
+    expect(row.wordTexts).toEqual(["こんにちは", "世界"]);
+    expect(row.transliterationText).toBe("konnichiwa sekai");
+    expect(row.transliterationWordTexts).toEqual(["konnichiwa", "sekai"]);
   });
 });

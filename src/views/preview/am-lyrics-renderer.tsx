@@ -5,6 +5,7 @@ import { wake } from "@/lib/frame-loop";
 import { useAudioStore } from "@/stores/audio";
 import { type TimedLineElement, markLinesOutsideFocus, useFocusFade } from "@/views/preview/focus-fade";
 import { LYRICS_ELEMENT_CLASS, type LyricsLayout, OUTSIDE_FOCUS_ATTRIBUTE } from "@/views/preview/lyrics-layout";
+import { parseTTMLContent } from "@braccato/parsers";
 import type { AmLyrics as AmLyricsElement } from "@uimaxbai/am-lyrics";
 import { useEffect, useRef, useState } from "react";
 
@@ -76,6 +77,12 @@ function removeMatchingAlternatesAfterUpdate(el: AmLyricsElement): void {
   void el.updateComplete.then(() => el.updateComplete).then(() => markMatchingAlternateElements(el));
 }
 
+function syncElementLanguage(el: AmLyricsElement, ttml: string): void {
+  const { language } = parseTTMLContent(ttml);
+  if (language) el.lang = language;
+  else el.removeAttribute("lang");
+}
+
 function createAmLyricsElement(ttml: string, songDurationMs: number): AmLyricsElement {
   const el = document.createElement("am-lyrics") as AmLyricsElement;
   // am-lyrics parses our iTunes sidecars, but keeps both alternate tracks
@@ -87,6 +94,8 @@ function createAmLyricsElement(ttml: string, songDurationMs: number): AmLyricsEl
   // Disable its processing hook on this instance: Composer owns generation,
   // and the preview must only render the alternate text already in our TTML.
   Reflect.set(el, "autoProcessLyrics", async () => undefined);
+  el.fontFamily = "var(--font-sans)";
+  syncElementLanguage(el, ttml);
   el.ttml = ttml;
   removeMatchingAlternatesAfterUpdate(el);
   el.songDurationMs = songDurationMs;
@@ -183,6 +192,7 @@ const AmLyricsRenderer: React.FC<AmLyricsRendererProps> = ({
     if (!el) return;
     // react-doctor-disable-next-line react-doctor/no-event-handler
     if (el.ttml !== ttmlString) {
+      syncElementLanguage(el, ttmlString);
       el.ttml = ttmlString;
       removeMatchingAlternatesAfterUpdate(el);
     }

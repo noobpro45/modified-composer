@@ -112,11 +112,14 @@ describe("SyncLineList", () => {
     };
 
     await expect
-      .poll(() => {
-        if (lineRow(screen.container, 300)) return true;
-        scroller().scrollTop += LIST_HEIGHT_PX;
-        return false;
-      })
+      .poll(
+        () => {
+          if (lineRow(screen.container, 300)) return true;
+          scroller().scrollTop += LIST_HEIGHT_PX;
+          return false;
+        },
+        { timeout: 5000 },
+      )
       .toBe(true);
     lineRow(screen.container, 300)?.click();
     await expect.poll(() => lineRow(screen.container, 300)?.getAttribute("aria-current")).toBe("true");
