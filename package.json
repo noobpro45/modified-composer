@@ -43,7 +43,7 @@
     "motion": "^14.8.0",
     "music-metadata": "^12.3.2",
     "nanoid": "^6.0.2",
-    "node-diff3": "^3.2.1",
+    "node-diff3": "^4.0.0",
     "obscenity": "^0.4.6",
     "onnxruntime-web": "^1.31.1",
     "overlayscrollbars": "^2.17.0",
